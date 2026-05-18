@@ -1,0 +1,35 @@
+[
+  {
+    "timestamp": "2026-05-14T17:49:33.004555",
+    "symbol": "BTCUSDT",
+    "asset": "BTC",
+    "side": "BUY",
+    "quantity": 0.01,
+    "entry_price": 81436.0,
+    "reason": "Manual Trader HUD action",
+    "emotional_state": "Disciplined",
+    "status": "PAPER_FILLED"
+  },
+  {
+    "timestamp": "2026-05-14T17:49:34.261059",
+    "symbol": "BTCUSDT",
+    "asset": "BTC",
+    "side": "BUY",
+    "quantity": 0.01,
+    "entry_price": 81436.0,
+    "reason": "Manual Trader HUD action",
+    "emotional_state": "Disciplined",
+    "status": "PAPER_FILLED"
+  },
+  {
+    "timestamp": "2026-05-14T18:08:19.392949",
+    "symbol": "BTCUSDT",
+    "asset": "BTC",
+    "side": "BUY",
+    "quantity": 0.01,
+    "entry_price": 81952.95,
+    "reason": "Manual Trader HUD action",
+    "emotional_state": "Disciplined",
+    "status": "PAPER_FILLED"
+  }
+]

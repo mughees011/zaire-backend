@@ -1,0 +1,29 @@
+{
+  "living_room_light": {
+    "id": "living_room_light",
+    "name": "Living Room Light",
+    "type": "light",
+    "state": "off",
+    "brightness": 100
+  },
+  "study_lamp": {
+    "id": "study_lamp",
+    "name": "Study Lamp",
+    "type": "light",
+    "state": "off",
+    "brightness": 80
+  },
+  "ac_unit": {
+    "id": "ac_unit",
+    "name": "AC Unit",
+    "type": "ac",
+    "state": "off",
+    "temp": 24
+  },
+  "main_door": {
+    "id": "main_door",
+    "name": "Main Door Lock",
+    "type": "lock",
+    "state": "locked"
+  }
+}

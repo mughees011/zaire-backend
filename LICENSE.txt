@@ -1,0 +1,26 @@
+========================================================================
+ZAIRE SOVEREIGN INTELLIGENCE SOFTWARE LICENSE AGREEMENT
+========================================================================
+
+Copyright (c) 2026 ZAIRE Sovereign Sphere. All rights reserved.
+
+1. PROPRIETARY AND LICENSE GRANT:
+Subject to the terms and subscription activations of this Agreement,
+ZAIRE grants you a limited, non-exclusive, non-transferable, and
+hardware-locked license to run the ZAIRE intelligence client.
+
+2. MULTI-DEVICE LOCKING & HARDWARE LIMITS:
+This license is dynamically bound to the unique hardware signature of
+your computer via cryptographic fingerprinting. Standard, monthly,
+and annual tiers limit concurrent active machine nodes. Sharing,
+duplicating, or spoofing license credentials terminates access.
+
+3. DATA & INTELLECTUAL VALUE:
+All neural specialist modes, visual components, computer use systems,
+and custom specialist engines are the exclusive intellectual assets of
+the ZAIRE Sovereign Sphere. Reverse engineering, decompiling, or core 
+cloning is strictly prohibited.
+
+========================================================================
+Thank you for participating in the Sovereign intelligence future.
+========================================================================

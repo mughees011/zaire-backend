@@ -1,0 +1,13 @@
+{
+  "id": "session_1779029864273",
+  "title": "open instagram page",
+  "messages": [
+    {
+      "role": "user",
+      "content": "open instagram page",
+      "timestamp": "2026-05-17T14:59:58.930Z"
+    }
+  ],
+  "createdAt": "2026-05-17T14:57:44.273Z",
+  "updatedAt": "2026-05-17T14:59:58.930Z"
+}

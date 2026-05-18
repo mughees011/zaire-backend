@@ -1,0 +1,41 @@
+{
+  "colors": {
+    "background": "#F7F7F7",
+    "surface": "#FFFFFF",
+    "primary": "#333333",
+    "text_primary": "#333333",
+    "text_secondary": "#666666",
+    "border": "#DDDDDD"
+  },
+  "typography": {
+    "display_font": "Montserrat",
+    "interface_font": "Open Sans",
+    "scale": {
+      "hero": "clamp(48px, 7vw, 96px)",
+      "h1": "clamp(32px, 4vw, 64px)",
+      "h2": "clamp(24px, 3vw, 40px)",
+      "h3": "clamp(18px, 2vw, 28px)",
+      "body": "16px",
+      "small": "13px",
+      "micro": "10px"
+    }
+  },
+  "spacing": {
+    "scale": [
+      4,
+      8,
+      16,
+      24,
+      32,
+      48,
+      64,
+      96,
+      128,
+      160
+    ],
+    "section_gap": "40px",
+    "component_gap": "20px",
+    "card_padding": "20px"
+  },
+  "last_sync": 1778515927.5200803
+}

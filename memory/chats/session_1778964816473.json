@@ -1,0 +1,18 @@
+{
+  "id": "session_1778964816473",
+  "title": "hello Zaheer can you open Inst...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello Zaheer can you open Instagram page",
+      "timestamp": "2026-05-16T20:58:18.426Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, I'm Zaire, not Zaheer. I can guide you to open the Instagram page, but I'm a text-based AI and don't have direct access to your browser. You can open Instagram by typing instagram.com in your browser or using the mobile app.",
+      "timestamp": "2026-05-16T20:58:20.045Z"
+    }
+  ],
+  "createdAt": "2026-05-16T20:53:36.473Z",
+  "updatedAt": "2026-05-16T20:58:20.045Z"
+}

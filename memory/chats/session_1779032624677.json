@@ -1,0 +1,28 @@
+{
+  "id": "session_1779032624677",
+  "title": "Hello can you tell my users wh...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello can you tell my users what you can do",
+      "timestamp": "2026-05-17T15:44:18.746Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, I can perform various tasks such as web searches, running Python code, and organizing information using social and Google tools. I can also analyze your screen, provide real-time facts, and remember important information for you.",
+      "timestamp": "2026-05-17T15:44:20.710Z"
+    },
+    {
+      "role": "user",
+      "content": "Can you tell my users why they should use you and help them know everything about you ZAIRE",
+      "timestamp": "2026-05-17T15:45:22.638Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, I can help your users with various tasks such as web searches, running Python code, and organizing information. My features and benefits include automating workflows, connecting to different apps, and simplifying complex tasks. I also offer AI-powered chatbots and agents for enhanced team collaboration, aiming to save time and reduce complexity for users.",
+      "timestamp": "2026-05-17T15:45:26.429Z"
+    }
+  ],
+  "createdAt": "2026-05-17T15:43:44.677Z",
+  "updatedAt": "2026-05-17T15:45:26.429Z"
+}
