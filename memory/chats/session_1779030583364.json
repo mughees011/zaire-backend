@@ -1,0 +1,13 @@
+{
+  "id": "session_1779030583364",
+  "title": "Hello how are you doing",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello how are you doing",
+      "timestamp": "2026-05-17T15:10:00.604Z"
+    }
+  ],
+  "createdAt": "2026-05-17T15:09:43.364Z",
+  "updatedAt": "2026-05-17T15:10:00.604Z"
+}

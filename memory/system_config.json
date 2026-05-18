@@ -1,0 +1,43 @@
+{
+  "blobColor": "#f97316",
+  "blobSize": 2.5,
+  "blobPosition": {
+    "x": -0.019999013449449245,
+    "y": -1.1661882519864086
+  },
+  "aiVault": {
+    "slots": [
+      {
+        "slot": 1,
+        "provider": "SiliconFlow",
+        "apiKey": "",
+        "hasKey": true,
+        "model": "Code Specialist",
+        "purpose": "Coding",
+        "baseUrl": "",
+        "enabled": true
+      },
+      {
+        "slot": 2,
+        "provider": "Groq",
+        "apiKey": "",
+        "hasKey": true,
+        "model": "Fast",
+        "purpose": "Primary",
+        "baseUrl": "",
+        "enabled": true
+      },
+      {
+        "slot": 3,
+        "provider": "Google Gemini",
+        "apiKey": "",
+        "hasKey": true,
+        "model": "Deep Reasoning",
+        "purpose": "Research",
+        "baseUrl": "",
+        "enabled": false
+      }
+    ],
+    "updatedAt": "2026-05-17T15:02:47.333Z"
+  }
+}

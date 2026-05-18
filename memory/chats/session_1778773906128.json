@@ -1,0 +1,23 @@
+{
+  "id": "session_1778773906128",
+  "title": "hey can you tell me the temper...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hey can you tell me the temperature of next next week",
+      "timestamp": "2026-05-14T15:56:01.205Z"
+    },
+    {
+      "role": "user",
+      "content": "hello can you tell me the temperature of next week",
+      "timestamp": "2026-05-14T15:56:26.210Z"
+    },
+    {
+      "role": "user",
+      "content": "can you tell me the temperature right now",
+      "timestamp": "2026-05-14T15:56:52.494Z"
+    }
+  ],
+  "createdAt": "2026-05-14T15:51:46.128Z",
+  "updatedAt": "2026-05-14T15:56:52.494Z"
+}
