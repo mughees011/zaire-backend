@@ -18,6 +18,14 @@ function generateLicenseKey() {
   return `ZAIRE-${parts.join('-')}`;
 }
 
+function getPlanLimit(plan) {
+  switch (plan) {
+    case 'initiate': return 10000;
+    case 'sovereign': return 50000;
+    default: return 500;
+  }
+}
+
 async function getSubscription(userId) {
   await ensureDb();
   const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
@@ -31,7 +39,8 @@ async function getSubscription(userId) {
       license_key: generateLicenseKey(),
       plan: 'free',
       status: 'active',
-      monthly_requests: 500,
+      monthly_requests: 0,
+      request_limit: getPlanLimit('free'),
       machines: []
     };
     subs.push(sub);
@@ -61,7 +70,8 @@ async function upsertSubscription(data) {
       ...existing,
       ...data,
       license_key: existing.license_key || data.license_key || generateLicenseKey(),
-      machines: existing.machines || data.machines || []
+      machines: existing.machines || data.machines || [],
+      request_limit: existing.request_limit || getPlanLimit(data.plan || existing.plan || 'free')
     };
     subs[index] = record;
   } else {
@@ -69,6 +79,8 @@ async function upsertSubscription(data) {
     record = {
       machines: [],
       license_key: data.license_key || generateLicenseKey(),
+      monthly_requests: 0,
+      request_limit: getPlanLimit(data.plan || 'free'),
       ...data
     };
     subs.push(record);
