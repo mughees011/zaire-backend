@@ -22,7 +22,7 @@ async function getSubscription(userId) {
   await ensureDb();
   const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
   let sub = subs.find(s => s.user_id === userId);
-  
+
   if (!sub) {
     // Automatically provision a new Free tier user on-the-fly!
     sub = {
@@ -38,7 +38,7 @@ async function getSubscription(userId) {
     await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
     console.log(`[AUTOPROVISION] Registered new Free user: ${userId}`);
   }
-  
+
   return sub;
 }
 
@@ -52,25 +52,29 @@ async function upsertSubscription(data) {
   await ensureDb();
   const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
   const index = subs.findIndex(s => s.user_id === data.user_id);
+  let record;
 
   if (index >= 0) {
     // If the record exists, preserve license_key and machines if not explicitly provided
     const existing = subs[index];
-    subs[index] = {
+    record = {
       ...existing,
       ...data,
       license_key: existing.license_key || data.license_key || generateLicenseKey(),
       machines: existing.machines || data.machines || []
     };
+    subs[index] = record;
   } else {
     // If new record, generate a fresh license key and initialize empty machines list
-    subs.push({
+    record = {
       machines: [],
       license_key: data.license_key || generateLicenseKey(),
       ...data
-    });
+    };
+    subs.push(record);
   }
   await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
+  return record;
 }
 
 async function addMachine(licenseKey, machine) {
