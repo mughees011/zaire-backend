@@ -2673,13 +2673,16 @@ app.get('/security', (req, res) => {
 });
 
 app.get('/api/security/status', (req, res) => {
-  res.json({
+
+  return res.json({
+    status: 'online',
     security: false,
     visualEcho: false,
     clipboard: false,
     fileWatcher: false,
-    mode: 'cloud'
+    environment: 'cloud'
   });
+
 });
 
 app.post('/security/intruder', (req, res) => {
