@@ -115,7 +115,8 @@ app.use('/api', lemonWebhook);
 
 app.get('/health', (req, res) => {
   res.json({
-    status: 'online'
+    status: 'online',
+    service: 'ZAIRE backend'
   });
 });
 
@@ -4334,7 +4335,7 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start Server ────────────────────────────────────────────────────────────
-const PORT = 3001;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`\n╔══════════════════════════════════════════╗`);
   console.log(`║  ZAIRE Server — Port ${PORT}          ║`);
