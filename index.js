@@ -2664,6 +2664,24 @@ app.post('/alarm/snooze', async (req, res) => {
 // ─── Tier 5: Security Endpoints ───────────────────────────────────────────────────
 
 // Inbound: face_security.py calls this when an intruder is captured
+app.get('/security', (req, res) => {
+  res.json({
+    status: 'cloud-disabled',
+    service: 'ZAIRE Security',
+    message: 'Security daemon runs only in local desktop mode.'
+  });
+});
+
+app.get('/api/security/status', (req, res) => {
+  res.json({
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    mode: 'cloud'
+  });
+});
+
 app.post('/security/intruder', (req, res) => {
   const { timestamp, snapshot, snapshot_b64 } = req.body;
   console.log(`[SECURITY] 🚨 Intruder event at ${timestamp}`);
