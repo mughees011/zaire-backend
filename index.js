@@ -113,6 +113,9 @@ app.use(['/api/license/validate', '/license/validate'], licenseLimiter);
 const lemonWebhook = require('./routes/lemonsqueezy_webhook');
 app.use('/api', lemonWebhook);
 
+const vaultRouter = require('./routes/vault');
+app.use('/api', vaultRouter);
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
@@ -1010,26 +1013,31 @@ function cleanupOrphans(callback) {
 }
 
 // ─── INITIALIZE ───
-if (process.env.RUN_DAEMONS === 'true') {
-  console.log('[CORE] Starting local ZAIRE daemons...');
-  cleanupOrphans(() => {
-    console.log('[CORE] Initialization sequence starting...');
-    startPythonSidecar();
-    startVectorMemory();
-    startLocalLLM();
-    startProcessMonitor();
-    startClipboard();
-    startFileWatcher();
-    startSysHealth();
-    startAlarmScheduler();
-    startFaceSecurity();
-    startSmartHome();
-    startVisualEcho();
-    startAirLLM();
-  });
-} else {
-  console.log('[CORE] Production mode detected. Skipping local daemons.');
-}
+const { initDatabase } = require('./db_init');
+initDatabase().then(() => {
+  if (process.env.RUN_DAEMONS === 'true') {
+    console.log('[CORE] Starting local ZAIRE daemons...');
+    cleanupOrphans(() => {
+      console.log('[CORE] Initialization sequence starting...');
+      startPythonSidecar();
+      startVectorMemory();
+      startLocalLLM();
+      startProcessMonitor();
+      startClipboard();
+      startFileWatcher();
+      startSysHealth();
+      startAlarmScheduler();
+      startFaceSecurity();
+      startSmartHome();
+      startVisualEcho();
+      startAirLLM();
+    });
+  } else {
+    console.log('[CORE] Production mode detected. Skipping local daemons.');
+  }
+}).catch(err => {
+  console.error('[CORE FATAL] Database initialization failed:', err.message);
+});
 
 function startPythonSidecar() {
   console.log('[AGENT] Starting Gemma 4 Agent Daemon...');

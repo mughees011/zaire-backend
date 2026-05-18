@@ -27,7 +27,42 @@ async function getSubscription(userId) {
         [userId]
     );
 
-    return result.rows[0];
+    let sub = result.rows[0];
+
+    if (!sub) {
+        // Automatically insert a new Free tier user record in DB on-the-fly!
+        const licenseKey = generateLicenseKey();
+        const insertResult = await pool.query(
+            `
+            INSERT INTO subscriptions
+            (
+                user_id,
+                email,
+                license_key,
+                plan,
+                status
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *;
+            `,
+            [
+                userId,
+                userId.includes('@') ? userId : `${userId}@zaire.local`,
+                licenseKey,
+                'free',
+                'active'
+            ]
+        );
+        sub = insertResult.rows[0];
+        console.log(`[AUTOPROVISION] Registered new Free user in DB: ${userId}`);
+    }
+
+    // Attach virtual monthly_requests attribute to the returned subscription
+    if (sub) {
+        sub.monthly_requests = sub.plan === 'free' ? 500 : -1;
+    }
+
+    return sub;
 }
 
 async function getSubscriptionByLicenseKey(licenseKey) {
