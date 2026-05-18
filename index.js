@@ -10,6 +10,8 @@ const { spawn, exec, execFileSync } = require('child_process');
 const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
+const { requireAuth } = require('./middleware/auth');
+const { bootstrapUser } = require('./services/user_bootstrap');
 
 // Global Error Handlers for Stability
 process.on('uncaughtException', (err) => console.error('[FATAL] Uncaught Exception:', err));
@@ -121,6 +123,35 @@ app.get('/health', (req, res) => {
     status: 'online',
     service: 'ZAIRE backend'
   });
+});
+
+app.get('/api/profile', requireAuth, async (req, res) => {
+  const userId = req.auth?.userId || req.auth?.sub || req.auth?.user?.id || null;
+  res.json({
+    success: true,
+    user: userId
+  });
+});
+
+app.post('/api/bootstrap', requireAuth, async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.auth?.sub || req.auth?.user?.id;
+    const result = await bootstrapUser({
+      id: userId,
+      email: req.body?.email
+    });
+
+    res.json({
+      success: true,
+      user: userId,
+      result
+    });
+  } catch (err) {
+    console.error('[BOOTSTRAP ERR]', err);
+    res.status(500).json({
+      error: 'Bootstrap failed'
+    });
+  }
 });
 
 // ─── LemonSqueezy Billing Integration ──────────────────────────────────────────
