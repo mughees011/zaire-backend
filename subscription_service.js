@@ -129,11 +129,30 @@ async function deactivateMachine(licenseKey, machineId) {
   return false;
 }
 
-module.exports = {
-  getSubscription,
-  getSubscriptionByLicenseKey,
-  upsertSubscription,
-  addMachine,
-  deactivateMachine,
-  generateLicenseKey
-};
+async function decrementRequest(userId) {
+  await ensureDb();
+    const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
+    const index = subs.findIndex(s => s.user_id === userId);
+    if (index < 0) return false;
+
+    const sub = subs[index];
+
+    if (sub.plan === 'free') {
+      if (sub.monthly_requests <= 0) {
+        return false; // Out of quota
+      }
+      sub.monthly_requests -= 1;
+      await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
+    }
+    return true; // Pro users or users with remaining quota
+  }
+
+  module.exports = {
+    getSubscription,
+    getSubscriptionByLicenseKey,
+    upsertSubscription,
+    addMachine,
+    deactivateMachine,
+    generateLicenseKey,
+    decrementRequest
+  };
