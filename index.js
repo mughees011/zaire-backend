@@ -80,12 +80,19 @@ app.use(helmet({
 }));
 
 // CORS Setup - restrict origins in production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://golden-sherbet-10b78a.netlify.app/'
+];
+
 app.use(cors({
-  origin: [
-    'https://zaire.ai',
-    'https://www.zaire.ai',
-    'http://localhost:3000'
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 
@@ -435,7 +442,7 @@ setInterval(() => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
