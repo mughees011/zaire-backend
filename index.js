@@ -11,6 +11,7 @@ const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
 const { requireAuth } = require('./middleware/auth');
+const { usageLimit } = require('./middleware/usage_limit');
 const { bootstrapUser } = require('./services/user_bootstrap');
 
 // Global Error Handlers for Stability
@@ -256,7 +257,7 @@ function getFeaturesForPlan(plan) {
   const base = { voice: true, zaire_mode: true };
   const planLower = (plan || '').toLowerCase();
   if (planLower === 'free_trial' || planLower === 'free') {
-    return { ...base, daily_limit: 50 };
+    return { ...base, daily_limit: 30 };
   }
   return {
     ...base,
@@ -943,7 +944,7 @@ app.post('/engineer/echo_detect', async (req, res) => {
 
 // ─── Global Error Handler ────────────────────────────────────────────────────
 
-app.post('/agent/plan_day', async (req, res) => {
+app.post('/agent/plan_day', requireAuth, usageLimit, async (req, res) => {
   console.log('[AGENT] Autonomous Task Chain: Plan My Day initiated.');
   const sockets = Array.from(io.sockets.sockets.values());
   const socket = sockets.length > 0 ? sockets[0] : null;
@@ -975,7 +976,7 @@ app.get('/agent/specialist_data', async (req, res) => {
   }
 });
 
-app.post('/agent/specialist_action', async (req, res) => {
+app.post('/agent/specialist_action', requireAuth, usageLimit, async (req, res) => {
   const { mode, action, payload } = req.body;
   try {
     const response = await fetch(`${SIDECAR_URL}/agent/specialist_action`, {
@@ -2565,7 +2566,7 @@ app.post('/process/kill', async (req, res) => {
 });
 
 // Autonomous task proxy
-app.post('/task/run', async (req, res) => {
+app.post('/task/run', requireAuth, usageLimit, async (req, res) => {
   try {
     const r = await fetch(`${SIDECAR_URL.replace('3002', '3002')}/task/run`, {
       method: 'POST',
