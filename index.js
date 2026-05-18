@@ -1010,21 +1010,26 @@ function cleanupOrphans(callback) {
 }
 
 // ─── INITIALIZE ───
-cleanupOrphans(() => {
-  console.log('[CORE] Initialization sequence starting...');
-  startPythonSidecar();
-  startVectorMemory();
-  startLocalLLM();
-  startProcessMonitor();
-  startClipboard();
-  startFileWatcher();
-  startSysHealth();
-  startAlarmScheduler();
-  startFaceSecurity();
-  startSmartHome();
-  startVisualEcho();
-  startAirLLM();
-});
+if (process.env.RUN_DAEMONS === 'true') {
+  console.log('[CORE] Starting local ZAIRE daemons...');
+  cleanupOrphans(() => {
+    console.log('[CORE] Initialization sequence starting...');
+    startPythonSidecar();
+    startVectorMemory();
+    startLocalLLM();
+    startProcessMonitor();
+    startClipboard();
+    startFileWatcher();
+    startSysHealth();
+    startAlarmScheduler();
+    startFaceSecurity();
+    startSmartHome();
+    startVisualEcho();
+    startAirLLM();
+  });
+} else {
+  console.log('[CORE] Production mode detected. Skipping local daemons.');
+}
 
 function startPythonSidecar() {
   console.log('[AGENT] Starting Gemma 4 Agent Daemon...');
@@ -4336,13 +4341,8 @@ io.on('connection', (socket) => {
 
 // ─── Start Server ────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`\n╔══════════════════════════════════════════╗`);
-  console.log(`║  ZAIRE Server — Port ${PORT}          ║`);
-  console.log(`║  WebSocket: ws://localhost:${PORT}           ║`);
-  console.log(`║  Health:    http://localhost:${PORT}/health   ║`);
-  console.log(`║  Memories:  http://localhost:${PORT}/memories ║`);
-  console.log(`╚══════════════════════════════════════════╝\n`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`ZAIRE backend running on port ${PORT}`);
 });
 
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
