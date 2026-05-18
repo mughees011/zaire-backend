@@ -21,7 +21,25 @@ function generateLicenseKey() {
 async function getSubscription(userId) {
   await ensureDb();
   const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
-  return subs.find(s => s.user_id === userId);
+  let sub = subs.find(s => s.user_id === userId);
+  
+  if (!sub) {
+    // Automatically provision a new Free tier user on-the-fly!
+    sub = {
+      user_id: userId,
+      email: userId.includes('@') ? userId : `${userId}@zaire.local`,
+      license_key: generateLicenseKey(),
+      plan: 'free',
+      status: 'active',
+      monthly_requests: 500,
+      machines: []
+    };
+    subs.push(sub);
+    await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
+    console.log(`[AUTOPROVISION] Registered new Free user: ${userId}`);
+  }
+  
+  return sub;
 }
 
 async function getSubscriptionByLicenseKey(licenseKey) {
