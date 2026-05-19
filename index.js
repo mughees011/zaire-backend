@@ -2672,7 +2672,7 @@ app.get('/security', (req, res) => {
   });
 });
 
-app.get('/api/security/status', (req, res) => {
+app.get('/api/security', (req, res) => {
 
   return res.json({
     status: 'online',
