@@ -81,8 +81,8 @@ app.use(helmet({
 
 // CORS Setup - restrict origins in production
 const allowedOrigins = [
-  'http://localhost:3000',
-  'https://golden-sherbet-10b78a.netlify.app/'
+  // 'http://localhost:3000',
+  'https://zaireai.netlify.app'
 ];
 
 app.use(cors({
@@ -2497,6 +2497,36 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+
+
+app.get('/api/security/status', (req, res) => {
+  console.log('[SAFE ROUTE] /api/security/status hit');
+
+  return res.status(200).json({
+    status: 'online',
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    environment: 'cloud'
+  });
+});
+
+app.get('/api/security', (req, res) => {
+  return res.status(200).json({
+    status: 'online',
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    environment: 'cloud'
+  });
+});
+
+
+
+
 // ─── Tier 2: Inbound Alert Endpoints (called BY the Python sidecars) ─────
 
 // System alerts from process_monitor.py (RAM/CPU/Break reminder)
@@ -2670,19 +2700,6 @@ app.get('/security', (req, res) => {
     service: 'ZAIRE Security',
     message: 'Security daemon runs only in local desktop mode.'
   });
-});
-
-app.get('/api/security', (req, res) => {
-
-  return res.json({
-    status: 'online',
-    security: false,
-    visualEcho: false,
-    clipboard: false,
-    fileWatcher: false,
-    environment: 'cloud'
-  });
-
 });
 
 app.post('/security/intruder', (req, res) => {
