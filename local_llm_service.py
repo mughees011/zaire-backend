@@ -243,17 +243,17 @@ def pull_model():
 @app.route("/llm/smart_chat", methods=["POST"])
 def smart_chat():
     """
-    Smart routing: tries Groq first, falls back to local Ollama.
-    Body: { "messages": [...], "groq_api_key": "...", "model": "llama-3.3-70b-versatile" }
+    Smart routing: uses an explicitly supplied external key only, otherwise falls back to local Ollama.
+    Body: { "messages": [...], "groq_api_key": "...", "model": "Auto" }
     """
     data        = request.get_json()
     messages    = data.get("messages", [])
-    groq_key    = data.get("groq_api_key") or os.getenv("GROQ_API_KEY")
-    groq_model  = data.get("model", "llama-3.3-70b-versatile")
+    groq_key    = data.get("groq_api_key")
+    groq_model  = data.get("model", "Auto")
     temperature = float(data.get("temperature", 0.7))
     max_tokens  = int(data.get("max_tokens", 1024))
 
-    # Try Groq first
+    # Try external Groq only when a caller explicitly supplies a key
     if groq_key:
         try:
             print(f"[LOCAL_LLM] SmartChat → Attempting Groq ({groq_model})...")
@@ -264,7 +264,7 @@ def smart_chat():
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": groq_model,
+                    "model": (groq_model if groq_model and str(groq_model).lower() != "auto" else (os.getenv("GROQ_MODEL") or os.getenv("ZAIRE_DEFAULT_MODEL") or "llama-3.3-70b-versatile")),
                     "messages": messages,
                     "temperature": temperature,
                     "max_tokens": max_tokens

@@ -89,7 +89,7 @@ def _local_llm_available() -> bool:
 
 class SpecialistRouter:
     def __init__(self, unused_api_key=None):
-        self.groq_client = SafeGroqClient(api_key=os.environ.get("GROQ_API_KEY"))
+        self.groq_client = SafeGroqClient(api_key=None)
         
         self.specialists = {
             "TRADER":    TraderSpecialist(self.groq_client),
@@ -100,7 +100,7 @@ class SpecialistRouter:
         }
         self.planner = GOAPPlanner()
         self.active_mode = "ZAIRE"
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "Auto"
 
     def set_mode(self, mode):
         self.active_mode = mode
@@ -250,7 +250,7 @@ class SpecialistRouter:
         Identify which specialists are needed (TRADER, PROFESSOR, ENGINEER).
         Return as a JSON list of keys.
         """
-        director_resp = self._call_with_fallback([{"role": "user", "content": director_prompt}], model="llama-3.1-8b-instant")
+        director_resp = self._call_with_fallback([{"role": "user", "content": director_prompt}], model="Auto")
         
         try:
             needed = json.loads(re.search(r'\[.*\]', director_resp).group())

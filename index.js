@@ -1622,29 +1622,12 @@ function getActiveSlots() {
       const keyPool = [];
       if (vaultKey) keyPool.push(vaultKey);
 
-      // Check env backups
-      const providerLower = s.provider.toLowerCase();
-      let envPrefix = '';
-      if (providerLower === 'groq') envPrefix = 'GROQ_API_KEY';
-      else if (providerLower === 'siliconflow') envPrefix = 'SILICONFLOW_API_KEY';
-      else if (providerLower === 'google gemini') envPrefix = 'GEMINI_API_KEY';
-      else if (providerLower === 'openai') envPrefix = 'OPENAI_API_KEY';
-
-      if (envPrefix) {
-        const mainEnv = process.env[envPrefix];
-        if (mainEnv && !keyPool.includes(mainEnv)) keyPool.push(mainEnv);
-        for (let i = 1; i <= 3; i++) {
-          const envVal = process.env[`${envPrefix}_${i}`];
-          if (envVal && !keyPool.includes(envVal)) keyPool.push(envVal);
-        }
-      }
-
       if (keyPool.length > 0) {
         active.push({
           slot: s.slot,
           provider: s.provider,
           keys: keyPool,
-          model: s.model || 'Auto',
+          model: String(s.model || '').trim(),
           baseUrl: s.baseUrl || ''
         });
       }
@@ -1677,7 +1660,7 @@ async function executeLLMCallWithFailover(options) {
       try {
         if (providerLower === 'groq') {
           const client = new Groq({ apiKey });
-          const useModel = (slot.model && slot.model.toLowerCase() !== 'auto') ? slot.model : (options.model || LLM_MODEL);
+          const useModel = String(slot.model || '').trim() || process.env.GROQ_MODEL || options.model || 'llama-3.3-70b-versatile';
 
           const res = await client.chat.completions.create({
             messages: options.messages,
@@ -1702,7 +1685,7 @@ async function executeLLMCallWithFailover(options) {
           }
 
           const defaultModel = providerLower === 'siliconflow' ? 'deepseek-ai/DeepSeek-V3' : 'gpt-4o-mini';
-          const useModel = (slot.model && slot.model.toLowerCase() !== 'auto') ? slot.model : defaultModel;
+          const useModel = String(slot.model || '').trim() || defaultModel;
 
           const response = await fetch(baseUrl, {
             method: 'POST',
@@ -1735,7 +1718,7 @@ async function executeLLMCallWithFailover(options) {
         }
 
         if (providerLower === 'google gemini') {
-          const useModel = (slot.model && slot.model.toLowerCase() !== 'auto') ? slot.model : "gemini-1.5-flash";
+          const useModel = String(slot.model || '').trim() || "gemini-1.5-flash";
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${useModel}:generateContent?key=${apiKey}`;
 
           const contents = options.messages
@@ -1862,11 +1845,9 @@ class SafeLLMClient {
 
 const safeLLMClientInstance = new SafeLLMClient();
 
-const ensureGroqClient = () => {
+const ensureLLMClient = () => {
   return safeLLMClientInstance;
 };
-const LLM_MODEL = 'llama-3.3-70b-versatile'; // Primary brain (Advanced chat)
-const FAST_MODEL = 'llama-3.1-8b-instant';   // Lite brain (Proactive/Autonomous checks)
 // SIDECAR_URL declared above
 const OBSERVER_URL = 'http://127.0.0.1:3003';
 const VECTOR_MEM_URL = 'http://127.0.0.1:3004';
@@ -3015,7 +2996,7 @@ function sanitizeApiSlots(slots = []) {
         provider,
         apiKey: String(slot?.apiKey || '').trim(),
         hasKey: Boolean(slot?.hasKey),
-        model: String(slot?.model || 'Auto').trim() || 'Auto',
+        model: String(slot?.model || '').trim(),
         purpose: String(slot?.purpose || 'Fallback').trim() || 'Fallback',
         baseUrl: String(slot?.baseUrl || '').trim(),
         enabled: Boolean(slot?.enabled ?? (provider !== 'Empty'))
@@ -3246,8 +3227,8 @@ io.on('connection', (socket) => {
   if (globalProactive) globalProactive.stop();
 
   if (typeof ProactiveService === 'function') {
-    const proactiveGroq = ensureGroqClient();
-    globalProactive = new ProactiveService(socket, proactiveGroq, handleNeuralInterrupt);
+    const proactiveLLM = ensureLLMClient();
+    globalProactive = new ProactiveService(socket, proactiveLLM, handleNeuralInterrupt);
     globalProactive.start();
   } else {
     console.warn('[AGENT] ProactiveService not available. Background monitoring offline.');
@@ -3709,8 +3690,8 @@ io.on('connection', (socket) => {
       conversationHistory = [conversationHistory[0], ...conversationHistory.slice(-5)];
     }
 
-    const groqClient = ensureGroqClient();
-    if (!groqClient) {
+    const llmClient = ensureLLMClient();
+    if (!llmClient) {
       try {
         const fallbackRes = await fetch('http://127.0.0.1:3005/llm/smart_chat', {
           method: 'POST',
@@ -3739,19 +3720,19 @@ io.on('connection', (socket) => {
       // ── 2. First Pass: Tool Execution ──
       let response;
       try {
-        response = await groqClient.chat.completions.create({
+        response = await llmClient.chat.completions.create({
           messages: conversationHistory,
-          model: LLM_MODEL,
+          model: 'Auto',
           tools: TOOLS,
           tool_choice: "auto",
           temperature: 0,
         });
       } catch (err) {
         if (err.status === 429) {
-          console.warn("[GROQ] Main model rate limited. Falling back to 8B...");
-          response = await groqClient.chat.completions.create({
+          console.warn("[LLM] Primary lane rate limited. Retrying with auto failover...");
+          response = await llmClient.chat.completions.create({
             messages: conversationHistory,
-            model: FAST_MODEL,
+            model: 'Auto',
             tools: TOOLS,
             tool_choice: "auto",
             temperature: 0,
@@ -4371,19 +4352,19 @@ io.on('connection', (socket) => {
       // ── 3. Second Pass: Streaming Text Response ──
       let stream;
       try {
-        stream = await groqClient.chat.completions.create({
+        stream = await llmClient.chat.completions.create({
           messages: conversationHistory,
-          model: LLM_MODEL,
+          model: 'Auto',
           temperature: 0.7,
           max_tokens: 300,
           stream: true,
         });
       } catch (err) {
         if (err.status === 429) {
-          console.warn("[GROQ] Streaming pass rate limited. Falling back to 8B...");
-          stream = await groqClient.chat.completions.create({
+          console.warn("[LLM] Streaming lane rate limited. Retrying with auto failover...");
+          stream = await llmClient.chat.completions.create({
             messages: conversationHistory,
-            model: FAST_MODEL,
+            model: 'Auto',
             temperature: 0.7,
             max_tokens: 300,
             stream: true,

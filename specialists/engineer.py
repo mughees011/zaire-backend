@@ -42,7 +42,7 @@ VISION_MODEL = os.getenv(
 class EngineerSpecialist:
     def __init__(self, groq_client):
         self.groq = groq_client
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "Auto"
         self.temp = 0.2
         self.max_tokens = 4096
         
@@ -1390,7 +1390,7 @@ LAYOUT ARCHETYPES:
         
         raw = self._call_groq(
             messages=messages,
-            model="llama-3.3-70b-versatile",
+            model=self.model,
             temperature=0.3,
             max_tokens=3000
         )
@@ -3678,7 +3678,7 @@ LAST CODE:\n{current_code[:3000]}
         
         raw_brief = self._call_groq(
             messages=[{"role": "user", "content": synthesis_prompt}],
-            model="llama-3.3-70b-versatile",
+            model=self.model,
             temperature=0.3,
             max_tokens=2000
         )
@@ -4574,61 +4574,15 @@ LAST CODE:\n{current_code[:3000]}
         elif message.startswith("/morph"):
             yield from self._superpower_morph(message.replace("/morph", "").strip())
         else:
-            # 2. General Conversation / Code Assistance (Frontier Era)
-            models_to_try = [
-                "deepseek-ai/DeepSeek-V4-Flash", 
-                "deepseek-ai/DeepSeek-V4-Pro",
-                "Qwen/Qwen2.5-Coder-32B-Instruct",
-                "llama-3.3-70b-versatile"
-            ]
-            
-            for current_model in models_to_try:
-                try:
-                    # SiliconFlow Routing
-                    if "/" in current_model:
-                        api_key = os.environ.get("SILICONFLOW_API_KEY")
-                        if not api_key: continue
-                        
-                        resp = requests.post(
-                            "https://api.siliconflow.cn/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                            json={
-                                "model": current_model,
-                                "messages": [{"role": "user", "content": prompt}],
-                                "stream": True
-                            },
-                            stream=True,
-                            timeout=30
-                        )
-                        for line in resp.iter_lines():
-                            if line:
-                                line_str = line.decode('utf-8').replace('data: ', '')
-                                if line_str == '[DONE]': break
-                                try:
-                                    data = json.loads(line_str)
-                                    content = data['choices'][0]['delta'].get('content', '')
-                                    if content: yield content
-                                except: continue
-                        return
-
-                    # Groq Routing
-                    completion = self.groq.chat.completions.create(
-                        model=current_model,
-                        messages=[{"role": "user", "content": prompt}],
-                        stream=True
-                    )
-                    for chunk in completion:
-                        content = chunk.choices[0].delta.content
-                        if content:
-                            yield content
-                    return # Exit on success
-                except Exception as e:
-                    if "429" in str(e):
-                        yield f"\n[NEURAL_PULSE] {current_model} saturated. Pivoting to alternative lane...\n"
-                        continue
-                    else:
-                        yield f"\n[ERROR] Shadow link failed: {str(e)}"
-                        return
+            # 2. General Conversation / Code Assistance
+            try:
+                for chunk in call_llm_stream([{"role": "user", "content": prompt}], self.model):
+                    if chunk:
+                        yield chunk
+                return
+            except Exception as e:
+                yield f"\n[ERROR] Shadow link failed: {str(e)}"
+                return
 
     def _superpower_ultraplan(self, query: str):
         """TIER 10 — ULTRAPLAN: SiliconFlow (GLM-5.1) Frontier Reasoning."""

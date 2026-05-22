@@ -12,9 +12,9 @@ const { persistVisualEcho } = require('./memory_service');
  * Triggers socket events when "Neural Interrupts" are required.
  */
 class ProactiveService {
-  constructor(socketClient, groqClient, interruptHandler) {
+  constructor(socketClient, llmClient, interruptHandler) {
     this.socket = socketClient;
-    this.groq = groqClient;
+    this.llm = llmClient;
     this.interruptHandler = interruptHandler;
     this.monitorInterval = null;
     this.lastPrices = {};
@@ -169,13 +169,13 @@ class ProactiveService {
 
     // We use the 70B model for high-fidelity background "thoughts"
     let zaireSpeech = summary;
-    if (this.groq) {
-      const response = await this.groq.chat.completions.create({
+    if (this.llm) {
+      const response = await this.llm.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: summary }
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: 'Auto',
       });
       zaireSpeech = response.choices[0].message.content;
     }
