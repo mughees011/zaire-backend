@@ -6,10 +6,31 @@ const fs = require('fs');
 const path = require('path');
 
 const CHATS_DIR = path.join(__dirname, 'memory', 'chats');
+const SESSION_TITLE_LIMIT = 40;
 
 // Ensure chats directory exists
 if (!fs.existsSync(CHATS_DIR)) {
   fs.mkdirSync(CHATS_DIR, { recursive: true });
+}
+
+function deriveSessionTitle(data = {}) {
+  const existingTitle = String(data.title || '').trim();
+  if (existingTitle && existingTitle !== 'Untitled Chat') {
+    return existingTitle;
+  }
+
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const firstUserMsg = messages.find((message) => message.role === 'user' && String(message.content || '').trim());
+  if (!firstUserMsg) {
+    return 'Untitled Chat';
+  }
+
+  const content = String(firstUserMsg.content || '').replace(/\s+/g, ' ').trim();
+  if (content.length <= SESSION_TITLE_LIMIT) {
+    return content;
+  }
+
+  return `${content.slice(0, SESSION_TITLE_LIMIT).trimEnd()}...`;
 }
 
 /**
@@ -26,7 +47,7 @@ function getSessions() {
         const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         return {
           id: data.id,
-          title: data.title || 'Untitled Chat',
+          title: deriveSessionTitle(data),
           timestamp: data.updatedAt || stats.mtime.toISOString(),
           messageCount: data.messages.length
         };
@@ -46,7 +67,11 @@ function getSession(id) {
   try {
     const filePath = path.join(CHATS_DIR, `${id}.json`);
     if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const session = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return {
+        ...session,
+        title: deriveSessionTitle(session)
+      };
     }
     return null;
   } catch (e) {
@@ -62,14 +87,7 @@ function saveSession(session) {
   try {
     const filePath = path.join(CHATS_DIR, `${session.id}.json`);
     session.updatedAt = new Date().toISOString();
-    
-    // Auto-generate title if it's the first message
-    if ((!session.title || session.title === 'Untitled Chat') && session.messages.length > 0) {
-        const firstUserMsg = session.messages.find(m => m.role === 'user');
-        if (firstUserMsg) {
-            session.title = firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
-        }
-    }
+    session.title = deriveSessionTitle(session);
 
     fs.writeFileSync(filePath, JSON.stringify(session, null, 2), 'utf-8');
     return true;
