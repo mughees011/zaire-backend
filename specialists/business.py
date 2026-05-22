@@ -14,7 +14,7 @@ class BusinessSpecialist:
     def __init__(self, groq_client):
         self.client = groq_client
         self.brand_name = self._load_brand_name()
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "Auto"
         self.history = []
         
         # In a real scenario, these would be fetched from Stripe API, Shopify/WooCommerce API, and Instagram Graph API.

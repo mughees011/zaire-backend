@@ -77,7 +77,7 @@ class TraderSpecialist:
       self.binance_connected = False
       self.using_testnet = os.getenv("BINANCE_TESTNET", "true").lower() == "true"
       self.conversation_history = []
-      self.model = "llama-3.3-70b-versatile" # Fixed decommissioned model
+      self.model = "Auto"
       
       # ── NEXT-GEN: APEX ENGINE STATE ──
       self.apex_active = False
@@ -206,7 +206,7 @@ class TraderSpecialist:
         import json
         raw = self._call_groq(
             messages=messages,
-            model="deepseek-r1-distill-llama-70b",
+            model=self.model,
             temperature=0.3,
             max_tokens=3000
         )

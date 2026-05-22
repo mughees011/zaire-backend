@@ -16,10 +16,6 @@ class ZaireVision:
     Uses Groq's LLaVA for images and text analysis.
     """
     def __init__(self):
-        self.groq_api_key = os.environ.get("GROQ_API_KEY")
-        if not self.groq_api_key:
-            print("[ZAIRE_VISION] WARNING: GROQ_API_KEY not found in environment.")
-        
         self.history = []
         
         self.system_prompt = (
@@ -105,7 +101,7 @@ class ZaireVision:
             if has_images:
                 model = VISION_MODEL
             else:
-                model = "llama-3.1-8b-instant"
+                model = "Auto"
             
             messages = [{"role": "user", "content": full_prompt}]
             response = self.call_groq(model, messages)

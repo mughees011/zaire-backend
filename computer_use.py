@@ -453,8 +453,8 @@ _active_task: dict = {
     "step_num": 0
 }
 
-VISION_MODEL     = "meta-llama/llama-4-scout-17b-16e-instruct"  # multimodal
-FAST_MODEL_TOOL  = "llama-3.1-8b-instant"
+VISION_MODEL     = os.getenv("ZAIRE_VISION_MODEL", "Auto")  # multimodal
+FAST_MODEL_TOOL  = os.getenv("ZAIRE_FAST_MODEL", "Auto")
 MAX_STEPS        = 12   # safety limit — max autonomous actions per task
 
 # ── Vision + Decision ────────────────────────────────────────────────

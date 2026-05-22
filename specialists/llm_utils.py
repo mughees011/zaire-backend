@@ -8,7 +8,7 @@ from groq import Groq
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 # Lane 1: Primary (Groq)
-GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
+GROQ_DEFAULT_MODEL = os.getenv("GROQ_MODEL", "").strip()
 
 # Lane 2: Secondary (SiliconFlow)
 FALLBACK_MODELS = [
@@ -31,7 +31,7 @@ LOCAL_LLM_URL     = "http://127.0.0.1:3005"
 BACKEND_URL       = "http://127.0.0.1:3001"
 
 # Lane 3: Tertiary (OpenAI or Final SiliconFlow Shield)
-TERTIARY_MODEL = "gpt-4o-mini"
+TERTIARY_MODEL = os.getenv("OPENAI_MODEL", "").strip()
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "memory", "system_config.json")
 
 
@@ -64,26 +64,6 @@ def _provider_keys_pool(provider_name: str) -> list:
         if key and key not in keys:
             keys.append(key)
             
-    # 2. Check environment backup variables
-    env_prefix = ""
-    if target == "groq":
-        env_prefix = "GROQ_API_KEY"
-    elif target == "siliconflow":
-        env_prefix = "SILICONFLOW_API_KEY"
-    elif target == "google gemini":
-        env_prefix = "GEMINI_API_KEY"
-    elif target == "openai":
-        env_prefix = "OPENAI_API_KEY"
-        
-    if env_prefix:
-        main_env = os.environ.get(env_prefix, "").strip()
-        if main_env and main_env not in keys:
-            keys.append(main_env)
-        for i in range(1, 4):
-            env_val = os.environ.get(f"{env_prefix}_{i}", "").strip()
-            if env_val and env_val not in keys:
-                keys.append(env_val)
-                
     return keys
 
 
@@ -100,7 +80,7 @@ def _provider_model(provider_name: str, fallback: str = "") -> str:
         if str(s.get("provider", "")).strip().lower() != target:
             continue
         model = str(s.get("model", "")).strip()
-        if model and model.lower() != "auto":
+        if model:
             return model
     return fallback
 
@@ -181,20 +161,20 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
     if not keys_pool:
         return None
 
-    model = slot.get("model", "Auto")
+    model = str(slot.get("model", "")).strip()
 
     for idx, key in enumerate(keys_pool):
         try:
             if provider == "groq":
                 client = Groq(api_key=key)
-                use_model = model if model and model.lower() != "auto" else GROQ_DEFAULT_MODEL
+                use_model = model or GROQ_DEFAULT_MODEL
                 r = client.chat.completions.create(model=use_model, messages=messages, temperature=temperature, max_tokens=max_tokens)
                 return r.choices[0].message.content
 
             if provider in {"openai", "deepseek", "mistral", "azure openai"}:
                 base_url = slot.get("baseUrl", "").strip()
                 headers = {"Content-Type": "application/json"}
-                payload = {"model": model if model and model.lower() != "auto" else "gpt-4o-mini", "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+                payload = {"model": model or os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini", "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
                 if provider == "deepseek" and not base_url:
                     base_url = "https://api.deepseek.com/v1/chat/completions"
                 if provider == "mistral" and not base_url:
@@ -214,7 +194,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
 
             if provider == "anthropic":
                 url = slot.get("baseUrl", "").strip() or "https://api.anthropic.com/v1/messages"
-                use_model = model if model and model.lower() != "auto" else "claude-3-5-sonnet-20241022"
+                use_model = model or os.getenv("ANTHROPIC_MODEL", "").strip() or "claude-3-5-sonnet-20241022"
                 payload = {"model": use_model, "max_tokens": max_tokens, "messages": [m for m in messages if m.get("role") in {"user", "assistant"}]}
                 r = requests.post(url, headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}, json=payload, timeout=45)
                 if r.status_code != 200:
@@ -224,7 +204,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
                 return "".join(texts).strip()
 
             if provider == "google gemini":
-                use_model = model if model and model.lower() != "auto" else "gemini-1.5-flash"
+                use_model = model or os.getenv("GEMINI_MODEL", "").strip() or "gemini-1.5-flash"
                 base = slot.get("baseUrl", "").strip() or f"https://generativelanguage.googleapis.com/v1beta/models/{use_model}:generateContent"
                 payload = {"contents": [{"parts": [{"text": "\n".join([str(m.get("content", "")) for m in messages])}]}]}
                 r = requests.post(f"{base}?key={key}", headers={"content-type": "application/json"}, json=payload, timeout=45)
@@ -238,7 +218,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
 
             if provider == "cohere":
                 url = slot.get("baseUrl", "").strip() or "https://api.cohere.com/v2/chat"
-                use_model = model if model and model.lower() != "auto" else "command-r-plus"
+                use_model = model or os.getenv("COHERE_MODEL", "").strip() or "command-r-plus"
                 payload = {"model": use_model, "messages": messages, "temperature": temperature}
                 r = requests.post(url, headers={"Authorization": f"Bearer {key}", "content-type": "application/json"}, json=payload, timeout=45)
                 if r.status_code != 200:
@@ -250,7 +230,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
                 )
 
             if provider == "siliconflow":
-                use_model = model if model and model.lower() != "auto" else FALLBACK_MODELS[0]
+                use_model = model or FALLBACK_MODELS[0]
                 r = _call_siliconflow(messages, use_model, temperature, max_tokens, stream=False, api_key=key)
                 if not r or r == "RATE_LIMIT":
                     continue
@@ -503,9 +483,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
             try:
                 if provider == 'groq':
                     client = Groq(api_key=key)
-                    use_model = slot.get('model', 'Auto')
-                    if not use_model or str(use_model).lower() == 'auto':
-                        use_model = GROQ_DEFAULT_MODEL
+                    use_model = str(slot.get('model', '')).strip() or GROQ_DEFAULT_MODEL
                     stream = client.chat.completions.create(
                         model=use_model,
                         messages=messages,
@@ -523,9 +501,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
                 if provider in {'openai', 'deepseek', 'mistral', 'azure openai'}:
                     base_url = str(slot.get('baseUrl', '')).strip()
                     headers = {"Content-Type": "application/json"}
-                    use_model = slot.get('model', 'Auto')
-                    if not use_model or str(use_model).lower() == 'auto':
-                        use_model = 'gpt-4o-mini'
+                    use_model = str(slot.get('model', '')).strip() or os.getenv("OPENAI_MODEL", "").strip() or 'gpt-4o-mini'
                     if provider == 'deepseek' and not base_url:
                         base_url = 'https://api.deepseek.com/v1/chat/completions'
                     if provider == 'mistral' and not base_url:
@@ -548,9 +524,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
                         raise Exception(f"HTTP {resp.status_code}")
 
                 if provider == 'siliconflow':
-                    use_model = slot.get('model', 'Auto')
-                    if not use_model or str(use_model).lower() == 'auto':
-                        use_model = FALLBACK_MODELS[0]
+                    use_model = str(slot.get('model', '')).strip() or FALLBACK_MODELS[0]
                     resp = _call_siliconflow(messages, use_model, temperature, max_tokens, stream=True, api_key=key)
                     if resp and resp != 'RATE_LIMIT' and resp.status_code == 200:
                         for tok in _parse_openai_stream(resp):
@@ -596,10 +570,6 @@ class SafeCompletions:
         prompt_length = sum(len(str(m.get('content', ''))) for m in messages)
         optimized_model = model
         
-        # Quota Saver: If small task, use smaller model on Lane 1 to save the 70B quota
-        if prompt_length < 2000 and "llama-3.3-70b" in str(model).lower():
-            optimized_model = "llama-3.1-8b-instant"
-            
         if stream:
             def _mock_stream():
                 for text in call_llm_stream(messages, optimized_model, temperature, max_tokens):

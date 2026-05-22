@@ -10,7 +10,7 @@ from .llm_utils import call_llm_sync, call_llm_stream
 class ProfessorSpecialist:
     def __init__(self, groq_client):
         self.groq = groq_client
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "Auto"
         self.temp = 0.7
         self.max_tokens = 2048
         
@@ -444,7 +444,7 @@ graduate-level insights delivered with elite clarity.
         
         response = self._call_groq(
             messages=messages,
-            model="llama-3.3-70b-versatile",
+            model=self.model,
             temperature=0.4,
             max_tokens=4096
         )
@@ -2347,27 +2347,21 @@ Maintain all factual content. Address the student as 'sir' in the intro line onl
                 img.save(buf, format='PNG')
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-                vision_resp = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
-                             "Content-Type": "application/json"},
-                    json={
-                        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-                        "messages": [{
-                            "role": "user",
-                            "content": [
-                                {"type": "text",
-                                 "text": "Extract ALL mathematical formulas and equations from this image. Return them as plain text using standard math notation (like x^2 for x², sqrt() for square root, etc.). If multiple formulas, list each on a new line."},
-                                {"type": "image_url",
-                                 "image_url": {"url": f"data:image/png;base64,{b64}"}}
-                            ]
-                        }],
-                        "temperature": 0.1,
-                        "max_tokens": 500
-                    },
-                    timeout=20
+                vision_resp = self.groq.chat.completions.create(
+                    model="Auto",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text",
+                             "text": "Extract ALL mathematical formulas and equations from this image. Return them as plain text using standard math notation (like x^2 for x?, sqrt() for square root, etc.). If multiple formulas, list each on a new line."},
+                            {"type": "image_url",
+                             "image_url": {"url": f"data:image/png;base64,{b64}"}}
+                        ]
+                    }],
+                    temperature=0.1,
+                    max_tokens=500
                 )
-                formula_text = vision_resp.json()["choices"][0]["message"]["content"].strip()
+                formula_text = vision_resp.choices[0].message.content.strip()
                 yield f"📐 **Detected Expression:**\n```\n{formula_text}\n```\n\n"
             except Exception as e:
                 yield f"⚠️ Vision OCR failed: {e}. Falling back to text extraction...\n\n"
