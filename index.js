@@ -2,6 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 process.env.TZ = 'Asia/Karachi';
 const express = require('express');
+const app = express();
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -71,8 +72,6 @@ const BRIEFING_COOLDOWN = 4 * 60 * 60 * 1000;
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const app = express();
-
 // Helmet security headers (Tailored for ZAIRE WebApp environment compatibility)
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -103,6 +102,22 @@ app.use(express.json({
   }
 }));
 
+
+
+app.use((req, res, next) => {
+  if (req.path === '/api/security' || req.path === '/api/security/status') {
+    return res.status(200).json({
+      status: 'online',
+      security: false,
+      visualEcho: false,
+      clipboard: false,
+      fileWatcher: false,
+      environment: 'cloud'
+    });
+  }
+
+  next();
+});
 // Express Rate Limiters to prevent brute-force attacks and abuse
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
