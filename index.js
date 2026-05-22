@@ -2579,6 +2579,17 @@ app.get('/api/security', (req, res) => {
   });
 });
 
+app.get('/api/security/status', (req, res) => {
+  return res.status(200).json({
+    status: 'online',
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    environment: 'cloud'
+  });
+});
+
 
 
 
