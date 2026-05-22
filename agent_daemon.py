@@ -523,7 +523,7 @@ async def process_task(task: AgentTask):
 async def set_mode(data: dict):
     global active_permissions
     mode = data.get("mode", "ZAIRE")
-    specialist_router.set_mode(mode)
+    specialist_router.set_mode(mode, data.get("customModeConfig"))
     perms = data.get("permissions")
     if perms:
         active_permissions = {
