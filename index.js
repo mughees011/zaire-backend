@@ -3290,7 +3290,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('MODE_CHANGE', async (data) => {
-    const { mode, permissions, activationLine } = data;
+    const { mode, permissions, activationLine, customModeConfig } = data;
     activeMode = mode;
     console.log(`[MODE] Switching to ${mode} (custom permissions: ${!!permissions})`);
 
@@ -3299,7 +3299,7 @@ io.on('connection', (socket) => {
       await fetch(`${SIDECAR_URL}/agent/set_mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, permissions })
+        body: JSON.stringify({ mode, permissions, customModeConfig })
       });
     } catch (e) {
       console.error('[MODE] Failed to notify sidecar:', e.message);

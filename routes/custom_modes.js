@@ -3,6 +3,38 @@ const { requireAuth } = require('../auth_middleware');
 const pool = require('../db');
 
 const router = express.Router();
+const HIDDEN_MODE_META_PREFIX = '\n[ZAIRE_MODE_META]';
+
+const packModeDescription = (description, metadata = {}) => {
+  const cleanDescription = String(description || '').replace(/\n\[ZAIRE_MODE_META\][A-Za-z0-9+/=]+$/u, '').trim();
+  const cleanMeta = Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  );
+  if (Object.keys(cleanMeta).length === 0) {
+    return cleanDescription;
+  }
+  const encodedMeta = Buffer.from(JSON.stringify(cleanMeta), 'utf8').toString('base64');
+  return `${cleanDescription}${HIDDEN_MODE_META_PREFIX}${encodedMeta}`;
+};
+
+const unpackModeDescription = (rawDescription) => {
+  const text = String(rawDescription || '');
+  const markerIndex = text.lastIndexOf(HIDDEN_MODE_META_PREFIX);
+  if (markerIndex === -1) {
+    return { description: text, metadata: {} };
+  }
+
+  const description = text.slice(0, markerIndex).trim();
+  const encodedMeta = text.slice(markerIndex + HIDDEN_MODE_META_PREFIX.length).trim();
+
+  try {
+    const metadata = JSON.parse(Buffer.from(encodedMeta, 'base64').toString('utf8'));
+    return { description, metadata: metadata && typeof metadata === 'object' ? metadata : {} };
+  } catch (err) {
+    console.warn('[CUSTOM MODES META WARN] Failed to parse embedded metadata:', err.message);
+    return { description: text, metadata: {} };
+  }
+};
 
 /**
  * GET /api/custom_modes
@@ -20,15 +52,18 @@ router.get('/custom_modes', requireAuth, async (req, res) => {
         [mode.id]
       );
       const permissionsRes = await pool.query('SELECT * FROM mode_permissions WHERE mode_id = $1', [mode.id]);
+      const { description, metadata } = unpackModeDescription(mode.description);
 
       return {
         id: mode.id,
         name: mode.name,
-        desc: mode.description,
+        desc: description,
         color: mode.color,
         capabilities: mode.capabilities || [],
         persona: mode.persona,
         goals: mode.goals,
+        neverDo: metadata.neverDo || '',
+        expertBlueprint: metadata.expertBlueprint || null,
         preferredOutput: mode.preferred_output,
         routingPriority: mode.routing_priority,
         enabled: mode.enabled,
@@ -77,6 +112,8 @@ router.post('/custom_modes', requireAuth, async (req, res) => {
     capabilities,
     persona,
     goals,
+    neverDo,
+    expertBlueprint,
     preferredOutput,
     routingPriority,
     enabled,
@@ -92,6 +129,7 @@ router.post('/custom_modes', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const packedDescription = packModeDescription(desc, { neverDo, expertBlueprint });
 
     // 1. Insert/Update custom_modes
     await client.query(`
@@ -114,7 +152,7 @@ router.post('/custom_modes', requireAuth, async (req, res) => {
       id,
       userId,
       name,
-      desc,
+      packedDescription,
       color || '#00d4ff',
       JSON.stringify(capabilities || []),
       persona,
@@ -181,6 +219,7 @@ router.post('/custom_modes', requireAuth, async (req, res) => {
 router.put('/custom_modes/:id', requireAuth, async (req, res) => {
   const userId = req.user.id;
   const modeId = req.params.id;
+  let ownerCheck;
   const {
     enabled,
     name,
@@ -189,6 +228,8 @@ router.put('/custom_modes/:id', requireAuth, async (req, res) => {
     capabilities,
     persona,
     goals,
+    neverDo,
+    expertBlueprint,
     preferredOutput,
     routingPriority,
     components,
@@ -196,7 +237,7 @@ router.put('/custom_modes/:id', requireAuth, async (req, res) => {
   } = req.body;
 
   try {
-    const ownerCheck = await pool.query('SELECT user_id FROM custom_modes WHERE id = $1', [modeId]);
+    ownerCheck = await pool.query('SELECT user_id, description FROM custom_modes WHERE id = $1', [modeId]);
     if (ownerCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Mode not found' });
     }
@@ -211,6 +252,14 @@ router.put('/custom_modes/:id', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const existingMode = ownerCheck.rows[0];
+    const currentDescState = unpackModeDescription(existingMode.description);
+    const nextDescription = desc !== undefined ? desc : currentDescState.description;
+    const nextMeta = {
+      ...currentDescState.metadata,
+      ...(neverDo !== undefined ? { neverDo } : {}),
+      ...(expertBlueprint !== undefined ? { expertBlueprint } : {})
+    };
 
     const sets = [];
     const vals = [];
@@ -218,7 +267,10 @@ router.put('/custom_modes/:id', requireAuth, async (req, res) => {
 
     if (enabled !== undefined) { sets.push(`enabled = $${valIdx++}`); vals.push(enabled); }
     if (name !== undefined) { sets.push(`name = $${valIdx++}`); vals.push(name); }
-    if (desc !== undefined) { sets.push(`description = $${valIdx++}`); vals.push(desc); }
+    if (desc !== undefined || neverDo !== undefined || expertBlueprint !== undefined) {
+      sets.push(`description = $${valIdx++}`);
+      vals.push(packModeDescription(nextDescription, nextMeta));
+    }
     if (color !== undefined) { sets.push(`color = $${valIdx++}`); vals.push(color); }
     if (capabilities !== undefined) { sets.push(`capabilities = $${valIdx++}`); vals.push(JSON.stringify(capabilities)); }
     if (persona !== undefined) { sets.push(`persona = $${valIdx++}`); vals.push(persona); }

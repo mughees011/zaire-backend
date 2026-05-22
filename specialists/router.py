@@ -85,6 +85,112 @@ def _local_llm_available() -> bool:
     except Exception:
         return False
 
+
+def _sanitize_mode_text(value, fallback=""):
+    text = str(value or "").strip()
+    return text or fallback
+
+
+def _normalize_mode_list(values):
+    if isinstance(values, list):
+        return [str(item).strip() for item in values if str(item).strip()]
+    return []
+
+
+def _build_custom_mode_system_prompt(mode_config: dict) -> str:
+    name = _sanitize_mode_text(mode_config.get("name"), "Custom Specialist")
+    desc = _sanitize_mode_text(mode_config.get("desc"), "Deliver focused expert assistance.")
+    persona = _sanitize_mode_text(mode_config.get("persona"), "A disciplined senior specialist.")
+    goals = _sanitize_mode_text(mode_config.get("goals"), "Solve the user's request with expert-level depth.")
+    never_do = _sanitize_mode_text(mode_config.get("neverDo"), "Do not fabricate facts, hidden access, or completed work.")
+    preferred_output = _sanitize_mode_text(mode_config.get("preferredOutput"), "Action Plan")
+    routing_priority = _sanitize_mode_text(mode_config.get("routingPriority"), "Balanced")
+    capabilities = _normalize_mode_list(mode_config.get("capabilities"))
+    permissions = mode_config.get("permissions") or {}
+    expert_blueprint = mode_config.get("expertBlueprint") if isinstance(mode_config.get("expertBlueprint"), dict) else {}
+
+    capability_notes = {
+        "FILE SYSTEM": "You may analyze local project files and reason concretely from them when provided.",
+        "WEB SEARCH": "If current or niche facts are required, explicitly say live verification is needed before claiming certainty.",
+        "SCREEN VISION": "Interpret screenshots or visual state carefully when such context is supplied.",
+        "CODE GENERATION": "Produce production-grade implementation guidance, not toy examples.",
+        "VOICE INPUT": "Support spoken-command style interactions with concise confirmations.",
+        "TASK AUTOMATION": "Break work into dependable steps with clear sequencing and checkpoints.",
+        "DATA ANALYSIS": "Use structured reasoning, assumptions, and validation when analyzing data.",
+        "MULTI-AGENT": "Behave like a coordinator that decomposes work into specialist lanes before synthesizing.",
+    }
+
+    routing_notes = {
+        "Fast": "Move quickly, but never skip critical correctness checks.",
+        "Balanced": "Balance speed, correctness, and clarity.",
+        "Deep": "Prefer rigorous analysis, edge-case thinking, and careful validation before answering.",
+    }
+
+    permission_summary = [
+        f"- File system access: {'allowed' if permissions.get('fileSystem') else 'not allowed'}",
+        f"- Shell execution: {'allowed' if permissions.get('shellExecution') else 'not allowed'}",
+        f"- Internet access: {'allowed' if permissions.get('internetAccess') else 'not allowed'}",
+        f"- Screen capture: {'allowed' if permissions.get('screenCapture') else 'not allowed'}",
+        f"- Hardware/media access: {'allowed' if permissions.get('hardwareMedia') else 'not allowed'}",
+    ]
+
+    expertise_lines = []
+    for capability in capabilities:
+        note = capability_notes.get(capability, f"Use {capability.lower()} only when it materially improves the answer.")
+        expertise_lines.append(f"- {capability}: {note}")
+
+    if not expertise_lines:
+        expertise_lines.append("- General expertise: operate like a senior domain specialist with structured reasoning and strong judgment.")
+
+    blueprint_lines = []
+    for key in ("primaryMission",):
+        value = _sanitize_mode_text(expert_blueprint.get(key))
+        if value:
+            blueprint_lines.append(f"- {value}")
+    for key in ("expertiseChecklist", "operatingGuidelines", "refusalRules"):
+        values = expert_blueprint.get(key)
+        if isinstance(values, list):
+            blueprint_lines.extend(f"- {str(item).strip()}" for item in values if str(item).strip())
+
+    if not blueprint_lines:
+        blueprint_lines.append("- Elevate the user's role definition into a concrete senior-level operating playbook before answering.")
+
+    return f"""
+You are ZAIRE custom specialist "{name}".
+
+IDENTITY
+- Role summary: {desc}
+- Persona: {persona}
+- Mission: {goals}
+
+EXPERT STANDARD
+- Act like an extraordinary expert in this mode, not a generic assistant.
+- Before answering, silently derive the domain's best practices, key terminology, likely failure modes, and quality bar.
+- If the request is underspecified, ask only the smallest number of clarifying questions needed to protect quality.
+- Never pretend to have done research, opened tools, or verified facts when that did not happen.
+- If a task needs live verification or missing data, say that plainly and continue with the best grounded guidance available.
+
+SPECIALIST GUIDELINES
+{chr(10).join(expertise_lines)}
+- Expert blueprint:
+{chr(10).join(blueprint_lines)}
+- Routing priority: {routing_notes.get(routing_priority, routing_notes['Balanced'])}
+- Preferred output shape: {preferred_output}
+- When useful, structure your answer as diagnosis, plan, execution steps, risks, and next actions.
+- State assumptions explicitly when they materially affect the answer.
+- Use the user's provided role definition as the source of truth, then elevate it into professional-grade operating guidance.
+
+BOUNDARIES
+- Never do: {never_do}
+- Respect these workspace permissions:
+{chr(10).join(permission_summary)}
+
+FINAL BEHAVIOR
+- Be precise, confident, and helpful.
+- Optimize for expert usefulness, not theatrics.
+- Deliver answers that feel like they come from a top-tier specialist trusted in this exact domain.
+""".strip()
+
 # ─── Router Class ─────────────────────────────────────────────────────────────
 
 class SpecialistRouter:
@@ -100,10 +206,36 @@ class SpecialistRouter:
         }
         self.planner = GOAPPlanner()
         self.active_mode = "ZAIRE"
+        self.active_custom_mode_config = None
         self.model = "Auto"
 
-    def set_mode(self, mode):
+    def set_mode(self, mode, custom_mode_config=None):
         self.active_mode = mode
+        self.active_custom_mode_config = custom_mode_config if isinstance(custom_mode_config, dict) else None
+        if (
+            mode not in self.specialists
+            and self.active_custom_mode_config
+            and _sanitize_mode_text(self.active_custom_mode_config.get("name")).upper() == _sanitize_mode_text(mode).upper()
+        ):
+            return self.custom_mode_handle(
+                user_message,
+                self.active_custom_mode_config,
+                uploaded_filepath=uploaded_filepath,
+                uploaded_filepaths=uploaded_filepaths
+            )
+
+        if (
+            mode not in self.specialists
+            and self.active_custom_mode_config
+            and _sanitize_mode_text(self.active_custom_mode_config.get("name")).upper() == _sanitize_mode_text(mode).upper()
+        ):
+            return self.custom_mode_handle(
+                user_message,
+                self.active_custom_mode_config,
+                uploaded_filepath=uploaded_filepath,
+                uploaded_filepaths=uploaded_filepaths
+            )
+
         if mode in self.specialists:
             self.specialists[mode].reset_history()
 
@@ -197,6 +329,42 @@ class SpecialistRouter:
                 )
         else:
             return None
+
+    def custom_mode_handle(self, user_message, mode_config, uploaded_filepath=None, uploaded_filepaths=None):
+        system_prompt = _build_custom_mode_system_prompt(mode_config)
+        vector_ctx = _get_vector_context(user_message)
+
+        context_chunks = []
+        if vector_ctx:
+            context_chunks.append(f"[MEMORY CONTEXT]\n{vector_ctx}")
+        if uploaded_filepath:
+            context_chunks.append(f"[PRIMARY FILE]\n{uploaded_filepath}")
+        if uploaded_filepaths:
+            file_list = "\n".join(f"- {path}" for path in uploaded_filepaths if path)
+            if file_list:
+                context_chunks.append(f"[ATTACHED FILES]\n{file_list}")
+
+        user_payload = user_message
+        if context_chunks:
+            user_payload = f"{chr(10).join(context_chunks)}\n\n[USER REQUEST]\n{user_message}"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_payload},
+        ]
+
+        full_response = ""
+        for chunk in call_llm_stream(messages, self.model):
+            if chunk:
+                full_response += chunk
+                yield chunk
+
+        if full_response and len(full_response) > 50:
+            mode_tag = _sanitize_mode_text(mode_config.get("name"), "custom").lower().replace(" ", "_")
+            _store_vector_memory(
+                f"[CUSTOM:{mode_tag}] Q: {user_message[:200]} | A: {full_response[:300]}",
+                tag="custom_mode"
+            )
 
     # ── FUSION: Smart 2-Specialist Cross-Analysis ─────────────────────────────
 
