@@ -4,7 +4,7 @@
 ; ==========================================
 
 !define APP_NAME "ZAIRE Sovereign Intelligence"
-!define APP_VERSION "2.0.0"
+!define APP_VERSION "1.0"
 !define APP_PUBLISHER "ZAIRE Sovereign Sphere"
 !define APP_EXE "zaire_boot.py"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ZAIRE"
