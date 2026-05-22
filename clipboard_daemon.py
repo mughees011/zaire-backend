@@ -107,7 +107,7 @@ def _classify(text: str) -> str:
     return "text"
 
 
-# ─── Groq Analysis ───────────────────────────────────────────────────────────
+# ─── Analysis ───────────────────────────────────────────────────────────
 
 def _ai_call(prompt: str) -> str:
     """Call the active AI Vault providers via shared multi-provider lane routing."""

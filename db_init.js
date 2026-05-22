@@ -52,6 +52,59 @@ async function initDatabase() {
       );
     `);
     console.log('[DATABASE] ✓ secure user_vault table checked.');
+
+    // 4. Create custom_modes table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS custom_modes (
+        id              TEXT PRIMARY KEY,
+        user_id         TEXT NOT NULL,
+        name            TEXT NOT NULL,
+        description     TEXT,
+        color           TEXT DEFAULT '#00d4ff',
+        capabilities    JSONB DEFAULT '[]'::jsonb,
+        persona         TEXT,
+        goals           TEXT,
+        preferred_output TEXT,
+        routing_priority TEXT DEFAULT 'Balanced',
+        enabled         BOOLEAN DEFAULT true,
+        source          TEXT DEFAULT 'custom',
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_custom_modes_user_id ON custom_modes(user_id);`);
+    console.log('[DATABASE] ✓ custom_modes table checked.');
+
+    // 5. Create mode_components table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mode_components (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        mode_id         TEXT NOT NULL REFERENCES custom_modes(id) ON DELETE CASCADE,
+        component_type  TEXT NOT NULL,
+        layout_zone     TEXT NOT NULL,
+        position_index  INT DEFAULT 0,
+        created_at      TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mode_components_mode_id ON mode_components(mode_id);`);
+    console.log('[DATABASE] ✓ mode_components table checked.');
+
+    // 6. Create mode_permissions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mode_permissions (
+        mode_id         TEXT PRIMARY KEY REFERENCES custom_modes(id) ON DELETE CASCADE,
+        file_system     BOOLEAN DEFAULT false,
+        shell_execution BOOLEAN DEFAULT false,
+        internet_access BOOLEAN DEFAULT true,
+        cost_warnings   BOOLEAN DEFAULT true,
+        screen_capture  BOOLEAN DEFAULT false,
+        hardware_media  BOOLEAN DEFAULT false,
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log('[DATABASE] ✓ mode_permissions table checked.');
+
     console.log('[DATABASE] Database schema migration completed successfully.');
   } catch (err) {
     console.error('[DATABASE ERR] Migration failed:', err.message);

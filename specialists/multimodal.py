@@ -4,6 +4,11 @@ import time
 from typing import List, Dict
 from .llm_utils import call_llm_sync, call_llm_stream
 
+VISION_MODEL = os.getenv(
+    "ZAIRE_VISION_MODEL",
+    os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+)
+
 class ZaireVision:
     """
     ZaireVision: The "Stark" eye for complex artifacts.
@@ -66,7 +71,7 @@ class ZaireVision:
                                     ]
                                 }
                             ]
-                            vision_result = self.call_groq("llama-3.2-90b-vision-preview", messages)
+                            vision_result = self.call_groq(VISION_MODEL, messages)
                             analysis_parts.append(f"[IMAGE: {file_name}]\n{vision_result}")
                         except Exception as e:
                             analysis_parts.append(f"[IMAGE ERROR: {file_name}] {str(e)}")
@@ -98,7 +103,7 @@ class ZaireVision:
 
             # Use Groq for text processing (using a fast model for analysis)
             if has_images:
-                model = "llama-3.2-90b-vision-preview"
+                model = VISION_MODEL
             else:
                 model = "llama-3.1-8b-instant"
             

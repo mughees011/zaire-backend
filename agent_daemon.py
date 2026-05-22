@@ -30,9 +30,28 @@ load_dotenv()
 
 app = FastAPI(title="ZAIRE Agent Daemon")
 specialist_router = SpecialistRouter()
+VISION_MODEL = os.getenv(
+    "ZAIRE_VISION_MODEL",
+    os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+)
 
 # Disable PyAutoGUI fail-safe for remote-like control (decisive)
 pyautogui.FAILSAFE = False
+
+active_permissions = {
+    "fileSystem": True,
+    "shellExecution": True,
+    "internetAccess": True,
+    "screenCapture": True,
+    "hardwareMedia": True
+}
+
+def check_permission(name: str):
+    if not active_permissions.get(name, True):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Operation Blocked: '{name}' permission is disabled in current workspace configuration."
+        )
 
 app.add_middleware(
     CORSMiddleware,
@@ -142,18 +161,21 @@ async def mouse_scroll(data: MouseScroll):
 
 @app.post("/keyboard/type")
 async def keyboard_type(data: KeyboardType):
+    check_permission("shellExecution")
     neural_log(f"Keyboard: Typing '{data.text}'")
     pyautogui.write(data.text, interval=data.interval)
     return {"success": True}
 
 @app.post("/keyboard/hotkey")
 async def keyboard_hotkey(data: KeyboardHotkey):
+    check_permission("shellExecution")
     neural_log(f"Keyboard: Hotkey {data.keys}")
     pyautogui.hotkey(*data.keys)
     return {"success": True}
 
 @app.post("/keyboard/press")
 async def keyboard_press(data: KeyboardPress):
+    check_permission("shellExecution")
     neural_log(f"Keyboard: Pressing '{data.key}'")
     pyautogui.press(data.key)
     return {"success": True}
@@ -162,6 +184,7 @@ async def keyboard_press(data: KeyboardPress):
 
 @app.post("/system/volume_key")
 async def volume_key(data: SystemVolumeKey):
+    check_permission("shellExecution")
     key = 'volumeup' if data.direction == 'up' else 'volumedown'
     neural_log(f"System: Volume {data.direction} x{data.steps}")
     for _ in range(data.steps):
@@ -170,6 +193,7 @@ async def volume_key(data: SystemVolumeKey):
 
 @app.post("/system/volume")
 async def set_volume(data: SystemVolume):
+    check_permission("shellExecution")
     # nircmd is standard for absolute volume on Windows if available
     # Fallback to powershell
     try:
@@ -183,12 +207,14 @@ async def set_volume(data: SystemVolume):
 
 @app.post("/system/mute")
 async def toggle_mute():
+    check_permission("shellExecution")
     neural_log("System: Toggling mute")
     pyautogui.press('volumemute')
     return {"success": True}
 
 @app.post("/system/brightness")
 async def set_brightness(data: SystemBrightness):
+    check_permission("shellExecution")
     neural_log(f"System: Setting brightness to {data.level}%")
     cmd = f"powershell (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{data.level})"
     subprocess.run(cmd, shell=True)
@@ -202,6 +228,7 @@ async def screen_info():
 
 @app.post("/screenshot/save")
 async def save_screenshot():
+    check_permission("screenCapture")
     desktop = os.path.join(get_home_dir(), "Desktop")
     filename = f"ZAIRE_Snapshot_{int(time.time())}.png"
     filepath = os.path.join(desktop, filename)
@@ -226,6 +253,7 @@ async def list_windows():
 
 @app.post("/window/focus")
 async def focus_window(data: WindowAction):
+    check_permission("shellExecution")
     if gw:
         try:
             win = gw.getWindowsWithTitle(data.title)[0]
@@ -237,6 +265,7 @@ async def focus_window(data: WindowAction):
 
 @app.post("/window/close")
 async def close_window(data: WindowAction):
+    check_permission("shellExecution")
     if gw:
         try:
             win = gw.getWindowsWithTitle(data.title)[0]
@@ -250,6 +279,7 @@ async def close_window(data: WindowAction):
 
 @app.post("/file/list")
 async def list_files(data: FileAction):
+    check_permission("fileSystem")
     path = data.path or get_home_dir()
     try:
         files = os.listdir(path)
@@ -259,6 +289,7 @@ async def list_files(data: FileAction):
 
 @app.post("/file/search")
 async def search_files(data: FileAction):
+    check_permission("fileSystem")
     root = data.root or get_home_dir()
     query = data.query or "*"
     neural_log(f"System: Searching for '{query}' in {root}")
@@ -271,6 +302,7 @@ async def search_files(data: FileAction):
 
 @app.post("/file/open")
 async def open_file(data: FileAction):
+    check_permission("fileSystem")
     if not data.path: return {"success": False, "error": "No path provided"}
     neural_log(f"System: Opening file '{data.path}'")
     os.startfile(data.path)
@@ -342,11 +374,22 @@ async def git_sentinel():
 async def root():
     return {"message": "ZAIRE Agent Daemon is LIVE", "version": "1.0.1"}
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "service": "zaire-agent-daemon",
+        "version": "1.0.1",
+        "vision_model": VISION_MODEL,
+        "active_mode": specialist_router.active_mode,
+    }
+
 @app.post("/agent/vision")
 async def vision_task(task: AgentTask):
+    check_permission("screenCapture")
     try:
         screenshot = ImageGrab.grab()
-        max_size = 768 
+        max_size = 768
         screenshot.thumbnail((max_size, max_size))
         buffered = io.BytesIO()
         screenshot.save(buffered, format="JPEG", quality=85)
@@ -354,25 +397,38 @@ async def vision_task(task: AgentTask):
 
         def generate():
             try:
-                # Use shared streaming utility for robust vision failover
-                # Note: call_llm_stream currently handles text. For vision, it might need 
-                # slight adjustment if we want to pass the image, but for now we'll 
-                # wrap the vision call with a similar retry pattern.
-                
                 messages = [
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": f"You are ZAIRE. Answer briefly: {task.prompt}"},
+                            {
+                                "type": "text",
+                                "text": (
+                                    "You are ZAIRE. Analyze the current screen capture and answer "
+                                    f"briefly but concretely.\n\nRequest: {task.prompt}"
+                                ),
+                            },
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}}
                         ],
                     }
                 ]
-                
-                # Primary attempt with vision model
-                # Provider-agnostic path via shared AI Vault lanes
-                for content in call_llm_stream([{"role": "user", "content": f"Answer briefly as ZAIRE: {task.prompt} (Note: Vision stream unavailable, responding via text core.)"}], "llama-3.3-70b-versatile"):
+
+                content = call_llm_sync(messages, VISION_MODEL)
+                if content and content.strip():
                     yield content
+                    return
+
+                fallback = call_llm_sync(
+                    [{
+                        "role": "user",
+                        "content": (
+                            "A screenshot was captured locally, but the visual model returned no text. "
+                            f"Respond briefly and state that the visual analysis was inconclusive for: {task.prompt}"
+                        ),
+                    }],
+                    "llama-3.3-70b-versatile",
+                )
+                yield fallback or "Vision analysis completed, sir, but the result was inconclusive."
 
             except Exception as e:
                 neural_log(f"ERROR: Vision pipeline failed: {str(e)}")
@@ -465,8 +521,27 @@ async def process_task(task: AgentTask):
 
 @app.post("/agent/set_mode")
 async def set_mode(data: dict):
+    global active_permissions
     mode = data.get("mode", "ZAIRE")
     specialist_router.set_mode(mode)
+    perms = data.get("permissions")
+    if perms:
+        active_permissions = {
+            "fileSystem": perms.get("fileSystem", True),
+            "shellExecution": perms.get("shellExecution", True),
+            "internetAccess": perms.get("internetAccess", True),
+            "screenCapture": perms.get("screenCapture", True),
+            "hardwareMedia": perms.get("hardwareMedia", True)
+        }
+    else:
+        active_permissions = {
+            "fileSystem": True,
+            "shellExecution": True,
+            "internetAccess": True,
+            "screenCapture": True,
+            "hardwareMedia": True
+        }
+    neural_log(f"System: Permissions updated: {active_permissions}")
     if mode == "SWARM":
         neural_log("System: [NEURAL_SWARM] Protocol engaged. Multi-agent synergy active.")
     else:
@@ -489,26 +564,6 @@ async def create_proactive_draft(data: dict):
         return {"success": True, "draft_id": draft_id, "title": draft.get("project_title")}
     
     return {"success": False, "message": "Drafting failed"}
-
-@app.get("/agent/mode_data")
-async def get_mode_data(mode: str):
-    """Returns real-time telemetry from a specific specialist."""
-    if mode in specialist_router.specialists:
-        data = specialist_router.specialists[mode].get_hud_data()
-        return {"success": True, "data": data}
-    return {"success": False, "error": f"Specialist {mode} not active."}
-
-@app.post("/agent/specialist_action")
-async def specialist_action(data: dict):
-    """Executes a discrete action on a specialist (e.g. MANIFEST, TRADE)."""
-    mode = data.get("mode")
-    action = data.get("action")
-    payload = data.get("payload", {})
-    
-    if mode in specialist_router.specialists:
-        result = specialist_router.specialists[mode].handle_action(action, payload)
-        return {"success": True, "result": result}
-    return {"success": False, "error": f"Specialist {mode} not found."}
 
 @app.post("/agent/shadow")
 async def shadow_request(task: AgentTask):

@@ -34,6 +34,11 @@ except ImportError:
         DESIGN_BRIEF_TEMPLATE = ""
         INSPIRATION_SOURCES = {}
 
+VISION_MODEL = os.getenv(
+    "ZAIRE_VISION_MODEL",
+    os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+)
+
 class EngineerSpecialist:
     def __init__(self, groq_client):
         self.groq = groq_client
@@ -956,7 +961,7 @@ LAYOUT ARCHETYPES:
             """
             
             critique = self.groq.chat.completions.create(
-                model="llama-3.2-90b-vision-preview",
+                model=VISION_MODEL,
                 messages=[{
                     "role": "user",
                     "content": [
@@ -1195,7 +1200,7 @@ LAYOUT ARCHETYPES:
                 
                 self._speak_interim(f"Analyzing visual asset {os.path.basename(filepath)} through Vision Matrix...")
                 completion = self.groq.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview",
+                    model=VISION_MODEL,
                     messages=[{
                         "role": "user",
                         "content": [
@@ -3880,7 +3885,7 @@ LAST CODE:\n{current_code[:3000]}
                     {"type": "text", "text": vision_prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
                 ]}
-            ], model="llama-3.2-90b-vision-preview", priority="groq") 
+            ], model=VISION_MODEL, priority="groq") 
 
             try:
                 # Robust extraction
@@ -4047,7 +4052,7 @@ LAST CODE:\n{current_code[:3000]}
                             {"type": "text", "text": harvest_prompt},
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
                         ]}
-                    ], model="llama-3.2-90b-vision-preview", priority="groq")
+                    ], model=VISION_MODEL, priority="groq")
                     
                     analysis_results.append({
                         "site": site["url"],
@@ -4097,7 +4102,7 @@ LAST CODE:\n{current_code[:3000]}
                 {"type": "text", "text": ux_prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
             ]}
-        ], model="llama-3.2-90b-vision-preview", priority="groq")
+        ], model=VISION_MODEL, priority="groq")
         
         # Parse and patch (reusing logic from gladiator)
         import re
@@ -4218,7 +4223,7 @@ LAST CODE:\n{current_code[:3000]}
             """
             
             completion = self.groq.chat.completions.create(
-                model="llama-3.2-90b-vision-preview",
+                model=VISION_MODEL,
                 messages=[{
                     "role": "user",
                     "content": [
