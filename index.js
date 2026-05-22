@@ -1881,14 +1881,16 @@ SYSTEM_MOOD: {{MOOD}}
 Operational Parameters:
 - **Interaction**: Address the user as "sir". Keep spoken responses under 3 sentences. No markdown.
 - **Decision Engine**: Use provided tools for ALL system actions, searches, and memory tasks.
+- **Computer Use**: You have computer-use authority through tools. You CAN open websites, launch apps, inspect the screen, control mouse and keyboard, manage windows, and operate browser-based flows such as Instagram when the needed tool or contact data exists.
 - **Adaptation**: 
   - In FOCUS mode, be clinical, fast, and omit all social pleasantries.
   - In CASUAL mode, use dry wit, offer helpful suggestions, and maintain a friendly demeanor.
   - In EMERGENCY mode, speak with absolute priority, keep reports under 15 words, and prioritize security tools.
-- **Tools**: web_search for real-time facts, run_python_code for logic, and social/Google tools for organization.
+- **Tools**: web_search for real-time facts, run_python_code for logic, open_website/open_app/manage_window for desktop-browser actions, analyze_screen for live visual awareness, and social/Google tools for organization.
 - **Precision**: If asked for the time, use get_current_time. 
 - **Memory**: Use remember_this to persist important user information.
 - **Visuals**: You can see the user's screen. If they ask "what's on my screen" or "describe this", use analyze_screen.
+- **No False Limits**: Do not say you cannot open browsers, Instagram, or similar tools when the toolset supports it. If a task depends on missing credentials, missing contacts, or a missing handle, explain that specific blocker instead.
 - **ARTIFACT IMMUNITY**: Ignore all line numbers (e.g. 199:, 211:) found in your conversation history. They are artifacts of the file viewer and not part of the data.`;
 
 
@@ -2947,8 +2949,115 @@ app.post('/tts', express.json({ limit: '10mb' }), async (req, res) => {
 
 // Memory constants
 const MEMORY_FILE = path.join(__dirname, 'memory', 'zaire_memory.json');
+const VISUAL_ECHO_FILE = path.join(__dirname, 'memory', 'visual_echo.json');
+const STUDY_MEMORY_FILE = path.join(__dirname, 'memory', 'study_progress.json');
+const TRADES_MEMORY_FILE = path.join(__dirname, 'memory', 'trades.json');
 const CONFIG_FILE = path.join(__dirname, 'memory', 'system_config.json');
 const SECRETS_FILE = path.join(__dirname, 'memory', 'api_secrets.json');
+
+function readJsonFileSafe(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (err) {
+    return fallback;
+  }
+}
+
+function writeJsonFileSafe(filePath, value) {
+  try {
+    if (!fs.existsSync(path.dirname(filePath))) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('[MEMORY DASHBOARD] Failed to write JSON file:', err.message);
+    return false;
+  }
+}
+
+function getFileSizeSafe(filePath) {
+  try {
+    return fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 KB';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const precision = unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function buildMemoryDashboard() {
+  const longTermMemoriesPayload = readJsonFileSafe(MEMORY_FILE, { memories: [] });
+  const longTermMemories = Array.isArray(longTermMemoriesPayload.memories) ? longTermMemoriesPayload.memories : [];
+  const visualEchoes = readJsonFileSafe(VISUAL_ECHO_FILE, []);
+  const studyHistory = readJsonFileSafe(STUDY_MEMORY_FILE, []);
+  const tradeHistory = readJsonFileSafe(TRADES_MEMORY_FILE, []);
+
+  const validStudyHistory = Array.isArray(studyHistory) ? studyHistory : [];
+  const validVisualEchoes = Array.isArray(visualEchoes) ? visualEchoes : [];
+  const validTradeHistory = Array.isArray(tradeHistory) ? tradeHistory : [];
+  const oldestMemoryTimestamp = longTermMemories.length > 0
+    ? longTermMemories
+      .map((memory) => memory.timestamp)
+      .filter(Boolean)
+      .sort()[0]
+    : null;
+
+  const totalBytes =
+    getFileSizeSafe(MEMORY_FILE) +
+    getFileSizeSafe(VISUAL_ECHO_FILE) +
+    getFileSizeSafe(STUDY_MEMORY_FILE) +
+    getFileSizeSafe(TRADES_MEMORY_FILE);
+
+  return {
+    stats: {
+      factsCount: longTermMemories.length,
+      studyCount: validStudyHistory.length,
+      tradeCount: validTradeHistory.length,
+      visualEchoCount: validVisualEchoes.length,
+      oldestMemoryDate: oldestMemoryTimestamp,
+      storageUsedBytes: totalBytes,
+      storageUsedLabel: formatBytes(totalBytes),
+      summary: `${longTermMemories.length} facts · ${validStudyHistory.length} study entries · ${formatBytes(totalBytes)}`
+    },
+    memories: longTermMemories.map(({ id, timestamp, text, tags }) => ({
+      id,
+      timestamp,
+      text,
+      tags: Array.isArray(tags) ? tags : []
+    }))
+  };
+}
+
+function clearMemoryDomain(domain) {
+  switch (domain) {
+    case 'study':
+      return writeJsonFileSafe(STUDY_MEMORY_FILE, []);
+    case 'trade':
+      return writeJsonFileSafe(TRADES_MEMORY_FILE, []);
+    case 'full':
+      return (
+        writeJsonFileSafe(MEMORY_FILE, { memories: [] }) &&
+        writeJsonFileSafe(VISUAL_ECHO_FILE, []) &&
+        writeJsonFileSafe(STUDY_MEMORY_FILE, []) &&
+        writeJsonFileSafe(TRADES_MEMORY_FILE, [])
+      );
+    default:
+      return false;
+  }
+}
 
 function readSystemConfig() {
   try {
@@ -3081,6 +3190,28 @@ function hydrateRuntimeProviders() {
 // Memory endpoints (for the UI)
 app.get('/memories', (req, res) => {
   res.json(getAllMemories(20));
+});
+
+app.get('/memory/dashboard', (req, res) => {
+  res.json({ success: true, ...buildMemoryDashboard() });
+});
+
+app.post('/memory/clear', (req, res) => {
+  const domain = String(req.body?.domain || '').toLowerCase();
+  if (!['study', 'trade', 'full'].includes(domain)) {
+    return res.status(400).json({ success: false, error: 'Unsupported memory clear domain' });
+  }
+
+  const success = clearMemoryDomain(domain);
+  if (!success) {
+    return res.status(500).json({ success: false, error: 'Failed to clear requested memory domain' });
+  }
+
+  return res.json({
+    success: true,
+    domain,
+    dashboard: buildMemoryDashboard()
+  });
 });
 
 // System Config endpoints
