@@ -16,7 +16,7 @@ import os, uuid, threading, time, json
 from pathlib import Path
 from typing import Dict, Any
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 # Optional EventBus integration
@@ -177,13 +177,19 @@ def briefing_status(job_id: str):
     job = _jobs.get(job_id)
     if not job:
         return jsonify({"success": False, "error": "job not found"}), 404
+    pdf_path = job.get("pdf_path")
+    audio_path = job.get("audio_path")
     return jsonify({
         "success": True,
         "status": job["status"],
-        "pdf_url": job.get("pdf_path"),
-        "audio_url": job.get("audio_path"),
+        "pdf_url": f"/briefing/assets/{Path(pdf_path).name}" if pdf_path else None,
+        "audio_url": f"/briefing/assets/{Path(audio_path).name}" if audio_path else None,
         "error": job.get("error"),
     })
+
+@app.get("/briefing/assets/<path:filename>")
+def briefing_asset(filename: str):
+    return send_from_directory(ASSET_DIR, filename, as_attachment=False)
 
 if __name__ == "__main__":
     print("[BRIEFING] Weekly Intelligence Briefing service listening on 3088")

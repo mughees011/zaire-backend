@@ -126,6 +126,9 @@ app.use('/api', lemonWebhook);
 const vaultRouter = require('./routes/vault');
 app.use('/api', vaultRouter);
 
+const customModesRouter = require('./routes/custom_modes');
+app.use('/api', customModesRouter);
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
@@ -214,7 +217,7 @@ app.post('/billing/checkout', async (req, res) => {
     res.json({ checkoutUrl });
   } catch (error) {
     console.error("Billing Route Error:", error);
-    res.status(500).json({ error: "Failed to create checkout" });
+    res.status(500).json({ error: error.message || "Failed to create checkout" });
   }
 });
 
@@ -1069,6 +1072,9 @@ initDatabase().then(() => {
       startFaceSecurity();
       startSmartHome();
       startVisualEcho();
+      startSelfHealingDaemon();
+      startWeeklyBriefingService();
+      startWeeklyBriefingScheduler();
       startAirLLM();
     });
   } else {
@@ -1167,6 +1173,72 @@ function startVisualEcho() {
     console.log(`[VISUAL ECHO] Exited with code ${code}. Restarting...`);
     setTimeout(startVisualEcho, 5000);
   });
+}
+
+let selfHealingProc = null;
+let weeklyBriefingProc = null;
+let weeklyBriefingReady = false;
+let lastWeeklyBriefingKey = null;
+
+function startSelfHealingDaemon() {
+  console.log('[GUARDIAN] Starting Self-Healing Daemon...');
+  const scriptPath = path.join(__dirname, 'self_healing_daemon.py');
+  selfHealingProc = spawn('python', [scriptPath], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+  });
+  selfHealingProc.stdout.on('data', (data) => console.log(`[GUARDIAN] ${data.toString().trim()}`));
+  selfHealingProc.stderr.on('data', (data) => console.error(`[GUARDIAN ERR] ${data.toString().trim()}`));
+  selfHealingProc.on('exit', (code) => {
+    console.warn(`[GUARDIAN] Exited with code ${code}. Restarting in 5s...`);
+    setTimeout(startSelfHealingDaemon, 5000);
+  });
+}
+
+function startWeeklyBriefingService() {
+  console.log('[WEEKLY] Starting Weekly Briefing Service...');
+  const scriptPath = path.join(__dirname, 'weekly_briefing.py');
+  weeklyBriefingProc = spawn('python', [scriptPath], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+  });
+  weeklyBriefingProc.stdout.on('data', (data) => {
+    const msg = data.toString().trim();
+    if (msg.includes('3088')) weeklyBriefingReady = true;
+    console.log(`[WEEKLY] ${msg}`);
+  });
+  weeklyBriefingProc.stderr.on('data', (data) => console.error(`[WEEKLY ERR] ${data.toString().trim()}`));
+  weeklyBriefingProc.on('exit', (code) => {
+    weeklyBriefingReady = false;
+    console.warn(`[WEEKLY] Exited with code ${code}. Restarting in 5s...`);
+    setTimeout(startWeeklyBriefingService, 5000);
+  });
+}
+
+function startWeeklyBriefingScheduler() {
+  setInterval(async () => {
+    try {
+      if (!weeklyBriefingReady) return;
+      const cfg = readSystemConfig();
+      const weeklyCfg = cfg?.briefings?.weekly || {};
+      if (weeklyCfg.enabled === false) return;
+      const day = Number.isInteger(weeklyCfg.dayOfWeek) ? weeklyCfg.dayOfWeek : 1;
+      const hour = Number.isInteger(weeklyCfg.hour) ? weeklyCfg.hour : 8;
+      const minute = Number.isInteger(weeklyCfg.minute) ? weeklyCfg.minute : 0;
+      const now = new Date();
+      const key = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}-${day}`;
+      if (now.getDay() !== day || now.getHours() !== hour || now.getMinutes() !== minute) return;
+      if (lastWeeklyBriefingKey === key) return;
+      lastWeeklyBriefingKey = key;
+      console.log('[WEEKLY] Scheduled weekly briefing trigger fired.');
+      await fetch('http://127.0.0.1:3088/briefing/generate', { method: 'POST' });
+      io.emit('neural_log', { content: 'System: Weekly briefing generation started.' });
+    } catch (err) {
+      console.error('[WEEKLY ERR] Scheduled weekly trigger failed:', err.message);
+    }
+  }, 60000);
 }
 
 function startObserverDaemon() {
@@ -3175,12 +3247,8 @@ io.on('connection', (socket) => {
 
   if (typeof ProactiveService === 'function') {
     const proactiveGroq = ensureGroqClient();
-    if (proactiveGroq) {
-      globalProactive = new ProactiveService(socket, proactiveGroq, handleNeuralInterrupt);
-      globalProactive.start();
-    } else {
-      console.warn('[AGENT] ProactiveService paused. Groq client not configured in AI Vault.');
-    }
+    globalProactive = new ProactiveService(socket, proactiveGroq, handleNeuralInterrupt);
+    globalProactive.start();
   } else {
     console.warn('[AGENT] ProactiveService not available. Background monitoring offline.');
   }
@@ -3241,16 +3309,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('MODE_CHANGE', async (data) => {
-    const { mode } = data;
+    const { mode, permissions, activationLine } = data;
     activeMode = mode;
-    console.log(`[MODE] Switching to ${mode}`);
+    console.log(`[MODE] Switching to ${mode} (custom permissions: ${!!permissions})`);
 
     // Notify Python sidecar
     try {
       await fetch(`${SIDECAR_URL}/agent/set_mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode })
+        body: JSON.stringify({ mode, permissions })
       });
     } catch (e) {
       console.error('[MODE] Failed to notify sidecar:', e.message);
@@ -3266,7 +3334,7 @@ io.on('connection', (socket) => {
       "SETTINGS": "System calibration mode active. Ready for HUD reconfiguration."
     };
 
-    const line = activationLines[mode] || activationLines["ZAIRE"];
+    const line = activationLine || activationLines[mode] || `Custom workspace ${mode} loaded. Dynamic component grid active, sir.`;
     socket.emit('ai_text_delta', line);
     socket.emit('ai_text_complete', { fullText: line });
 
