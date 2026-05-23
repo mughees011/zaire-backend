@@ -24,6 +24,11 @@ const {
   runQuickAction
 } = require('./services/socket_command_service');
 
+let sidecarProcess = null;
+let observerProc = null;
+let vectorMemoryProc = null;
+let localLLMProc = null;
+
 // Global Error Handlers for Stability
 process.on('uncaughtException', (err) => console.error('[FATAL] Uncaught Exception:', err));
 process.on('unhandledRejection', (reason) => console.error('[FATAL] Unhandled Rejection:', reason));
@@ -95,21 +100,10 @@ const allowedOrigins = [
   'https://zaireai.netlify.app'
 ];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+app.use(cors({
+  origin: allowedOrigins,
   credentials: true
-};
-
-app.use(cors(corsOptions));
-app.options('/.*/', cors(corsOptions));
+}));
 
 // Global capture for rawBody to support cryptographic webhook validations
 app.use(express.json({
@@ -1098,7 +1092,6 @@ const { rememberFact, recallMemories, getAllMemories, forgetMemory, buildMemoryC
 const chatHistoryService = require('./chat_history_service');
 
 // ─── Python Sidecar Management ────────────────────────────────────────────────
-let sidecarProcess = null;
 let sidecarReady = false;
 let isBriefingInProgress = false;
 
@@ -1206,8 +1199,6 @@ function startPythonSidecar() {
   });
 }
 
-
-let observerProc = null;
 
 function startAirLLM() {
   console.log('[AIRLLM] Initializing Deep Intelligence Bridge (Port 3012)...');
@@ -1324,7 +1315,6 @@ function startObserverDaemon() {
 // startObserverDaemon(); // Disabled in favor of Tier 5 face_security.py
 
 // ─── Tier 1: Vector Memory Sidecar ───────────────────────────────────────────
-let vectorMemoryProc = null;
 let vectorMemoryReady = false;
 
 function startVectorMemory() {
@@ -1361,7 +1351,6 @@ function startVectorMemory() {
 
 
 // ─── Tier 1: Local LLM Fallback Sidecar ──────────────────────────────────────
-let localLLMProc = null;
 let localLLMReady = false;
 
 function startLocalLLM() {
@@ -4292,25 +4281,15 @@ function cleanupAndExit(code = 0) {
   console.log('[SHUTDOWN] Cleaning up tactical resources...');
 
   const processesToKill = [
-    typeof sidecarProcess !== 'undefined' ? sidecarProcess : null,
-    typeof observerProc !== 'undefined' ? observerProc : null,
-    typeof vectorMemoryProc !== 'undefined' ? vectorMemoryProc : null,
-    typeof localLLMProc !== 'undefined' ? localLLMProc : null,
-    typeof processMonProc !== 'undefined' ? processMonProc : null,
-    typeof clipboardProc !== 'undefined' ? clipboardProc : null,
-    typeof fileWatcherProc !== 'undefined' ? fileWatcherProc : null,
-    typeof sysHealthProc !== 'undefined' ? sysHealthProc : null,
-    typeof alarmProc !== 'undefined' ? alarmProc : null,
-    typeof securityProc !== 'undefined' ? securityProc : null,
-    typeof smartHomeProc !== 'undefined' ? smartHomeProc : null,
-    typeof visualEchoProc !== 'undefined' ? visualEchoProc : null,
+    sidecarProcess,
+    observerProc,
+    vectorMemoryProc,
+    localLLMProc,
   ].filter(Boolean);
 
   processesToKill.forEach((proc) => {
     try {
-      if (!proc.killed) {
-        proc.kill();
-      }
+      proc.kill();
     } catch (err) {
       console.warn('[SHUTDOWN] Failed to kill process:', err.message);
     }
