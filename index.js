@@ -7,13 +7,22 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const Groq = require('groq-sdk');
-const { spawn, exec, execFileSync } = require('child_process');
+const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
 const { requireAuth } = require('./middleware/auth');
 const { usageLimit } = require('./middleware/usage_limit');
 const { bootstrapUser } = require('./services/user_bootstrap');
+const {
+  readSystemConfig,
+  hydrateRuntimeProviders,
+  mergeAndSaveSystemConfig
+} = require('./services/system_config_service');
+const {
+  forwardSpecialistAction,
+  runQuickAction
+} = require('./services/socket_command_service');
 
 // Global Error Handlers for Stability
 process.on('uncaughtException', (err) => console.error('[FATAL] Uncaught Exception:', err));
@@ -80,11 +89,13 @@ app.use(helmet({
 
 // CORS Setup - restrict origins in production
 const allowedOrigins = [
-  // 'http://localhost:3000',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://golden-sherbet-10b78a.netlify.app',
   'https://zaireai.netlify.app'
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
@@ -92,8 +103,13 @@ app.use(cors({
 
     return callback(new Error('Not allowed by CORS'));
   },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Global capture for rawBody to support cryptographic webhook validations
 app.use(express.json({
@@ -104,7 +120,7 @@ app.use(express.json({
 
 
 
-app.use('/api/security', (req, res) => {
+app.get('/api/security/bootstrap', (req, res) => {
   return res.status(200).json({
     status: 'online',
     security: false,
@@ -139,11 +155,32 @@ app.use('/api', vaultRouter);
 
 const customModesRouter = require('./routes/custom_modes');
 app.use('/api', customModesRouter);
+const healthRoutes = require('./routes/health');
+const authRoutes = require('./routes/auth');
+const memoryRoutes = require('./routes/memory');
+const securityRoutes = require('./routes/security');
+const modeRoutes = require('./routes/modes');
+const agentRoutes = require('./routes/agents');
+const configRoutes = require('./routes/config');
+const llmRoutes = require('./routes/llm');
+const chatRoutes = require('./routes/chats');
+
+app.use('/health', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/memory', memoryRoutes);
+app.use('/memory', memoryRoutes);
+app.use('/memories', memoryRoutes);
+app.use('/api/security', securityRoutes);
+app.use('/api/modes', modeRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/config', configRoutes);
+app.use('/llm', llmRoutes);
+app.use('/chats', chatRoutes);
 
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
-    service: 'ZAIRE backend'
+    uptime: process.uptime()
   });
 });
 
@@ -220,15 +257,28 @@ function verifyLemonSqueezyWebhook(req, res, next) {
 
 app.post('/billing/checkout', async (req, res) => {
   try {
-    const { userId, userEmail } = req.body;
-    if (!userId || !userEmail) {
-      return res.status(400).json({ error: "Missing userId or userEmail" });
+    const { plan } = req.body;
+
+    const checkoutUrls = {
+      initiate: process.env.LEMONSQUEEZY_INITIATE_CHECKOUT_URL,
+      sovereign: process.env.LEMONSQUEEZY_SOVEREIGN_CHECKOUT_URL
+    };
+
+    const checkoutUrl = checkoutUrls[plan];
+
+    if (!checkoutUrl) {
+      return res.status(400).json({
+        error: 'Invalid or missing checkout URL'
+      });
     }
-    const checkoutUrl = await billingService.generateProCheckout(userId, userEmail);
-    res.json({ checkoutUrl });
+
+    return res.json({ checkoutUrl });
   } catch (error) {
-    console.error("Billing Route Error:", error);
-    res.status(500).json({ error: error.message || "Failed to create checkout" });
+    console.error('[CHECKOUT ERROR]', error);
+
+    return res.status(500).json({
+      error: 'Checkout failed'
+    });
   }
 });
 
@@ -1606,32 +1656,15 @@ async function* parseSSEResponse(response) {
 
 function getActiveSlots() {
   try {
-    const configPath = path.join(__dirname, 'memory', 'system_config.json');
-    const secretsPath = path.join(__dirname, 'memory', 'api_secrets.json');
-    if (!fs.existsSync(configPath)) return [];
-    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8') || '{}');
-    const secrets = fs.existsSync(secretsPath) ? JSON.parse(fs.readFileSync(secretsPath, 'utf-8') || '{}') : { slots: {} };
-
-    const slots = Array.isArray(cfg?.aiVault?.slots) ? cfg.aiVault.slots : [];
+    const slots = hydrateRuntimeProviders();
     const active = [];
 
     slots.forEach((s, idx) => {
       if (!s.enabled || s.provider === 'Empty') return;
 
-      // Decrypt slot key if it exists
-      let vaultKey = '';
-      const enc = secrets.slots?.[String(idx)]?.key || '';
-      if (enc) {
-        try {
-          vaultKey = dpapiDecrypt(enc);
-        } catch (e) {
-          console.error(`[FAILOVER] Decrypt failed for slot ${idx}:`, e.message);
-        }
-      }
-
       // Gather pool of keys
       const keyPool = [];
-      if (vaultKey) keyPool.push(vaultKey);
+      if (s.apiKey) keyPool.push(s.apiKey);
 
       if (keyPool.length > 0) {
         active.push({
@@ -2969,358 +3002,9 @@ app.post('/tts', express.json({ limit: '10mb' }), async (req, res) => {
   }
 });
 
-// Memory constants
-const MEMORY_FILE = path.join(__dirname, 'memory', 'zaire_memory.json');
-const VISUAL_ECHO_FILE = path.join(__dirname, 'memory', 'visual_echo.json');
-const STUDY_MEMORY_FILE = path.join(__dirname, 'memory', 'study_progress.json');
-const TRADES_MEMORY_FILE = path.join(__dirname, 'memory', 'trades.json');
-const CONFIG_FILE = path.join(__dirname, 'memory', 'system_config.json');
-const SECRETS_FILE = path.join(__dirname, 'memory', 'api_secrets.json');
 
-function readJsonFileSafe(filePath, fallback) {
-  try {
-    if (!fs.existsSync(filePath)) return fallback;
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch (err) {
-    return fallback;
-  }
-}
-
-function writeJsonFileSafe(filePath, value) {
-  try {
-    if (!fs.existsSync(path.dirname(filePath))) {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    }
-    fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8');
-    return true;
-  } catch (err) {
-    console.error('[MEMORY DASHBOARD] Failed to write JSON file:', err.message);
-    return false;
-  }
-}
-
-function getFileSizeSafe(filePath) {
-  try {
-    return fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
-  } catch (err) {
-    return 0;
-  }
-}
-
-function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return '0 KB';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const precision = unitIndex === 0 ? 0 : 1;
-  return `${value.toFixed(precision)} ${units[unitIndex]}`;
-}
-
-function buildMemoryDashboard() {
-  const longTermMemoriesPayload = readJsonFileSafe(MEMORY_FILE, { memories: [] });
-  const longTermMemories = Array.isArray(longTermMemoriesPayload.memories) ? longTermMemoriesPayload.memories : [];
-  const visualEchoes = readJsonFileSafe(VISUAL_ECHO_FILE, []);
-  const studyHistory = readJsonFileSafe(STUDY_MEMORY_FILE, []);
-  const tradeHistory = readJsonFileSafe(TRADES_MEMORY_FILE, []);
-
-  const validStudyHistory = Array.isArray(studyHistory) ? studyHistory : [];
-  const validVisualEchoes = Array.isArray(visualEchoes) ? visualEchoes : [];
-  const validTradeHistory = Array.isArray(tradeHistory) ? tradeHistory : [];
-  const oldestMemoryTimestamp = longTermMemories.length > 0
-    ? longTermMemories
-      .map((memory) => memory.timestamp)
-      .filter(Boolean)
-      .sort()[0]
-    : null;
-
-  const totalBytes =
-    getFileSizeSafe(MEMORY_FILE) +
-    getFileSizeSafe(VISUAL_ECHO_FILE) +
-    getFileSizeSafe(STUDY_MEMORY_FILE) +
-    getFileSizeSafe(TRADES_MEMORY_FILE);
-
-  return {
-    stats: {
-      factsCount: longTermMemories.length,
-      studyCount: validStudyHistory.length,
-      tradeCount: validTradeHistory.length,
-      visualEchoCount: validVisualEchoes.length,
-      oldestMemoryDate: oldestMemoryTimestamp,
-      storageUsedBytes: totalBytes,
-      storageUsedLabel: formatBytes(totalBytes),
-      summary: `${longTermMemories.length} facts · ${validStudyHistory.length} study entries · ${formatBytes(totalBytes)}`
-    },
-    memories: longTermMemories.map(({ id, timestamp, text, tags }) => ({
-      id,
-      timestamp,
-      text,
-      tags: Array.isArray(tags) ? tags : []
-    }))
-  };
-}
-
-function clearMemoryDomain(domain) {
-  switch (domain) {
-    case 'study':
-      return writeJsonFileSafe(STUDY_MEMORY_FILE, []);
-    case 'trade':
-      return writeJsonFileSafe(TRADES_MEMORY_FILE, []);
-    case 'full':
-      return (
-        writeJsonFileSafe(MEMORY_FILE, { memories: [] }) &&
-        writeJsonFileSafe(VISUAL_ECHO_FILE, []) &&
-        writeJsonFileSafe(STUDY_MEMORY_FILE, []) &&
-        writeJsonFileSafe(TRADES_MEMORY_FILE, [])
-      );
-    default:
-      return false;
-  }
-}
-
-function readSystemConfig() {
-  try {
-    if (!fs.existsSync(CONFIG_FILE)) return {};
-    const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
-    return JSON.parse(data || '{}');
-  } catch (err) {
-    console.error('[CONFIG] Failed to read system config:', err.message);
-    return {};
-  }
-}
-
-function writeSystemConfig(nextConfig) {
-  try {
-    if (!fs.existsSync(path.dirname(CONFIG_FILE))) {
-      fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
-    }
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(nextConfig, null, 2));
-    return true;
-  } catch (err) {
-    console.error('[CONFIG] Failed to write system config:', err.message);
-    return false;
-  }
-}
-
-function sanitizeApiSlots(slots = []) {
-  const validProviders = new Set([
-    'Empty',
-    'Groq',
-    'OpenAI',
-    'Anthropic',
-    'Google Gemini',
-    'DeepSeek',
-    'Azure OpenAI',
-    'Cohere',
-    'Mistral',
-    'SiliconFlow'
-  ]);
-  return (Array.isArray(slots) ? slots : [])
-    .slice(0, 3)
-    .map((slot, idx) => {
-      const provider = validProviders.has(slot?.provider) ? slot.provider : 'Empty';
-      return {
-        slot: idx + 1,
-        provider,
-        apiKey: String(slot?.apiKey || '').trim(),
-        hasKey: Boolean(slot?.hasKey),
-        model: String(slot?.model || '').trim(),
-        purpose: String(slot?.purpose || 'Fallback').trim() || 'Fallback',
-        baseUrl: String(slot?.baseUrl || '').trim(),
-        enabled: Boolean(slot?.enabled ?? (provider !== 'Empty'))
-      };
-    });
-}
-
-function loadSecrets() {
-  try {
-    if (!fs.existsSync(SECRETS_FILE)) return { version: 1, slots: {} };
-    return JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
-  } catch {
-    return { version: 1, slots: {} };
-  }
-}
-
-function saveSecrets(data) {
-  try {
-    if (!fs.existsSync(path.dirname(SECRETS_FILE))) fs.mkdirSync(path.dirname(SECRETS_FILE), { recursive: true });
-    fs.writeFileSync(SECRETS_FILE, JSON.stringify(data, null, 2));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function dpapiEncrypt(plain) {
-  if (!plain) return '';
-  const script = "$s=ConvertTo-SecureString -String $env:ZAIRE_SECRET -AsPlainText -Force; ConvertFrom-SecureString -SecureString $s";
-  return execFileSync('powershell', ['-NoProfile', '-Command', script], {
-    encoding: 'utf-8',
-    env: { ...process.env, ZAIRE_SECRET: plain }
-  }).trim();
-}
-
-function dpapiDecrypt(cipher) {
-  if (!cipher) return '';
-  const script = "$s=ConvertTo-SecureString $env:ZAIRE_CIPHER; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); [Runtime.InteropServices.Marshal]::PtrToStringAuto($b)";
-  return execFileSync('powershell', ['-NoProfile', '-Command', script], {
-    encoding: 'utf-8',
-    env: { ...process.env, ZAIRE_CIPHER: cipher }
-  }).trim();
-}
-
-function persistAiVaultSlots(slots = []) {
-  const clean = sanitizeApiSlots(slots);
-  const secrets = loadSecrets();
-  const out = [];
-  for (let i = 0; i < clean.length; i++) {
-    const s = clean[i];
-    if (s.apiKey) {
-      try {
-        secrets.slots[String(i)] = { key: dpapiEncrypt(s.apiKey), provider: s.provider, updatedAt: new Date().toISOString() };
-      } catch (err) {
-        console.error('[SECRETS] Encrypt failed:', err.message);
-      }
-    } else if (s.hasKey) {
-      // Keep existing encrypted key when slot is unchanged in UI
-    } else {
-      delete secrets.slots[String(i)];
-    }
-    out.push({ ...s, apiKey: '' });
-  }
-  saveSecrets(secrets);
-  return out;
-}
-
-function hydrateRuntimeProviders() {
-  const cfg = readSystemConfig();
-  const slots = sanitizeApiSlots(cfg?.aiVault?.slots || []);
-  const secrets = loadSecrets();
-  return slots.map((s, i) => {
-    const enc = secrets.slots?.[String(i)]?.key || '';
-    let key = '';
-    if (enc) {
-      try { key = dpapiDecrypt(enc); } catch (err) { console.error('[SECRETS] Decrypt failed:', err.message); }
-    }
-    return { ...s, apiKey: key };
-  });
-}
-
-// Memory endpoints (for the UI)
-app.get('/memories', (req, res) => {
-  res.json(getAllMemories(20));
-});
-
-app.get('/memory/dashboard', (req, res) => {
-  res.json({ success: true, ...buildMemoryDashboard() });
-});
-
-app.post('/memory/clear', (req, res) => {
-  const domain = String(req.body?.domain || '').toLowerCase();
-  if (!['study', 'trade', 'full'].includes(domain)) {
-    return res.status(400).json({ success: false, error: 'Unsupported memory clear domain' });
-  }
-
-  const success = clearMemoryDomain(domain);
-  if (!success) {
-    return res.status(500).json({ success: false, error: 'Failed to clear requested memory domain' });
-  }
-
-  return res.json({
-    success: true,
-    domain,
-    dashboard: buildMemoryDashboard()
-  });
-});
-
-// System Config endpoints
-app.get('/config', (req, res) => {
-  try {
-    const cfg = readSystemConfig();
-    res.json({ success: true, data: cfg });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.get('/llm/providers', (req, res) => {
-  try {
-    const cfg = readSystemConfig();
-    const slots = sanitizeApiSlots(cfg?.aiVault?.slots || []);
-    const runtime = hydrateRuntimeProviders();
-    const masked = slots.map((s) => ({
-      ...s,
-      apiKey: '',
-      hasKey: Boolean(runtime[s.slot - 1]?.apiKey)
-    }));
-    res.json({ success: true, slots: masked });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.post('/llm/providers', (req, res) => {
-  try {
-    const slots = sanitizeApiSlots(req.body?.slots || []);
-    const persistedSlots = persistAiVaultSlots(slots);
-    const prev = readSystemConfig();
-    const next = {
-      ...prev,
-      aiVault: {
-        ...(prev.aiVault || {}),
-        slots: persistedSlots,
-        updatedAt: new Date().toISOString()
-      }
-    };
-    const ok = writeSystemConfig(next);
-    if (!ok) return res.status(500).json({ success: false, error: 'Failed to persist provider slots' });
-    return res.json({ success: true, slotsCount: slots.length });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.get('/llm/runtime-providers', (req, res) => {
-  try {
-    const slots = hydrateRuntimeProviders();
-    res.json({ success: true, slots });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete('/memories/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  res.json(forgetMemory(id));
-});
 
 // ─── Chat History Endpoints ────────────────────────────────────────────────
-app.get('/chats', (req, res) => {
-  res.json({ success: true, sessions: chatHistoryService.getSessions() });
-});
-
-app.get('/chats/:id', (req, res) => {
-  const session = chatHistoryService.getSession(req.params.id);
-  if (session) {
-    res.json({ success: true, session });
-  } else {
-    res.status(404).json({ success: false, message: 'Session not found' });
-  }
-});
-
-app.delete('/chats/:id', (req, res) => {
-  const success = chatHistoryService.deleteSession(req.params.id);
-  res.json({ success });
-});
-
-app.put('/chats/:id', (req, res) => {
-  const { title } = req.body;
-  const success = chatHistoryService.renameSession(req.params.id, title);
-  res.json({ success });
-});
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
 
@@ -3506,35 +3190,21 @@ io.on('connection', (socket) => {
 
   socket.on('SPECIALIST_ACTION', async (data) => {
     const { mode, action, payload } = data;
-    console.log(`[ACTION] specialist=${mode} action=${action}`, payload);
-    try {
-      await fetch(`${SIDECAR_URL}/agent/specialist_action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, action, payload })
-      });
-      socket.emit('neural_log', { content: `System: Action ${action} executed by ${mode} specialist.` });
-    } catch (e) {
-      console.error('[ACTION] Failed to notify sidecar:', e.message);
-    }
+    await forwardSpecialistAction({
+      sidecarUrl: SIDECAR_URL,
+      mode,
+      action,
+      payload,
+      emitLog: (content) => socket.emit('neural_log', { content })
+    });
   });
 
   socket.on('SAVE_CONFIG', async (config) => {
     console.log(`[CONFIG] Persisting ZAIRE configuration to core...`);
     try {
-      const prev = readSystemConfig();
-      const next = { ...prev, ...(config || {}) };
-      if (config?.aiVault?.slots) {
-        const persistedSlots = persistAiVaultSlots(config.aiVault.slots);
-        next.aiVault = {
-          ...(prev.aiVault || {}),
-          ...(config.aiVault || {}),
-          slots: persistedSlots,
-          updatedAt: new Date().toISOString()
-        };
-        groq = tryBuildGroqClient();
-      }
-      writeSystemConfig(next);
+      const { ok } = mergeAndSaveSystemConfig(config || {});
+      if (!ok) throw new Error('Failed to persist system config');
+      if (config?.aiVault?.slots) groq = tryBuildGroqClient();
       socket.emit('neural_log', { content: "System: ZAIRE Configuration persisted to neural core." });
     } catch (err) {
       console.error(`[CONFIG ERR] Failed to save:`, err.message);
@@ -3542,27 +3212,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('QUICK_ACTION', async ({ action }) => {
-    console.log(`[QUICK] Triggered action: ${action}`);
-    try {
-      switch (action) {
-        case 'capture':
-          socket.emit('neural_log', { content: "System: Capturing ZAIRE vision snapshot..." });
-          exec('powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'{PRTSC}\')"');
-          break;
-        case 'browser':
-          socket.emit('neural_log', { content: "System: Tactical Uplink established (Browser)." });
-          exec('start https://www.google.com');
-          break;
-        case 'files':
-          socket.emit('neural_log', { content: "System: Mounting local file systems..." });
-          exec('explorer .');
-          break;
-        default:
-          console.log(`[QUICK] Unknown action: ${action}`);
-      }
-    } catch (err) {
-      console.error(`[QUICK ERR] Action ${action} failed:`, err.message);
-    }
+    await runQuickAction({
+      action,
+      execFn: exec,
+      emitLog: (content) => socket.emit('neural_log', { content })
+    });
   });
 
   const handleUserMessage = async (text, payload = {}) => {

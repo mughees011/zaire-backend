@@ -9999,3 +9999,5 @@ INFO:     127.0.0.1:64214 - "POST /agent/vision HTTP/1.1" 200 OK
 [TRADER
 [5/17/2026, 10:46:13 PM] DEBUG: Request POST /agent/vision
 [NEURAL_LOG][18:46:13
+[5/22/2026, 6:13:40 PM] Binance connected — TESTNET mode
+[TRADER
