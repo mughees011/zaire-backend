@@ -1,65 +1,5 @@
 [
   {
-    "type": "INTRUDER",
-    "detail": "Unknown face detected and captured.",
-    "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\Mughees-Tony\\backend\\memory\\intruder_snapshots\\intruder_20260514_163801.jpg",
-    "time": "2026-05-14T16:38:01.673497"
-  },
-  {
-    "type": "LOCK",
-    "detail": "PC locked due to intruder detection.",
-    "snapshot": "",
-    "time": "2026-05-14T16:38:06.187353"
-  },
-  {
-    "type": "INTRUDER",
-    "detail": "Unknown face detected and captured.",
-    "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\Mughees-Tony\\backend\\memory\\intruder_snapshots\\intruder_20260514_163833.jpg",
-    "time": "2026-05-14T16:38:33.531459"
-  },
-  {
-    "type": "UNLOCK",
-    "detail": "Master face confirmed \u2014 presence restored.",
-    "snapshot": "",
-    "time": "2026-05-14T16:38:38.349407"
-  },
-  {
-    "type": "UNLOCK",
-    "detail": "PC unlocked by face recognition.",
-    "snapshot": "",
-    "time": "2026-05-14T16:38:38.485907"
-  },
-  {
-    "type": "LOCK",
-    "detail": "PC locked due to intruder detection.",
-    "snapshot": "",
-    "time": "2026-05-14T16:38:38.714814"
-  },
-  {
-    "type": "UNLOCK",
-    "detail": "Master face confirmed \u2014 presence restored.",
-    "snapshot": "",
-    "time": "2026-05-14T16:40:45.992675"
-  },
-  {
-    "type": "UNLOCK",
-    "detail": "PC unlocked by face recognition.",
-    "snapshot": "",
-    "time": "2026-05-14T16:40:46.118663"
-  },
-  {
-    "type": "LOCK",
-    "detail": "PC auto-locked after 15s absence.",
-    "snapshot": "",
-    "time": "2026-05-14T16:41:01.214695"
-  },
-  {
-    "type": "UNLOCK",
-    "detail": "Master face confirmed \u2014 presence restored.",
-    "snapshot": "",
-    "time": "2026-05-14T16:43:25.078799"
-  },
-  {
     "type": "UNLOCK",
     "detail": "PC unlocked by face recognition.",
     "snapshot": "",
@@ -1198,5 +1138,65 @@
     "detail": "PC auto-locked after 16s absence.",
     "snapshot": "",
     "time": "2026-05-18T05:44:53.718492"
+  },
+  {
+    "type": "UNLOCK",
+    "detail": "Master face confirmed \u2014 presence restored.",
+    "snapshot": "",
+    "time": "2026-05-22T14:08:55.024671"
+  },
+  {
+    "type": "LOCK",
+    "detail": "PC auto-locked after 16s absence.",
+    "snapshot": "",
+    "time": "2026-05-22T14:09:36.063990"
+  },
+  {
+    "type": "UNLOCK",
+    "detail": "Master face confirmed \u2014 presence restored.",
+    "snapshot": "",
+    "time": "2026-05-22T14:10:44.352839"
+  },
+  {
+    "type": "UNLOCK",
+    "detail": "PC unlocked by face recognition.",
+    "snapshot": "",
+    "time": "2026-05-22T14:10:46.752100"
+  },
+  {
+    "type": "LOCK",
+    "detail": "PC auto-locked after 15s absence.",
+    "snapshot": "",
+    "time": "2026-05-22T14:11:13.151395"
+  },
+  {
+    "type": "INTRUDER",
+    "detail": "Unknown face detected and captured.",
+    "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\ZAIRE_full\\Zaire_webapp\\backend\\memory\\intruder_snapshots\\intruder_20260522_141308.jpg",
+    "time": "2026-05-22T14:13:08.899357"
+  },
+  {
+    "type": "UNLOCK",
+    "detail": "Master face confirmed \u2014 presence restored.",
+    "snapshot": "",
+    "time": "2026-05-22T14:13:10.163725"
+  },
+  {
+    "type": "UNLOCK",
+    "detail": "PC unlocked by face recognition.",
+    "snapshot": "",
+    "time": "2026-05-22T14:13:12.261874"
+  },
+  {
+    "type": "LOCK",
+    "detail": "PC locked due to intruder detection.",
+    "snapshot": "",
+    "time": "2026-05-22T14:13:16.254381"
+  },
+  {
+    "type": "INTRUDER",
+    "detail": "Unknown face detected and captured.",
+    "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\ZAIRE_full\\Zaire_webapp\\backend\\memory\\intruder_snapshots\\intruder_20260522_141427.jpg",
+    "time": "2026-05-22T14:14:27.948277"
   }
 ]
