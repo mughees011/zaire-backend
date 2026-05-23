@@ -109,7 +109,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('/.*/', cors(corsOptions));
 
 // Global capture for rawBody to support cryptographic webhook validations
 app.use(express.json({
@@ -4291,15 +4291,28 @@ function cleanupAndExit(code = 0) {
   console.log(`\n[SHUTDOWN] ZAIRE Core exiting with code: ${code}`);
   console.log('[SHUTDOWN] Cleaning up tactical resources...');
 
-  const procs = [
-    sidecarProcess, observerProc, vectorMemoryProc, localLLMProc,
-    processMonProc, clipboardProc, fileWatcherProc, sysHealthProc,
-    alarmProc, securityProc, smartHomeProc, visualEchoProc
-  ];
+  const processesToKill = [
+    typeof sidecarProcess !== 'undefined' ? sidecarProcess : null,
+    typeof observerProc !== 'undefined' ? observerProc : null,
+    typeof vectorMemoryProc !== 'undefined' ? vectorMemoryProc : null,
+    typeof localLLMProc !== 'undefined' ? localLLMProc : null,
+    typeof processMonProc !== 'undefined' ? processMonProc : null,
+    typeof clipboardProc !== 'undefined' ? clipboardProc : null,
+    typeof fileWatcherProc !== 'undefined' ? fileWatcherProc : null,
+    typeof sysHealthProc !== 'undefined' ? sysHealthProc : null,
+    typeof alarmProc !== 'undefined' ? alarmProc : null,
+    typeof securityProc !== 'undefined' ? securityProc : null,
+    typeof smartHomeProc !== 'undefined' ? smartHomeProc : null,
+    typeof visualEchoProc !== 'undefined' ? visualEchoProc : null,
+  ].filter(Boolean);
 
-  procs.forEach(p => {
-    if (p && !p.killed) {
-      try { p.kill(); } catch (e) { }
+  processesToKill.forEach((proc) => {
+    try {
+      if (!proc.killed) {
+        proc.kill();
+      }
+    } catch (err) {
+      console.warn('[SHUTDOWN] Failed to kill process:', err.message);
     }
   });
 
