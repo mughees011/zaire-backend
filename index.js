@@ -780,8 +780,9 @@ setInterval(() => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: corsOriginResolver,
-    methods: ["GET", "POST"],
+    origin: corsOptions.origin,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: corsOptions.allowedHeaders,
     credentials: true
   },
   maxHttpBufferSize: 1e7,
