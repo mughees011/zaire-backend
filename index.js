@@ -147,80 +147,50 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS Setup - restrict origins in production
-const allowedOrigins = new Set([
+const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:10000',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
   'http://127.0.0.1:10000',
-  'https://golden-sherbet-10b78a.netlify.app',
-  'https://zaireai.netlify.app'
-]);
-
-const corsOriginResolver = (origin, callback) => {
-  if (!origin) {
-    callback(null, true);
-    return;
-  }
-
-  if (origin === 'null') {
-    callback(null, true);
-    return;
-  }
-
-  if (allowedOrigins.has(origin)) {
-    callback(null, true);
-    return;
-  }
-
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-    callback(null, true);
-    return;
-  }
-
-  callback(new Error('Not allowed by CORS'));
-};
+  'https://zaireai.netlify.app',
+  'https://golden-sherbet-10b78a.netlify.app'
+];
 
 const corsOptions = {
-  origin: corsOriginResolver,
-  credentials: true,
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (
+      origin === 'null' ||
+      allowedOrigins.includes(origin) ||
+      origin.startsWith('file://') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1')
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
+    'x-user-id',
+    'x-license-key',
     'x-zaire-license',
     'x-zaire-license-key',
     'x-zaire-machine-id',
     'x-zaire-machine',
     'x-clerk-user-id'
   ],
-  exposedHeaders: [
-    'Content-Type',
-    'Content-Length'
-  ],
-  optionsSuccessStatus: 204
+  credentials: true
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-app.use((req, res, next) => {
-  const requestOrigin = req.headers.origin;
-  if (!requestOrigin || requestOrigin === 'null' || allowedOrigins.has(requestOrigin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)) {
-    res.header('Access-Control-Allow-Origin', requestOrigin || '*');
-    res.header('Vary', 'Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-zaire-license, x-zaire-license-key, x-zaire-machine-id, x-zaire-machine, x-clerk-user-id');
-  }
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
+app.options(/.*/, cors(corsOptions));
 
 // Global capture for rawBody to support cryptographic webhook validations
 app.use(express.json({
