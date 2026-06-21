@@ -148,17 +148,79 @@ app.use(helmet({
 }));
 
 // CORS Setup - restrict origins in production
-const allowedOrigins = [
+const allowedOrigins = new Set([
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:10000',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:10000',
   'https://golden-sherbet-10b78a.netlify.app',
   'https://zaireai.netlify.app'
-];
+]);
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
+const corsOriginResolver = (origin, callback) => {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (origin === 'null') {
+    callback(null, true);
+    return;
+  }
+
+  if (allowedOrigins.has(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error('Not allowed by CORS'));
+};
+
+const corsOptions = {
+  origin: corsOriginResolver,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-zaire-license',
+    'x-zaire-license-key',
+    'x-zaire-machine-id',
+    'x-zaire-machine',
+    'x-clerk-user-id'
+  ],
+  exposedHeaders: [
+    'Content-Type',
+    'Content-Length'
+  ],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  if (!requestOrigin || requestOrigin === 'null' || allowedOrigins.has(requestOrigin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)) {
+    res.header('Access-Control-Allow-Origin', requestOrigin || '*');
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-zaire-license, x-zaire-license-key, x-zaire-machine-id, x-zaire-machine, x-clerk-user-id');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 // Global capture for rawBody to support cryptographic webhook validations
 app.use(express.json({
@@ -748,7 +810,7 @@ setInterval(() => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: corsOriginResolver,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -2040,6 +2102,50 @@ function getActiveSlots() {
   }
 }
 
+function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
+  const provider = String(providerName || '').trim().toLowerCase();
+  const model = String(configuredModel || '').trim();
+  const genericLabels = new Set([
+    '',
+    'fast',
+    'primary',
+    'coding',
+    'fallback',
+    'deep reasoning',
+    'code specialist'
+  ]);
+
+  if (!genericLabels.has(model.toLowerCase())) {
+    return model;
+  }
+
+  if (provider === 'groq') {
+    return process.env.GROQ_MODEL || fallbackModel || 'llama-3.3-70b-versatile';
+  }
+
+  if (provider === 'siliconflow') {
+    return 'deepseek-ai/DeepSeek-V3';
+  }
+
+  if (provider === 'google gemini') {
+    return 'gemini-1.5-flash';
+  }
+
+  if (provider === 'openai') {
+    return fallbackModel || 'gpt-4o-mini';
+  }
+
+  if (provider === 'deepseek') {
+    return 'deepseek-chat';
+  }
+
+  if (provider === 'mistral') {
+    return 'mistral-small-latest';
+  }
+
+  return fallbackModel || model;
+}
+
 async function executeLLMCallWithFailover(options) {
   const slots = getActiveSlots();
   if (slots.length === 0) {
@@ -2058,7 +2164,7 @@ async function executeLLMCallWithFailover(options) {
       try {
         if (providerLower === 'groq') {
           const client = new Groq({ apiKey });
-          const useModel = String(slot.model || '').trim() || process.env.GROQ_MODEL || options.model || 'llama-3.3-70b-versatile';
+          const useModel = normalizeProviderModel(slot.provider, slot.model, options.model);
 
           const res = await client.chat.completions.create({
             messages: options.messages,
@@ -2082,8 +2188,14 @@ async function executeLLMCallWithFailover(options) {
             else if (providerLower === 'mistral') baseUrl = "https://api.mistral.ai/v1/chat/completions";
           }
 
-          const defaultModel = providerLower === 'siliconflow' ? 'deepseek-ai/DeepSeek-V3' : 'gpt-4o-mini';
-          const useModel = String(slot.model || '').trim() || defaultModel;
+          const defaultModel = providerLower === 'siliconflow'
+            ? 'deepseek-ai/DeepSeek-V3'
+            : providerLower === 'deepseek'
+              ? 'deepseek-chat'
+              : providerLower === 'mistral'
+                ? 'mistral-small-latest'
+                : 'gpt-4o-mini';
+          const useModel = normalizeProviderModel(slot.provider, slot.model, defaultModel);
 
           const response = await fetch(baseUrl, {
             method: 'POST',
@@ -2116,7 +2228,7 @@ async function executeLLMCallWithFailover(options) {
         }
 
         if (providerLower === 'google gemini') {
-          const useModel = String(slot.model || '').trim() || "gemini-1.5-flash";
+          const useModel = normalizeProviderModel(slot.provider, slot.model, 'gemini-1.5-flash');
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${useModel}:generateContent?key=${apiKey}`;
 
           const contents = options.messages
@@ -2212,7 +2324,7 @@ async function executeLLMCallWithFailover(options) {
   }
 
   // Final barrier failed! Return a graceful system alert
-  const finalError = "Sir, all secure connection lanes (Vault slots, backup keys) and the local fallback are exhausted. Please verify your internet connection or update the AI Vault settings.";
+  const finalError = "Sir, I can't reach an active intelligence provider right now. Please check your internet connection or add a provider in Settings > AI Vault.";
   if (options.stream) {
     return mockStream(finalError);
   } else {
@@ -4707,6 +4819,26 @@ server.listen(PORT, '0.0.0.0', () => {
         console.error('[LAUNCH] Failed to open ZAIRE UI:', err.message);
       });
     }, 1200);
+  }
+});
+app.get('/api/security/status/video_feed', async (req, res) => {
+  await ensureServiceRunning('security');
+  if (!securityReady) return res.status(503).send('Security daemon offline');
+  try {
+    const r = await fetch(`${SECURITY_URL}/security/video_feed`);
+    if (!r.ok) return res.status(r.status).send('Daemon error');
+
+    res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=frame');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    const { Readable } = require('stream');
+    Readable.fromWeb(r.body).pipe(res);
+  } catch (e) {
+    console.error('[VIDEO_PROXY_ERR]', e.message);
+    res.status(500).send(e.message);
   }
 });
 

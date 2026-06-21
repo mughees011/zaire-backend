@@ -119,7 +119,7 @@ function persistAiVaultSlots(slots = []) {
       delete secrets.slots[String(i)];
     }
 
-    out.push({ ...slot, apiKey: '' });
+    out.push({ ...slot, apiKey: '', hasKey: Boolean(slot.apiKey || slot.hasKey) });
   }
 
   saveSecrets(secrets);
