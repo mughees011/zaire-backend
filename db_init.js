@@ -105,6 +105,34 @@ async function initDatabase() {
     `);
     console.log('[DATABASE] ✓ mode_permissions table checked.');
 
+    // 7. Create user_settings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        user_id         TEXT PRIMARY KEY,
+        theme_settings  JSONB DEFAULT '{}'::jsonb,
+        voice_settings  JSONB DEFAULT '{}'::jsonb,
+        agent_settings  JSONB DEFAULT '{}'::jsonb,
+        updated_at      TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log('[DATABASE] ✓ user_settings table checked.');
+
+    // 8. Create weekly_briefings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS weekly_briefings (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         TEXT NOT NULL,
+        job_id          TEXT NOT NULL,
+        pdf_url         TEXT,
+        audio_url       TEXT,
+        summary         TEXT,
+        status          TEXT DEFAULT 'running',
+        created_at      TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_weekly_briefings_user_id ON weekly_briefings(user_id);`);
+    console.log('[DATABASE] ✓ weekly_briefings table checked.');
+
     console.log('[DATABASE] Database schema migration completed successfully.');
   } catch (err) {
     console.error('[DATABASE ERR] Migration failed:', err.message);

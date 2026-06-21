@@ -1,61 +1,35 @@
-const pool = require('../db');
+const subscriptionService = require('../subscription_service');
 
 async function usageLimit(req, res, next) {
-
     try {
-
         const userId = req.auth.userId;
-
-        const result = await pool.query(
-            `
-      SELECT *
-      FROM subscriptions
-      WHERE user_id = $1
-      `,
-            [userId]
-        );
-
-        const sub = result.rows[0];
+        const sub = await subscriptionService.getSubscription(userId);
 
         if (!sub) {
-
-            return res.status(403).json({
-                error: 'No subscription found'
-            });
+            return res.status(403).json({ error: 'No subscription found' });
         }
 
-        if (
-            sub.monthly_requests >=
-            sub.request_limit
-        ) {
-
+        // We assume 'monthly_requests' tracks how many requests they have MADE
+        // request_limit tracks how many they are ALLOWED
+        if (sub.monthly_requests >= sub.request_limit && sub.request_limit !== -1) {
+            const isBYOK = sub.request_limit === 0;
             return res.status(429).json({
-                error: 'Monthly limit reached'
+                error: isBYOK 
+                    ? 'BYOK Required: Please enter your API keys in Settings -> AI Vault.' 
+                    : 'Monthly API limit reached. Please upgrade your plan or BYOK.',
+                plan: sub.plan,
+                limit: sub.request_limit
             });
         }
 
-        await pool.query(
-            `
-      UPDATE subscriptions
-      SET monthly_requests =
-      monthly_requests + 1
-      WHERE user_id = $1
-      `,
-            [userId]
-        );
+        // Increment usage
+        await subscriptionService.incrementRequest(userId);
 
         next();
-
     } catch (err) {
-
-        console.error(err);
-
-        res.status(500).json({
-            error: 'Usage middleware failed'
-        });
+        console.error("[USAGE LIMIT ERR]:", err);
+        res.status(500).json({ error: 'Usage middleware failed' });
     }
 }
 
-module.exports = {
-    usageLimit
-};
+module.exports = { usageLimit };

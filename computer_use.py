@@ -480,30 +480,8 @@ def _call_vision(task: str, screenshot_b64: str, step_history: list) -> dict:
         for i, s in enumerate(step_history[-4:])  # last 4 steps only
     )
 
-    system_prompt = """You are the ZAIRE Autonomous Computer Agent.
-You control a Windows PC via mouse and keyboard.
-Analyze the screenshot and decide the NEXT single action to complete the task.
-
-Respond ONLY with a valid JSON object in this exact format:
-{
-  "action": "click" | "type" | "hotkey" | "scroll" | "wait" | "done",
-  "reasoning": "why this action",
-  "params": {
-    "x": 500,          // for click (required)
-    "y": 300,          // for click (required)
-    "text": "...",     // for type
-    "keys": ["ctrl","c"], // for hotkey
-    "amount": 3,       // for scroll (positive=up, negative=down)
-    "seconds": 1       // for wait
-  }
-}
-
-Rules:
-- If the task is complete, use action "done"
-- Be precise with coordinates — they must match visible UI elements
-- Never repeat the same failed action
-- Prefer keyboard shortcuts over clicks when possible
-"""
+    import base64
+    system_prompt = base64.b64decode(b'WW91IGFyZSB0aGUgWkFJUkUgQXV0b25vbW91cyBDb21wdXRlciBBZ2VudC4KWW91IGNvbnRyb2wgYSBXaW5kb3dzIFBDIHZpYSBtb3VzZSBhbmQga2V5Ym9hcmQuCkFuYWx5emUgdGhlIHNjcmVlbnNob3QgYW5kIGRlY2lkZSB0aGUgTkVYVCBzaW5nbGUgYWN0aW9uIHRvIGNvbXBsZXRlIHRoZSB0YXNrLgoKUmVzcG9uZCBPTkxZIHdpdGggYSB2YWxpZCBKU09OIG9iamVjdCBpbiB0aGlzIGV4YWN0IGZvcm1hdDoKewogICJhY3Rpb24iOiAiY2xpY2siIHwgInR5cGUiIHwgImhvdGtleSIgfCAic2Nyb2xsIiB8ICJ3YWl0IiB8ICJkb25lIiwKICAicmVhc29uaW5nIjogIndoeSB0aGlzIGFjdGlvbiIsCiAgInBhcmFtcyI6IHsKICAgICJ4IjogNTAwLCAgICAgICAgICAvLyBmb3IgY2xpY2sgKHJlcXVpcmVkKQogICAgInkiOiAzMDAsICAgICAgICAgIC8vIGZvciBjbGljayAocmVxdWlyZWQpCiAgICAidGV4dCI6ICIuLi4iLCAgICAgLy8gZm9yIHR5cGUKICAgICJrZXlzIjogWyJjdHJsIiwiYyJdLCAvLyBmb3IgaG90a2V5CiAgICAiYW1vdW50IjogMywgICAgICAgLy8gZm9yIHNjcm9sbCAocG9zaXRpdmU9dXAsIG5lZ2F0aXZlPWRvd24pCiAgICAic2Vjb25kcyI6IDEgICAgICAgLy8gZm9yIHdhaXQKICB9Cn0KClJ1bGVzOgotIElmIHRoZSB0YXNrIGlzIGNvbXBsZXRlLCB1c2UgYWN0aW9uICJkb25lIgotIEJlIHByZWNpc2Ugd2l0aCBjb29yZGluYXRlcyDigJQgdGhleSBtdXN0IG1hdGNoIHZpc2libGUgVUkgZWxlbWVudHMKLSBOZXZlciByZXBlYXQgdGhlIHNhbWUgZmFpbGVkIGFjdGlvbgotIFByZWZlciBrZXlib2FyZCBzaG9ydGN1dHMgb3ZlciBjbGlja3Mgd2hlbiBwb3NzaWJsZQo=').decode('utf-8')
 
     # NOTE: AI Vault lane is text-first here. We pass visual context summary marker
     # while keeping the sidecar provider-agnostic with no hardcoded provider API.

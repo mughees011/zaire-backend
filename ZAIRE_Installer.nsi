@@ -1,32 +1,40 @@
-; ==========================================
-; ZAIRE Sovereign Terminal NSIS Setup Builder
-; Compile with: makensis ZAIRE_Installer.nsi
-; ==========================================
+; ZAIRE Sovereign Intelligence Platform - Professional Installer Script
+; Requires NSIS (Nullsoft Scriptable Install System) to compile
+; Compile this file by right-clicking it and selecting "Compile NSIS Script"
 
-!define APP_NAME "ZAIRE Sovereign Intelligence"
-!define APP_VERSION "1.0"
-!define APP_PUBLISHER "ZAIRE Sovereign Sphere"
-!define APP_EXE "zaire_boot.py"
-!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ZAIRE"
+!define APPNAME "ZAIRE Sovereign Intelligence"
+!define APPCOMPANY "ZAIRE"
+!define APPVERSION "1.0.0"
+!define APPEXECUTABLE "launch_zaire.bat"
 
-Name "${APP_NAME}"
-OutFile "ZAIRE_Setup.exe"
+; Registry keys for Add/Remove Programs
+!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
+!define REG_KEY "Software\${APPCOMPANY}\${APPNAME}"
+
+Name "${APPNAME} ${APPVERSION}"
+OutFile "ZAIRE_Setup_v${APPVERSION}.exe"
 InstallDir "$PROGRAMFILES64\ZAIRE"
+InstallDirRegKey HKLM "${REG_KEY}" "InstallDir"
+
 RequestExecutionLevel admin
 
-; Modern UI Configurations
+; Use Modern UI
 !include "MUI2.nsh"
 
+; Interface Settings
 !define MUI_ABORTWARNING
+!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install-blue-full.ico"
+!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall-blue-full.ico"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Header\win.bmp"
 
-; Installer Pages
+; Pages
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
+!insertmacro MUI_PAGE_LICENSE "..\LICENSE.txt"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; Uninstaller Pages
 !insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
@@ -35,65 +43,50 @@ RequestExecutionLevel admin
 ; Languages
 !insertmacro MUI_LANGUAGE "English"
 
-Section "ZAIRE Core Service" SecCore
-  SetOutPath "$INSTDIR"
-  
-  ; Write application core files (Excluding local developer secrets, db cache, and logs)
-  File /r /x "*.env" /x "memory\*.json" /x "*.log" "*.*"
-  
-  ; Create Desktop Shortcut pointing directly to Python loader
-  CreateShortcut "$DESKTOP\ZAIRE.lnk" "python.exe" '"$INSTDIR\zaire_boot.py"' "" "" "" "" "Launch ZAIRE Sovereign Sphere Terminal"
-  
-  ; Create Start Menu Shortcuts
-  CreateDirectory "$SMPROGRAMS\ZAIRE"
-  CreateShortcut "$SMPROGRAMS\ZAIRE\ZAIRE.lnk" "python.exe" '"$INSTDIR\zaire_boot.py"'
-  CreateShortcut "$SMPROGRAMS\ZAIRE\Uninstall ZAIRE.lnk" "$INSTDIR\Uninstall.exe"
-  
-  ; -------------------------------------------
-  ; Python System Verification
-  ; -------------------------------------------
-  DetailPrint "Auditing Python client framework..."
-  nsExec::ExecToStack 'python --version'
-  Pop $0 ; Exit Code
-  Pop $1 ; Version String
-  
-  ${If} $0 != 0
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Python 3.10+ is required to launch ZAIRE local neural cores. Please install Python and ensure you check the 'Add Python to PATH' option."
-    ExecShell "open" "https://www.python.org/downloads/"
-    Abort
-  ${EndIf}
+Section "Install"
+    SetOutPath "$INSTDIR"
 
-  DetailPrint "System check complete: Python $1 detected."
+    ; Check for existing installation (Version Update / Repair)
+    ReadRegStr $0 HKLM "${UNINST_KEY}" "UninstallString"
+    ${If} $0 != ""
+        DetailPrint "Existing installation found. Updating/Repairing..."
+    ${EndIf}
 
-  ; -------------------------------------------
-  ; Dependency silent installation
-  ; -------------------------------------------
-  DetailPrint "Deploying neural specialist requirements..."
-  nsExec::ExecToLog 'pip install requests tk cryptography pyyaml psutil --quiet'
-  Pop $0
-  
-  ; Write Registry strings for Windows Add/Remove programs list
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "${APP_PUBLISHER}"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "QuietUninstallString" "$INSTDIR\Uninstall.exe /S"
-  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
-  WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1
+    ; Include the staging files
+    File /r "staging\*"
 
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
+    ; Write registry keys for the uninstaller
+    WriteRegStr HKLM "${REG_KEY}" "InstallDir" "$INSTDIR"
+    WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APPNAME}"
+    WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
+    WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${APPEXECUTABLE}"
+    WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${APPCOMPANY}"
+    WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${APPVERSION}"
+    
+    ; Create uninstaller
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+
+    ; Create Start Menu Shortcuts
+    CreateDirectory "$SMPROGRAMS\${APPCOMPANY}"
+    CreateShortcut "$SMPROGRAMS\${APPCOMPANY}\${APPNAME}.lnk" "$INSTDIR\${APPEXECUTABLE}" "" "$INSTDIR\${APPEXECUTABLE}" 0
+    CreateShortcut "$SMPROGRAMS\${APPCOMPANY}\Uninstall ${APPNAME}.lnk" "$INSTDIR\uninstall.exe"
+
+    ; Create Desktop Shortcut
+    CreateShortcut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\${APPEXECUTABLE}" "" "$INSTDIR\${APPEXECUTABLE}" 0
+
 SectionEnd
 
 Section "Uninstall"
-  ; Remove Desktop and Start Menu Shortcuts
-  Delete "$DESKTOP\ZAIRE.lnk"
-  Delete "$SMPROGRAMS\ZAIRE\ZAIRE.lnk"
-  Delete "$SMPROGRAMS\ZAIRE\Uninstall ZAIRE.lnk"
-  RMDir "$SMPROGRAMS\ZAIRE"
-  
-  ; Clean up registry records
-  DeleteRegKey HKLM "${UNINSTALL_KEY}"
-  
-  ; Wipe installation root files cleanly
-  RMDir /r "$INSTDIR"
+    ; Clean uninstall: Remove installation directory
+    RMDir /r "$INSTDIR"
+
+    ; Remove Start Menu Shortcuts
+    RMDir /r "$SMPROGRAMS\${APPCOMPANY}"
+
+    ; Remove Desktop Shortcut
+    Delete "$DESKTOP\${APPNAME}.lnk"
+
+    ; Remove Registry Keys
+    DeleteRegKey HKLM "${UNINST_KEY}"
+    DeleteRegKey HKLM "${REG_KEY}"
 SectionEnd

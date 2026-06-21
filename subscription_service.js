@@ -19,10 +19,12 @@ function generateLicenseKey() {
 }
 
 function getPlanLimit(plan) {
-  switch (plan) {
-    case 'initiate': return 10000;
-    case 'sovereign': return 50000;
-    default: return 500;
+  const p = (plan || '').toLowerCase();
+  switch (p) {
+    case 'power': return 2000;
+    case 'sovereign': return 500;
+    case 'initiate': return 0; // BYOK only
+    default: return 50; // Free plan gets 50
   }
 }
 
@@ -141,23 +143,31 @@ async function deactivateMachine(licenseKey, machineId) {
   return false;
 }
 
-async function decrementRequest(userId) {
+async function incrementRequest(userId) {
   await ensureDb();
-    const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
-    const index = subs.findIndex(s => s.user_id === userId);
-    if (index < 0) return false;
+  const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
+  const index = subs.findIndex(s => s.user_id === userId);
+  if (index < 0) return false;
 
-    const sub = subs[index];
+  const sub = subs[index];
+  sub.monthly_requests = (sub.monthly_requests || 0) + 1;
+  
+  await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
+  return true;
+}
 
-    if (sub.plan === 'free') {
-      if (sub.monthly_requests <= 0) {
-        return false; // Out of quota
-      }
-      sub.monthly_requests -= 1;
-      await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
-    }
-    return true; // Pro users or users with remaining quota
-  }
+async function incrementTokens(userId, tokens) {
+  await ensureDb();
+  const subs = await fs.readJson(SUBSCRIPTIONS_FILE);
+  const index = subs.findIndex(s => s.user_id === userId);
+  if (index < 0) return false;
+
+  const sub = subs[index];
+  sub.monthly_tokens = (sub.monthly_tokens || 0) + tokens;
+  
+  await fs.writeJson(SUBSCRIPTIONS_FILE, subs);
+  return true;
+}
 
   module.exports = {
     getSubscription,
@@ -166,5 +176,6 @@ async function decrementRequest(userId) {
     addMachine,
     deactivateMachine,
     generateLicenseKey,
-    decrementRequest
+    incrementRequest,
+    incrementTokens
   };

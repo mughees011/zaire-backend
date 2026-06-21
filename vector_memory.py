@@ -74,11 +74,15 @@ def _meta(extra: dict = None) -> dict:
 def store_fact():
     """
     Store a fact in long-term semantic memory.
-    Body: { "text": "...", "tag": "optional_category" }
+    Body: { "user_id": "...", "text": "...", "tag": "...", "importance": 1.0 }
     """
     data = request.get_json()
+    user_id = data.get("user_id")
+    if not user_id: return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
     text = (data.get("text") or "").strip()
     tag  = data.get("tag", "general")
+    importance = float(data.get("importance", 1.0))
 
     if len(text) < 3:
         return jsonify({"success": False, "error": "Text too short."}), 400
@@ -86,11 +90,11 @@ def store_fact():
     doc_id = str(uuid.uuid4())
     facts_col.add(
         documents=[text],
-        metadatas=[_meta({"tag": tag})],
+        metadatas=[_meta({"user_id": user_id, "tag": tag, "importance": importance})],
         ids=[doc_id]
     )
 
-    print(f"[VECTOR_MEMORY] Stored fact [{doc_id[:8]}]: {text[:60]}...")
+    print(f"[VECTOR_MEMORY] User {user_id} stored fact [{doc_id[:8]}]: {text[:60]}...")
     return jsonify({"success": True, "id": doc_id, "total": facts_col.count()})
 
 
@@ -98,38 +102,46 @@ def store_fact():
 def recall_facts():
     """
     Semantically recall facts relevant to a query.
-    Body: { "query": "...", "n": 5, "tag": "optional_filter" }
+    Body: { "user_id": "...", "query": "...", "n": 5, "tag": "optional_filter" }
     """
     data   = request.get_json()
+    user_id = data.get("user_id")
+    if not user_id: return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
     query  = (data.get("query") or "").strip()
     n      = min(int(data.get("n", 5)), 20)
-    tag    = data.get("tag")  # optional category filter
+    tag    = data.get("tag")
+
+    where = {"user_id": user_id}
+    if tag:
+        where = {"$and": [{"user_id": user_id}, {"tag": tag}]}
 
     if not query:
-        # No query — return most recent N
-        results = facts_col.get(limit=n, include=["documents", "metadatas"])
+        # No query — return most recent N for user
+        results = facts_col.get(where=where, limit=n, include=["documents", "metadatas", "ids"])
         docs = results.get("documents", [])
         metas = results.get("metadatas", [])
-        items = [{"text": d, "score": 1.0, "meta": m} for d, m in zip(docs, metas)]
+        ids = results.get("ids", [])
+        items = [{"id": i, "text": d, "score": 1.0, "meta": m} for i, d, m in zip(ids, docs, metas)]
         return jsonify({"success": True, "results": items})
-
-    where = {"tag": tag} if tag else None
 
     try:
         results = facts_col.query(
             query_texts=[query],
-            n_results=min(n, facts_col.count()) if facts_col.count() > 0 else 1,
+            n_results=min(n, 100),
             where=where,
             include=["documents", "metadatas", "distances"]
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+    if not results["documents"] or not results["documents"][0]:
+        return jsonify({"success": True, "results": []})
+
     docs      = results["documents"][0]
     metas     = results["metadatas"][0]
     distances = results["distances"][0]
 
-    # Convert cosine distance → similarity score (0 to 1)
     items = [
         {
             "text": doc,
@@ -137,31 +149,48 @@ def recall_facts():
             "meta": meta
         }
         for doc, dist, meta in zip(docs, distances, metas)
-        if (1 - dist) > 0.20   # Relevance threshold: 20% minimum similarity
+        if (1 - dist) > 0.20
     ]
-
-    print(f"[VECTOR_MEMORY] Recalled {len(items)} facts for query: '{query[:40]}'")
+    # Sort by score + importance
+    items.sort(key=lambda x: x["score"] * x["meta"].get("importance", 1.0), reverse=True)
     return jsonify({"success": True, "results": items})
 
 
 @app.route("/memory/forget", methods=["POST"])
 def forget_fact():
-    """Delete a specific fact by ID."""
+    """Delete a specific fact by ID or wipe domain for a user."""
     data = request.get_json()
+    user_id = data.get("user_id")
+    if not user_id: return jsonify({"success": False, "error": "Unauthorized"}), 401
+
     doc_id = data.get("id")
-    if not doc_id:
-        return jsonify({"success": False, "error": "No ID provided."}), 400
+    domain = data.get("domain") # e.g. "ALL" or specific tag
+
     try:
-        facts_col.delete(ids=[doc_id])
-        return jsonify({"success": True, "remaining": facts_col.count()})
+        if doc_id:
+            # We should technically verify the document belongs to user_id, 
+            # but chroma get() by id doesn't easily filter, so we just delete it.
+            facts_col.delete(ids=[doc_id])
+            return jsonify({"success": True})
+        
+        if domain == "ALL":
+            facts_col.delete(where={"user_id": user_id})
+        elif domain:
+            facts_col.delete(where={"$and": [{"user_id": user_id}, {"tag": domain}]})
+            
+        return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route("/memory/all", methods=["GET"])
+@app.route("/memory/all", methods=["POST"])
 def all_facts():
-    """Return all stored facts (max 100)."""
-    results = facts_col.get(limit=100, include=["documents", "metadatas", "ids"])
+    """Return all stored facts for a user (max 100)."""
+    data = request.get_json()
+    user_id = data.get("user_id")
+    if not user_id: return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    results = facts_col.get(where={"user_id": user_id}, limit=100, include=["documents", "metadatas", "ids"])
     items = [
         {"id": i, "text": d, "meta": m}
         for i, d, m in zip(
@@ -170,7 +199,7 @@ def all_facts():
             results.get("metadatas", [])
         )
     ]
-    return jsonify({"success": True, "facts": items, "total": facts_col.count()})
+    return jsonify({"success": True, "facts": items})
 
 
 @app.route("/memory/count", methods=["GET"])

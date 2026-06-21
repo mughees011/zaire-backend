@@ -1,11 +1,16 @@
 const express = require('express');
-const { getAllMemories, forgetMemory } = require('../memory_service');
+const { getAllMemories, forgetMemory, searchMemories } = require('../memory_service');
 const { buildMemoryDashboard, clearMemoryDomain } = require('../services/memory_dashboard_service');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
   res.json(getAllMemories(20));
+});
+
+router.get('/search', (req, res) => {
+  const query = req.query.q || '';
+  res.json(searchMemories(query));
 });
 
 router.get('/dashboard', (req, res) => {
