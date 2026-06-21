@@ -208,22 +208,23 @@ class SpecialistRouter:
         self.active_mode = "ZAIRE"
         self.active_custom_mode_config = None
         self.model = "Auto"
+        self.swarm_state = {"phase": "IDLE", "messages": []}
+
+    def _add_swarm_msg(self, source, text):
+        import time
+        msg = {
+            "id": int(time.time()*1000) + len(self.swarm_state["messages"]),
+            "source": source,
+            "msg": text,
+            "time": time.strftime("%H:%M:%S")
+        }
+        self.swarm_state["messages"].insert(0, msg)
+        if len(self.swarm_state["messages"]) > 10:
+            self.swarm_state["messages"].pop()
 
     def set_mode(self, mode, custom_mode_config=None):
         self.active_mode = mode
         self.active_custom_mode_config = custom_mode_config if isinstance(custom_mode_config, dict) else None
-        if (
-            mode not in self.specialists
-            and self.active_custom_mode_config
-            and _sanitize_mode_text(self.active_custom_mode_config.get("name")).upper() == _sanitize_mode_text(mode).upper()
-        ):
-            return self.custom_mode_handle(
-                user_message,
-                self.active_custom_mode_config,
-                uploaded_filepath=uploaded_filepath,
-                uploaded_filepaths=uploaded_filepaths
-            )
-
         if (
             mode not in self.specialists
             and self.active_custom_mode_config
@@ -410,6 +411,8 @@ class SpecialistRouter:
     # ── SWARM: Global Multi-Agent Protocol ────────────────────────────────────
 
     def swarm_handle(self, user_message, uploaded_filepath=None, uploaded_filepaths=None):
+        self.swarm_state["phase"] = "ANALYZING"
+        self._add_swarm_msg("DIRECTOR", f"Received request: {user_message[:50]}...")
         yield "🌀 **Initializing NEURAL SWARM Protocol...** All specialists standing by.\n\n"
         
         # 1. Director Phase: Analyze intent
@@ -425,15 +428,23 @@ class SpecialistRouter:
         except:
             needed = ["PROFESSOR", "ENGINEER"] # Default
 
+        self.swarm_state["phase"] = "DELEGATING"
+        self._add_swarm_msg("DIRECTOR", f"Delegating to: {', '.join(needed)}")
+
         analyses = {}
         for s_name in needed:
             if s_name in self.specialists:
+                self._add_swarm_msg(s_name, f"Analysis in progress...")
                 yield f"⚡ **{s_name} Specialist Analysis in progress...**\n"
                 resp = ""
                 stream = self.specialists[s_name].handle(user_message, uploaded_filepath, uploaded_filepaths)
                 for chunk in stream:
                     if isinstance(chunk, str): resp += chunk
                 analyses[s_name] = resp
+                self._add_swarm_msg(s_name, f"Analysis complete. Yielding insights.")
+
+        self.swarm_state["phase"] = "SYNTHESIZING"
+        self._add_swarm_msg("DIRECTOR", "All insights gathered. Merging data.")
 
         # Final Synthesis
         yield "🛡️ **Specialist perspectives gathered. Manifesting final synthesis...**\n\n"
@@ -444,6 +455,9 @@ class SpecialistRouter:
         """
         for chunk in call_llm_stream([{"role": "user", "content": synthesis_prompt}], self.model):
             yield chunk
+            
+        self.swarm_state["phase"] = "IDLE"
+        self._add_swarm_msg("DIRECTOR", "Swarm sync complete.")
 
     # ── GOAP: Goal-Oriented Action Protocol & SONA Learning ────────────────────
 
@@ -526,6 +540,8 @@ class SpecialistRouter:
             yield "🛑 **Execution Interrupted.** Check system logs for specialist availability."
 
     def get_mode_data(self, mode):
+        if mode == "SWARM":
+            return self.swarm_state
         if mode in self.specialists:
             if hasattr(self.specialists[mode], 'get_hud_data'):
                 return self.specialists[mode].get_hud_data()

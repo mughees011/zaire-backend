@@ -1,0 +1,230 @@
+function normalizeProjectName(value) {
+  return (value || 'zaire-builder-core')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'zaire-builder-core';
+}
+
+function inferProjectTypeLabel(projectType) {
+  const labels = {
+    saas: 'SaaS Platform',
+    portfolio: 'Portfolio',
+    agent: 'AI Agent',
+    mobile: 'Mobile App',
+    dashboard: 'Dashboard',
+    custom: 'Custom Project'
+  };
+
+  return labels[projectType] || 'Custom Project';
+}
+
+function buildEngineerPlan(intake = {}) {
+  const projectTypeLabel = inferProjectTypeLabel(intake.projectType);
+  const isFullStack = intake.scope === 'full-stack';
+  const needsAuth = intake.auth === 'yes';
+  const needsDatabase = intake.database === 'yes';
+  const needsPayments = intake.payments === 'yes';
+  const normalizedName = normalizeProjectName(intake.projectName);
+  const appName = intake.projectName || normalizedName;
+  const frontendStack = ['Next.js 14 App Router', 'TypeScript', 'Tailwind CSS'];
+  const backendStack = isFullStack ? ['Route Handlers', 'Server Actions', 'Node runtime'] : ['Static app shell', 'Client fetch orchestration'];
+  const dataStack = needsDatabase ? ['PostgreSQL', 'Prisma ORM'] : ['No persistent database required'];
+  const authStack = needsAuth ? ['Clerk authentication', 'Protected dashboard middleware'] : ['Anonymous access or lightweight session state'];
+  const paymentStack = needsPayments ? ['Stripe checkout', 'Webhook-based billing sync'] : ['No payment rails required'];
+  const pages = [
+    'Landing / value proposition',
+    'Authenticated workspace',
+    'Project detail / execution view',
+    ...(needsPayments ? ['Billing / plan management'] : []),
+    ...(needsAuth ? ['Sign in / sign up'] : [])
+  ];
+  const components = [
+    'ShellFrame',
+    'ProjectCommandBar',
+    'MissionComposer',
+    'ArchitectureSummary',
+    'ExecutionTimeline',
+    'CodeReviewPanel',
+    ...(needsPayments ? ['BillingCard'] : []),
+    ...(needsAuth ? ['AuthGate'] : []),
+    ...(needsDatabase ? ['DataStatusBadge'] : [])
+  ];
+  const apiRoutes = isFullStack
+    ? [
+        'POST /api/intake',
+        'POST /api/architecture/approve',
+        'POST /api/build',
+        ...(needsPayments ? ['POST /api/billing/create-checkout', 'POST /api/billing/webhook'] : []),
+        ...(needsAuth ? ['GET /api/session'] : [])
+      ]
+    : ['Client-side action queue only'];
+  const databaseSchema = needsDatabase
+    ? [
+        'users(id, email, role, created_at)',
+        'projects(id, owner_id, name, summary, deployment_target)',
+        'decisions(id, project_id, category, decision, rationale)',
+        'build_runs(id, project_id, phase, status, created_at)',
+        ...(needsPayments ? ['subscriptions(id, user_id, plan, status, stripe_customer_id)'] : [])
+      ]
+    : ['No relational schema required for v1'];
+  const authFlow = needsAuth
+    ? 'Clerk handles sign-up, session issuance, and route protection before the workspace loads.'
+    : 'Public landing path with optional invite capture before entering the workspace.';
+  const paymentFlow = needsPayments
+    ? 'Stripe Checkout creates the subscription, webhook confirms payment, and the billing record syncs into the project workspace.'
+    : 'No payment flow is required in the first release.';
+  const envVars = [
+    'NEXT_PUBLIC_APP_URL',
+    ...(needsAuth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
+    ...(needsDatabase ? ['DATABASE_URL'] : []),
+    ...(needsPayments ? ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] : []),
+    intake.deploymentTarget === 'Railway' ? 'RAILWAY_ENVIRONMENT' : 'VERCEL_ENV'
+  ];
+  const risks = [
+    isFullStack ? 'Scope can grow quickly without clear page and API boundaries.' : 'Frontend-only scope may still hide future backend dependencies.',
+    needsPayments ? 'Billing webhooks and subscription state need careful testing before launch.' : 'Monetization path is still undefined for later releases.',
+    needsDatabase ? 'Schema drift can slow shipping if migrations are not reviewed.' : 'Lack of persistence may limit saved workflows.',
+    intake.referenceSites ? 'References should guide quality, not force feature parity.' : 'Missing references may cause design ambiguity.'
+  ];
+  const assumptions = [
+    `Primary target user remains ${intake.who || 'builders'}.`,
+    intake.referenceSites ? `Reference sites are inspiration, not exact clones: ${intake.referenceSites}.` : 'No direct reference websites were provided.',
+    isFullStack ? 'Server-side logic is allowed in the first release.' : 'Backend scope stays deferred unless new requirements appear.',
+    `Deployment will start on ${intake.deploymentTarget || 'Vercel'}.`
+  ];
+
+  return {
+    summary: `${appName} is a ${projectTypeLabel.toLowerCase()} for ${intake.who}. ZAIRE will ship it as a ${isFullStack ? 'full-stack' : 'frontend-first'} experience with ${needsAuth ? 'authentication' : 'no authentication'}, ${needsDatabase ? 'persistent data' : 'no database'}, and ${needsPayments ? 'payments enabled' : 'no payments in v1'}.`,
+    stack: [...frontendStack, ...backendStack, ...dataStack, ...authStack, ...paymentStack],
+    pages,
+    components,
+    apiRoutes,
+    databaseSchema,
+    authFlow,
+    paymentFlow,
+    envVars,
+    risks,
+    assumptions,
+    projectTypeLabel,
+    normalizedName,
+    appName,
+    isFullStack,
+    needsAuth,
+    needsDatabase,
+    needsPayments,
+    deploymentPlan: [
+      `Primary hosting target: ${intake.deploymentTarget || 'Vercel'}`,
+      isFullStack ? 'Run frontend and API together in the App Router deployment.' : 'Ship a frontend-only bundle with managed API integrations later if needed.',
+      needsDatabase ? 'Provision PostgreSQL and attach pooled connection settings.' : 'No database provisioning needed.',
+      needsAuth ? 'Configure auth redirect URLs before launch.' : 'No auth secrets required.'
+    ]
+  };
+}
+
+function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL') {
+  const files = {
+    'app/page.tsx': {
+      content: `export default function Page() {\n  return (\n    <main className="min-h-screen bg-black text-white">\n      <section className="mx-auto max-w-6xl px-6 py-24">\n        <h1 className="text-5xl font-semibold tracking-tight">${plan.appName}</h1>\n        <p className="mt-4 max-w-2xl text-zinc-400">\n          ${intake.what}\n        </p>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'This is the launch page for the product experience.',
+        why: 'Every project needs a reliable entry route that expresses value immediately.',
+        edit: 'Hero copy, section order, and call-to-action text are safe to change.',
+        protect: 'Keep the exported page contract and core layout shell intact.'
+      }
+    },
+    'app/(workspace)/dashboard/page.tsx': {
+      content: `export default function DashboardPage() {\n  return (\n    <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">\n      <section className="rounded-2xl border border-white/10 p-6">\n        <h2 className="text-2xl font-semibold">Execution Workspace</h2>\n        <p className="mt-3 text-sm text-zinc-400">\n          Track architecture decisions, build phases, and QA readiness in one view.\n        </p>\n      </section>\n    </div>\n  );\n}\n`,
+      explanation: {
+        what: 'This file renders the logged-in workspace used for execution.',
+        why: 'It gives engineers a focused place to act after landing.',
+        edit: 'Cards, data modules, and supporting copy are safe to adapt.',
+        protect: 'Avoid removing the route or changing the workspace contract without updating navigation.'
+      }
+    }
+  };
+
+  if (plan.needsAuth) {
+    files['middleware.ts'] = {
+      content: `import { clerkMiddleware } from "@clerk/nextjs/server";\n\nexport default clerkMiddleware();\n\nexport const config = {\n  matcher: ["/((?!_next|.*\\\\..*).*)"]\n};\n`,
+      explanation: {
+        what: 'This secures application routes with auth middleware.',
+        why: 'Protected screens should not render before session checks succeed.',
+        edit: 'You can refine which routes are protected.',
+        protect: 'Do not remove the middleware export unless you remove auth completely.'
+      }
+    };
+  }
+
+  if (plan.needsDatabase) {
+    files['prisma/schema.prisma'] = {
+      content: `generator client {\n  provider = "prisma-client-js"\n}\n\ndatasource db {\n  provider = "postgresql"\n  url      = env("DATABASE_URL")\n}\n\nmodel Project {\n  id               String   @id @default(cuid())\n  name             String\n  summary          String\n  deploymentTarget String\n  createdAt        DateTime @default(now())\n}\n`,
+      explanation: {
+        what: 'This defines the database schema for project memory and execution records.',
+        why: 'Persistent state keeps the workflow coherent between sessions.',
+        edit: 'Adding fields and related models is normal as the product grows.',
+        protect: 'Coordinate schema changes with migrations so data stays consistent.'
+      }
+    };
+  }
+
+  if (plan.isFullStack) {
+    files['app/api/build/route.ts'] = {
+      content: `import { NextResponse } from "next/server";\n\nexport async function POST() {\n  return NextResponse.json({\n    status: "queued",\n    phase: "${skillLevel === 'PROFESSIONAL' ? 'BUILD' : 'SCAFFOLD'}"\n  });\n}\n`,
+      explanation: {
+        what: 'This route receives build orchestration requests.',
+        why: 'The workflow needs a backend handoff point for execution events.',
+        edit: 'Response shape and orchestration details can evolve with your build system.',
+        protect: 'Keep the route stable if the frontend depends on its status contract.'
+      }
+    };
+  }
+
+  if (plan.needsPayments) {
+    files['app/api/billing/create-checkout/route.ts'] = {
+      content: `import { NextResponse } from "next/server";\n\nexport async function POST() {\n  return NextResponse.json({ checkoutUrl: "https://checkout.stripe.com/session/demo" });\n}\n`,
+      explanation: {
+        what: 'This route creates the billing checkout handoff.',
+        why: 'Payment initiation should stay server-side so secrets remain protected.',
+        edit: 'Swap the demo response with the live Stripe session call.',
+        protect: 'Do not expose secret keys or move checkout creation into client code.'
+      }
+    };
+  }
+
+  const packageConfig = {
+    name: plan.normalizedName,
+    private: true,
+    scripts: {
+      dev: 'next dev',
+      build: 'next build',
+      start: 'next start',
+      lint: 'next lint'
+    },
+    dependencies: {
+      next: '14.x',
+      react: '18.x',
+      'react-dom': '18.x',
+      tailwindcss: '^3.4.0',
+      typescript: '^5.0.0',
+      ...(plan.needsAuth ? { '@clerk/nextjs': '^5.0.0' } : {}),
+      ...(plan.needsDatabase ? { prisma: '^5.0.0', '@prisma/client': '^5.0.0' } : {}),
+      ...(plan.needsPayments ? { stripe: '^16.0.0' } : {})
+    }
+  };
+
+  const envExample = plan.envVars.map((item) => `${item}=`).join('\n');
+  const readme = `# ${plan.appName}\n\n## What this is\n${plan.summary}\n\n## Stack\n${plan.stack.map((item) => `- ${item}`).join('\n')}\n\n## Pages\n${plan.pages.map((item) => `- ${item}`).join('\n')}\n\n## Next steps\n- Install dependencies\n- Add environment variables\n- Review scaffolded files\n- Run lint and build before deployment\n`;
+
+  return {
+    fileTree: Object.keys(files),
+    files,
+    readme,
+    envExample,
+    packageConfig
+  };
+}
+
+module.exports = {
+  buildEngineerPlan,
+  buildEngineerScaffold
+};

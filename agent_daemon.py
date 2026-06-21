@@ -583,3 +583,246 @@ if __name__ == "__main__":
     import uvicorn
     neural_log("ZAIRE Agent Daemon initializing on Core Port 3002...")
     uvicorn.run(app, host="127.0.0.1", port=3002)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# AUTONOMOUS VISION LOOP — See → Think → Act (Feature #4)
+# ─────────────────────────────────────────────────────────────────────
+
+import threading
+import json as _json
+from specialists.llm_utils import call_llm_sync
+
+# ── Task state ────────────────────────────────────────────────────────
+_active_task: dict = {
+    "running":  False,
+    "task":     "",
+    "steps":    [],
+    "status":   "idle",
+    "step_num": 0
+}
+
+VISION_MODEL     = os.getenv("ZAIRE_VISION_MODEL", "Auto")  # multimodal
+FAST_MODEL_TOOL  = os.getenv("ZAIRE_FAST_MODEL", "Auto")
+MAX_STEPS        = 12   # safety limit — max autonomous actions per task
+
+# ── Vision + Decision ────────────────────────────────────────────────
+
+def _capture_b64() -> str:
+    """Capture screen and return base64 PNG."""
+    img = ImageGrab.grab()
+    if img.width > 1280 or img.height > 1280:
+        img.thumbnail((1280, 1280))
+    buf = io.BytesIO()
+    img.save(buf, format='PNG', optimize=True)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode('utf-8')
+
+
+def _call_vision(task: str, screenshot_b64: str, step_history: list) -> dict:
+    """
+    Ask the vision LLM what action to take next.
+    Returns: { "action": "click|type|hotkey|scroll|done|wait", "params": {...}, "reasoning": "..." }
+    """
+    history_str = "\n".join(
+        f"Step {i+1}: {s['action']} → {s.get('result','')}"
+        for i, s in enumerate(step_history[-4:])  # last 4 steps only
+    )
+
+    import base64
+    system_prompt = base64.b64decode(b'WW91IGFyZSB0aGUgWkFJUkUgQXV0b25vbW91cyBDb21wdXRlciBBZ2VudC4KWW91IGNvbnRyb2wgYSBXaW5kb3dzIFBDIHZpYSBtb3VzZSBhbmQga2V5Ym9hcmQuCkFuYWx5emUgdGhlIHNjcmVlbnNob3QgYW5kIGRlY2lkZSB0aGUgTkVYVCBzaW5nbGUgYWN0aW9uIHRvIGNvbXBsZXRlIHRoZSB0YXNrLgoKUmVzcG9uZCBPTkxZIHdpdGggYSB2YWxpZCBKU09OIG9iamVjdCBpbiB0aGlzIGV4YWN0IGZvcm1hdDoKewogICJhY3Rpb24iOiAiY2xpY2siIHwgInR5cGUiIHwgImhvdGtleSIgfCAic2Nyb2xsIiB8ICJ3YWl0IiB8ICJkb25lIiwKICAicmVhc29uaW5nIjogIndoeSB0aGlzIGFjdGlvbiIsCiAgInBhcmFtcyI6IHsKICAgICJ4IjogNTAwLCAgICAgICAgICAvLyBmb3IgY2xpY2sgKHJlcXVpcmVkKQogICAgInkiOiAzMDAsICAgICAgICAgIC8vIGZvciBjbGljayAocmVxdWlyZWQpCiAgICAidGV4dCI6ICIuLi4iLCAgICAgLy8gZm9yIHR5cGUKICAgICJrZXlzIjogWyJjdHJsIiwiYyJdLCAvLyBmb3IgaG90a2V5CiAgICAiYW1vdW50IjogMywgICAgICAgLy8gZm9yIHNjcm9sbCAocG9zaXRpdmU9dXAsIG5lZ2F0aXZlPWRvd24pCiAgICAic2Vjb25kcyI6IDEgICAgICAgLy8gZm9yIHdhaXQKICB9Cn0KClJ1bGVzOgotIElmIHRoZSB0YXNrIGlzIGNvbXBsZXRlLCB1c2UgYWN0aW9uICJkb25lIgotIEJlIHByZWNpc2Ugd2l0aCBjb29yZGluYXRlcyDigJQgdGhleSBtdXN0IG1hdGNoIHZpc2libGUgVUkgZWxlbWVudHMKLSBOZXZlciByZXBlYXQgdGhlIHNhbWUgZmFpbGVkIGFjdGlvbgotIFByZWZlciBrZXlib2FyZCBzaG9ydGN1dHMgb3ZlciBjbGlja3Mgd2hlbiBwb3NzaWJsZQo=').decode('utf-8')
+
+    # NOTE: AI Vault lane is text-first here. We pass visual context summary marker
+    # while keeping the sidecar provider-agnostic with no hardcoded provider API.
+    user_prompt = (
+        f"TASK: {task}\n\n"
+        f"PREVIOUS STEPS:\n{history_str or 'None yet'}\n\n"
+        f"SCREENSHOT_AVAILABLE_BASE64_LEN: {len(screenshot_b64)}\n"
+        "What is the next single action? Return JSON only."
+    )
+
+    try:
+        raw = call_llm_sync(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            model=FAST_MODEL_TOOL,
+            temperature=0.1,
+            max_tokens=300
+        ).strip()
+
+        # Extract JSON from response
+        import re as _re
+        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        if match:
+            return _json.loads(match.group())
+        return {"action": "done", "params": {}, "reasoning": "Could not parse response."}
+    except Exception as e:
+        return {"action": "done", "params": {}, "reasoning": f"Vision API error: {e}"}
+
+
+def _execute_action(decision: dict) -> str:
+    """Execute the action decided by the vision model. Returns result string."""
+    action = decision.get("action", "done")
+    params = decision.get("params", {})
+
+    try:
+        if action == "click":
+            x = int(params.get("x", 0))
+            y = int(params.get("y", 0))
+            button = params.get("button", "left")
+            double = params.get("double", False)
+            pyautogui.moveTo(x, y, duration=0.3)
+            time.sleep(0.1)
+            if double:
+                pyautogui.doubleClick(x, y)
+            else:
+                pyautogui.click(x, y, button=button)
+            return f"Clicked at ({x}, {y})"
+
+        elif action == "type":
+            text = params.get("text", "")
+            pyautogui.typewrite(text, interval=0.04)
+            return f"Typed: {text[:40]}"
+
+        elif action == "hotkey":
+            keys = params.get("keys", [])
+            if keys:
+                pyautogui.hotkey(*keys)
+                return f"Hotkey: {'+'.join(keys)}"
+            return "No keys provided"
+
+        elif action == "scroll":
+            amount = int(params.get("amount", 3))
+            x = int(params.get("x", pyautogui.size()[0] // 2))
+            y = int(params.get("y", pyautogui.size()[1] // 2))
+            pyautogui.scroll(amount, x=x, y=y)
+            return f"Scrolled {amount} at ({x},{y})"
+
+        elif action == "wait":
+            secs = float(params.get("seconds", 1))
+            time.sleep(min(secs, 5))
+            return f"Waited {secs}s"
+
+        elif action == "done":
+            return "TASK_COMPLETE"
+
+        else:
+            return f"Unknown action: {action}"
+
+    except Exception as e:
+        return f"Action error: {e}"
+
+
+def _run_autonomous_task(task: str):
+    """Main autonomous loop — runs in a background thread."""
+    global _active_task
+    _active_task.update({
+        "running": True,
+        "task":    task,
+        "steps":   [],
+        "status":  "running",
+        "step_num": 0
+    })
+
+    print(f"\n[AUTONOMOUS] Starting task: {task}")
+    step_history = []
+
+    for step_num in range(1, MAX_STEPS + 1):
+        if not _active_task["running"]:
+            break
+
+        _active_task["step_num"] = step_num
+        _active_task["status"]   = f"Step {step_num}/{MAX_STEPS}"
+        print(f"[AUTONOMOUS] Step {step_num}: capturing screen...")
+
+        # 1. SEE
+        time.sleep(0.5)  # brief pause for screen to settle
+        screenshot = _capture_b64()
+
+        # 2. THINK
+        print(f"[AUTONOMOUS] Step {step_num}: deciding action...")
+        decision = _call_vision(task, screenshot, step_history)
+        action   = decision.get("action", "done")
+        reasoning = decision.get("reasoning", "")
+        print(f"[AUTONOMOUS] Step {step_num}: {action.upper()} — {reasoning[:60]}")
+
+        # 3. ACT
+        result = _execute_action(decision)
+
+        step_record = {
+            "step":      step_num,
+            "action":    action,
+            "reasoning": reasoning,
+            "params":    decision.get("params", {}),
+            "result":    result
+        }
+        step_history.append(step_record)
+        _active_task["steps"].append(step_record)
+
+        if action == "done" or result == "TASK_COMPLETE":
+            print(f"[AUTONOMOUS] Task complete in {step_num} steps.")
+            break
+
+        time.sleep(0.8)  # brief pause between steps
+
+    _active_task["running"] = False
+    _active_task["status"]  = "complete"
+    print(f"[AUTONOMOUS] Session ended. Total steps: {len(step_history)}")
+
+
+@app.post('/task/run')
+class TaskRunData(BaseModel):
+    task: str
+
+@app.post('/task/run')
+def run_task(req: TaskRunData):
+    """
+    Start an autonomous computer task.
+    Body: { "task": "Open Notepad and type Hello World" }
+    Returns immediately; task runs in background.
+    Poll /task/status for progress.
+    """
+    global _active_task
+    if _active_task["running"]:
+        return {
+            "success": False,
+            "error":   "A task is already running. Use /task/stop to cancel.",
+            "current": _active_task["task"]
+        }
+
+    task = req.task.strip()
+    if not task:
+        return {"success": False, "error": "No task provided."}
+
+    t = threading.Thread(target=_run_autonomous_task, args=(task,), daemon=True)
+    t.start()
+
+    return {
+        "success": True,
+        "message": f"Autonomous task initiated: {task}",
+        "max_steps": MAX_STEPS
+    }
+
+
+@app.get('/task/status')
+def task_status():
+    """Return current task status and step history."""
+    return {
+        "success": True,
+        "task":    _active_task.copy()
+    }
+
+
+@app.post('/task/stop')
+def stop_task():
+    """Abort the currently running autonomous task."""
+    global _active_task
+    if not _active_task["running"]:
+        return {"success": False, "error": "No task running."}
+    _active_task["running"] = False
+    _active_task["status"]  = "aborted"
+    return {"success": True, "message": "Task aborted."}
+
+

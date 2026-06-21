@@ -35,6 +35,25 @@ function saveMemories(memories) {
 
 // ─── Core Functions ────────────────────────────────────────────────────────────
 
+function determineCategory(text) {
+  const t = text.toLowerCase();
+  if (t.includes('code') || t.includes('javascript') || t.includes('python') || t.includes('bug') || t.includes('api')) return 'code';
+  if (t.includes('buy') || t.includes('sell') || t.includes('trade') || t.includes('crypto') || t.includes('market')) return 'finance';
+  if (t.includes('study') || t.includes('learn') || t.includes('read') || t.includes('understand')) return 'study';
+  if (t.includes('like') || t.includes('prefer') || t.includes('hate') || t.includes('always') || t.includes('my')) return 'preference';
+  return 'general';
+}
+
+function calculateImportance(text) {
+  let score = 3; // base out of 10
+  const t = text.toLowerCase();
+  if (t.includes('always') || t.includes('never') || t.includes('critical') || t.includes('must')) score += 4;
+  if (t.includes('prefer') || t.includes('like') || t.includes('hate')) score += 2;
+  if (t.includes('important') || t.includes('remember')) score += 3;
+  if (text.length > 50) score += 1;
+  return Math.min(score, 10);
+}
+
 /**
  * Store a new fact in persistent memory.
  * @param {string} text - The fact or preference to remember
@@ -50,6 +69,8 @@ function rememberFact(text) {
     id: Date.now(),
     timestamp: new Date().toISOString(),
     text: text.trim(),
+    category: determineCategory(text.trim()),
+    importance: calculateImportance(text.trim()),
     // Simple keyword tags extracted for faster recall
     tags: extractKeywords(text.trim())
   };
@@ -60,7 +81,7 @@ function rememberFact(text) {
   if (memories.length > MAX_MEMORIES) memories.splice(MAX_MEMORIES);
 
   const saved = saveMemories(memories);
-  console.log(`[MEMORY] Stored: "${text.trim()}" (total: ${memories.length})`);
+  console.log(`[MEMORY] Stored: "${text.trim()}" (cat: ${entry.category}, imp: ${entry.importance}) (total: ${memories.length})`);
   return { success: saved, count: memories.length, id: entry.id };
 }
 
@@ -109,12 +130,39 @@ function recallMemories(query = '', topN = 5) {
 }
 
 /**
+ * Search all stored memories and return full memory objects.
+ * Used by the Memory Dashboard/Viewer.
+ * @param {string} query - The search string
+ * @returns {{ id, timestamp, text, category, importance }[]}
+ */
+function searchMemories(query = '') {
+  const memories = loadMemories();
+  if (!query.trim()) return memories;
+
+  const queryWords = extractKeywords(query);
+
+  const scored = memories.map(m => {
+    const overlap = m.tags.filter(tag => queryWords.some(qw =>
+      m.text.toLowerCase().includes(qw) || qw.includes(tag)
+    )).length;
+    return { memory: m, score: overlap };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(s => s.memory);
+}
+
+/**
  * Get all stored memories (for display in the UI).
- * @returns {{ id, timestamp, text }[]}
+ * @returns {{ id, timestamp, text, category, importance }[]}
  */
 function getAllMemories(limit = 20) {
   const memories = loadMemories();
-  return memories.slice(0, limit).map(({ id, timestamp, text }) => ({ id, timestamp, text }));
+  return memories.slice(0, limit).map(({ id, timestamp, text, category, importance }) => ({ 
+    id, timestamp, text, category: category || 'general', importance: importance || 3 
+  }));
 }
 
 /**
@@ -214,4 +262,4 @@ function extractKeywords(text) {
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
-module.exports = { rememberFact, recallMemories, getAllMemories, forgetMemory, buildMemoryContext, persistVisualEcho };
+module.exports = { rememberFact, recallMemories, getAllMemories, forgetMemory, buildMemoryContext, persistVisualEcho, searchMemories };

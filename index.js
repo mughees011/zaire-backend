@@ -11,6 +11,7 @@ const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
+const open = require('open');
 const { requireAuth } = require('./middleware/auth');
 const { usageLimit } = require('./middleware/usage_limit');
 const { bootstrapUser } = require('./services/user_bootstrap');
@@ -23,11 +24,65 @@ const {
   forwardSpecialistAction,
   runQuickAction
 } = require('./services/socket_command_service');
+const {
+  buildEngineerPlan,
+  buildEngineerScaffold
+} = require('./services/engineer_workflow');
+
+const PACKAGED_FRONTEND_DIR = path.join(__dirname, 'frontend');
+const LOCAL_FRONTEND_DIR = path.join(__dirname, '..', 'frontend-temp', 'build');
+const FRONTEND_DIR = fs.existsSync(PACKAGED_FRONTEND_DIR) ? PACKAGED_FRONTEND_DIR : LOCAL_FRONTEND_DIR;
+
+function spawnPythonDaemon(scriptPath, options = {}) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const exeName = process.platform === 'win32' ? 'zaire_core.exe' : 'zaire_core';
+  const exePath = path.join(__dirname, exeName);
+  
+  if (isProduction && fs.existsSync(exePath)) {
+    const baseName = path.basename(scriptPath);
+    console.log(`[SPAWN] Using compiled zaire_core for ${baseName}`);
+    return spawn(exePath, [baseName], options);
+  } else {
+    return spawn('python', [scriptPath], options);
+  }
+}
 
 let sidecarProcess = null;
 let observerProc = null;
 let vectorMemoryProc = null;
 let localLLMProc = null;
+let clipboardProc = null;
+let fileWatcherProc = null;
+let sysHealthProc = null;
+let processMonProc = null;
+let alarmProc = null;
+let visualEchoProc = null;
+let securityProc = null;
+let smartHomeProc = null;
+let selfHealingProc = null;
+let weeklyBriefingProc = null;
+let airLLMProc = null;
+
+const BASELINE_DAEMON_SERVICES = new Set(['agent', 'processMonitor', 'sysHealth']);
+const OPTIONAL_DAEMON_SERVICES = new Set([
+  'vectorMemory',
+  'localLLM',
+  'clipboard',
+  'fileWatcher',
+  'alarm',
+  'security',
+  'smartHome',
+  'visualEcho',
+  'selfHealing',
+  'weeklyBriefing',
+  'airllm'
+]);
+const lazyServiceDemand = new Set();
+const daemonPowerProfile = {
+  state: 'active',
+  focusMode: false
+};
+let isShuttingDown = false;
 
 // Global Error Handlers for Stability
 process.on('uncaughtException', (err) => console.error('[FATAL] Uncaught Exception:', err));
@@ -171,6 +226,10 @@ app.use('/config', configRoutes);
 app.use('/llm', llmRoutes);
 app.use('/chats', chatRoutes);
 
+if (fs.existsSync(FRONTEND_DIR)) {
+  app.use(express.static(FRONTEND_DIR));
+}
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
@@ -288,15 +347,25 @@ app.post('/billing/webhook', verifyLemonSqueezyWebhook, async (req, res) => {
       if (['subscription_created', 'subscription_updated', 'subscription_activated'].includes(eventName)) {
         const userId = customData.user_id; // passed in checkout
         if (userId) {
+          const variantName = (attributes.variant_name || '').toLowerCase();
+          const productName = (attributes.product_name || '').toLowerCase();
+          let plan = 'initiate';
+          if (variantName.includes('power') || productName.includes('power')) {
+            plan = 'power';
+          } else if (variantName.includes('sovereign') || productName.includes('sovereign') || variantName.includes('pro') || productName.includes('pro')) {
+            plan = 'sovereign';
+          }
           await subscriptionService.upsertSubscription({
             user_id: userId,
             email: attributes.user_email,
-            plan: 'pro',
+            plan: plan,
             status: attributes.status,
             lemonsqueezy_subscription_id: event.data.id,
-            current_period_end: attributes.renews_at
+            current_period_end: attributes.renews_at || attributes.ends_at,
+            customer_portal_url: attributes.urls?.customer_portal || null,
+            update_payment_method_url: attributes.urls?.update_payment_method || null
           });
-          console.log(`[BILLING] Upgraded user ${userId} to PRO.`);
+          console.log(`[BILLING] Subscription updated for user ${userId} to ${plan}. Status: ${attributes.status}`);
         }
       }
     }
@@ -322,19 +391,198 @@ function getFeaturesForPlan(plan) {
   const base = { voice: true, zaire_mode: true };
   const planLower = (plan || '').toLowerCase();
   if (planLower === 'free_trial' || planLower === 'free') {
-    return { ...base, daily_limit: 30 };
+    return { ...base, daily_limit: 50 };
   }
   return {
     ...base,
-    daily_limit: -1, // unlimited
+    daily_limit: -1, // unlimited local usage
     trader_mode: true,
     professor_mode: true,
     engineer_mode: true,
     swarm_mode: true,
     custom_modes: true,
-    priority_support: true
+    priority_support: true,
+    priority_compute: planLower === 'power'
   };
 }
+
+function getLauncherWorkspaceStatus() {
+  return {
+    projects: 12,
+    repositories: 8,
+    deployments: 4,
+    agents_available: 7,
+    active_workspaces: 4
+  };
+}
+
+app.post(['/api/launcher/session', '/launcher/session'], async (req, res) => {
+  const {
+    email,
+    display_name,
+    license_key,
+    machine_id,
+    machine_name,
+    os_version
+  } = req.body;
+
+  if (!machine_id) {
+    return res.status(400).json({ valid: false, error: 'MISSING_MACHINE_ID' });
+  }
+
+  try {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+
+    if (license_key) {
+      const subscription = await subscriptionService.getSubscriptionByLicenseKey(license_key);
+
+      if (!subscription) {
+        return res.json({ valid: false, error: 'INVALID_KEY' });
+      }
+
+      const status = (subscription.status || '').toLowerCase();
+      if (status !== 'active' && status !== 'subscription_active' && status !== 'pro') {
+        return res.json({ valid: false, error: 'SUBSCRIPTION_INACTIVE', status: subscription.status });
+      }
+
+      if (subscription.current_period_end && new Date() > new Date(subscription.current_period_end)) {
+        subscription.status = 'expired';
+        await subscriptionService.upsertSubscription(subscription);
+        return res.json({ valid: false, error: 'SUBSCRIPTION_EXPIRED' });
+      }
+
+      const plan = (subscription.plan || '').toLowerCase();
+      const machineLimit = plan.includes('annual') ? 3 : plan.includes('pro') ? 2 : 1;
+      const activeMachines = (subscription.machines || []).filter((machine) => machine.is_active);
+      const existingMachine = activeMachines.find((machine) => machine.machine_id === machine_id);
+
+      if (!existingMachine && activeMachines.length >= machineLimit) {
+        return res.json({
+          valid: false,
+          error: 'MACHINE_LIMIT_REACHED',
+          limit: machineLimit,
+          message: `Your plan allows ${machineLimit} device(s). Deactivate an old device to continue.`
+        });
+      }
+
+      await subscriptionService.addMachine(license_key, {
+        machine_id,
+        machine_name: machine_name || 'ZAIRE Workstation',
+        os_version: os_version || 'Windows'
+      });
+
+      const refreshed = await subscriptionService.getSubscriptionByLicenseKey(license_key);
+      return res.json({
+        valid: true,
+        user_email: refreshed.email,
+        display_name: display_name || refreshed.email?.split('@')[0] || 'Builder',
+        plan: refreshed.plan,
+        expiry: refreshed.current_period_end,
+        current_period_end: refreshed.current_period_end,
+        license_key: refreshed.license_key,
+        license_status: 'Activated',
+        access_mode: 'pro',
+        features: getFeaturesForPlan(refreshed.plan),
+        workspace_status: getLauncherWorkspaceStatus()
+      });
+    }
+
+    const userId = normalizedEmail || `guest-${machine_id}`;
+    const subscription = await subscriptionService.getSubscription(userId);
+
+    await subscriptionService.addMachine(subscription.license_key, {
+      machine_id,
+      machine_name: machine_name || 'ZAIRE Workstation',
+      os_version: os_version || 'Windows'
+    });
+
+    const refreshed = await subscriptionService.getSubscription(userId);
+    return res.json({
+      valid: true,
+      user_email: refreshed.email,
+      display_name: display_name || refreshed.email?.split('@')[0] || 'Builder',
+      plan: refreshed.plan || 'free',
+      expiry: refreshed.current_period_end,
+      current_period_end: refreshed.current_period_end,
+      license_key: refreshed.plan === 'free' ? '' : refreshed.license_key,
+      license_status: refreshed.plan === 'free' ? 'Free Access' : 'Activated',
+      access_mode: refreshed.plan === 'free' ? 'free' : 'pro',
+      features: getFeaturesForPlan(refreshed.plan),
+      workspace_status: getLauncherWorkspaceStatus()
+    });
+  } catch (err) {
+    console.error('[LAUNCHER SESSION] Error:', err);
+    return res.status(500).json({ valid: false, error: 'SERVER_ERROR' });
+  }
+});
+
+app.post('/engineer/plan', async (req, res) => {
+  try {
+    const intake = req.body?.intake || req.body || {};
+    const plan = buildEngineerPlan(intake);
+    res.json({
+      success: true,
+      plan: {
+        summary: plan.summary,
+        stack: plan.stack,
+        pages: plan.pages,
+        components: plan.components,
+        apiRoutes: plan.apiRoutes,
+        databaseSchema: plan.databaseSchema,
+        authFlow: plan.authFlow,
+        paymentFlow: plan.paymentFlow,
+        envVars: plan.envVars,
+        risks: plan.risks,
+        assumptions: plan.assumptions,
+        projectTypeLabel: plan.projectTypeLabel,
+        normalizedName: plan.normalizedName,
+        appName: plan.appName,
+        isFullStack: plan.isFullStack,
+        needsAuth: plan.needsAuth,
+        needsDatabase: plan.needsDatabase,
+        needsPayments: plan.needsPayments,
+        deploymentPlan: plan.deploymentPlan
+      }
+    });
+  } catch (error) {
+    console.error('[ENGINEER PLAN ERR]', error);
+    res.status(500).json({
+      success: false,
+      error: 'Engineer plan generation failed.'
+    });
+  }
+});
+
+app.post('/engineer/scaffold', async (req, res) => {
+  try {
+    const intake = req.body?.intake || {};
+    const skillLevel = req.body?.skillLevel || 'PROFESSIONAL';
+    const incomingPlan = req.body?.plan || buildEngineerPlan(intake);
+    const plan = {
+      ...buildEngineerPlan(intake),
+      ...incomingPlan,
+      stack: incomingPlan.stack || incomingPlan.techStack || buildEngineerPlan(intake).stack,
+      envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || buildEngineerPlan(intake).envVars
+    };
+    const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
+    res.json({
+      success: true,
+      scaffold: {
+        fileTree: scaffold.fileTree,
+        files: scaffold.files,
+        readme: scaffold.readme,
+        envExample: scaffold.envExample,
+        packageConfig: scaffold.packageConfig
+      }
+    });
+  } catch (error) {
+    console.error('[ENGINEER SCAFFOLD ERR]', error);
+    res.status(500).json({
+      success: false,
+      error: 'Engineer scaffold generation failed.'
+    });
+  }
+});
 
 // ─── ZAIRE Sovereign Licensing & Activation API Endpoints ──────────────────
 app.post(['/api/license/validate', '/license/validate'], async (req, res) => {
@@ -599,7 +847,7 @@ function triggerDailyBriefing(socket) {
   console.log('[BRIEFING] Initiating Stark Proactive Greeting...');
   if (socket) socket.emit('neural_log', { content: "System: Initiating daily briefing sequence." });
 
-  const briefingProc = spawn('python', [path.join(__dirname, 'daily_briefing.py')], {
+  const briefingProc = spawnPythonDaemon(path.join(__dirname, 'daily_briefing.py'), {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
 
@@ -1108,28 +1356,101 @@ function cleanupOrphans(callback) {
   }
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function shouldRestartManagedService(name) {
+  if (isShuttingDown) return false;
+  if (process.env.RUN_DAEMONS !== 'true') return false;
+  if (BASELINE_DAEMON_SERVICES.has(name)) return true;
+  return lazyServiceDemand.has(name);
+}
+
+function getManagedServices() {
+  return {
+    agent: { start: startPythonSidecar, getProcess: () => sidecarProcess, isReady: () => sidecarReady },
+    processMonitor: { start: startProcessMonitor, getProcess: () => processMonProc, isReady: () => processMonReady },
+    sysHealth: { start: startSysHealth, getProcess: () => sysHealthProc, isReady: () => sysHealthReady },
+    vectorMemory: { start: startVectorMemory, getProcess: () => vectorMemoryProc, isReady: () => vectorMemoryReady },
+    localLLM: { start: startLocalLLM, getProcess: () => localLLMProc, isReady: () => localLLMReady },
+    clipboard: { start: startClipboard, getProcess: () => clipboardProc, isReady: () => clipboardReady },
+    fileWatcher: { start: startFileWatcher, getProcess: () => fileWatcherProc, isReady: () => fileWatcherReady },
+    alarm: { start: startAlarmScheduler, getProcess: () => alarmProc, isReady: () => alarmReady },
+    security: { start: startFaceSecurity, getProcess: () => securityProc, isReady: () => securityReady },
+    smartHome: { start: startSmartHome, getProcess: () => smartHomeProc, isReady: () => smartHomeReady },
+    visualEcho: { start: startVisualEcho, getProcess: () => visualEchoProc, isReady: () => Boolean(visualEchoProc) },
+    selfHealing: { start: startSelfHealingDaemon, getProcess: () => selfHealingProc, isReady: () => Boolean(selfHealingProc) },
+    weeklyBriefing: { start: startWeeklyBriefingService, getProcess: () => weeklyBriefingProc, isReady: () => weeklyBriefingReady },
+    airllm: { start: startAirLLM, getProcess: () => airLLMProc, isReady: () => Boolean(airLLMProc) }
+  };
+}
+
+function stopManagedService(name) {
+  const service = getManagedServices()[name];
+  const proc = service?.getProcess();
+  if (!proc) return;
+  console.log(`[DAEMONS] Stopping ${name} to preserve laptop resources.`);
+  try {
+    proc.kill();
+  } catch (err) {
+    console.warn(`[DAEMONS] Failed to stop ${name}:`, err.message);
+  }
+}
+
+function startBaselineDaemons() {
+  startPythonSidecar();
+  startProcessMonitor();
+  startSysHealth();
+}
+
+async function ensureServiceRunning(name, timeoutMs = 15000) {
+  const service = getManagedServices()[name];
+  if (!service) return false;
+
+  lazyServiceDemand.add(name);
+
+  if (!service.getProcess()) {
+    console.log(`[DAEMONS] Lazy-loading ${name} worker on demand.`);
+    service.start();
+  }
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (service.isReady()) return true;
+    if (!service.getProcess()) break;
+    await wait(250);
+  }
+
+  return service.isReady();
+}
+
+function applyDaemonPowerProfile(nextProfile = {}) {
+  const nextState = ['active', 'idle', 'hidden'].includes(nextProfile.state) ? nextProfile.state : daemonPowerProfile.state;
+  const nextFocusMode = typeof nextProfile.focusMode === 'boolean' ? nextProfile.focusMode : daemonPowerProfile.focusMode;
+
+  daemonPowerProfile.state = nextState;
+  daemonPowerProfile.focusMode = nextFocusMode;
+
+  if (nextState === 'active' && !nextFocusMode) {
+    return daemonPowerProfile;
+  }
+
+  OPTIONAL_DAEMON_SERVICES.forEach((name) => {
+    lazyServiceDemand.delete(name);
+    stopManagedService(name);
+  });
+
+  return daemonPowerProfile;
+}
+
 // ─── INITIALIZE ───
 const { initDatabase } = require('./db_init');
 initDatabase().then(() => {
   if (process.env.RUN_DAEMONS === 'true') {
     console.log('[CORE] Starting local ZAIRE daemons...');
     cleanupOrphans(() => {
-      console.log('[CORE] Initialization sequence starting...');
-      startPythonSidecar();
-      startVectorMemory();
-      startLocalLLM();
-      startProcessMonitor();
-      startClipboard();
-      startFileWatcher();
-      startSysHealth();
-      startAlarmScheduler();
-      startFaceSecurity();
-      startSmartHome();
-      startVisualEcho();
-      startSelfHealingDaemon();
-      startWeeklyBriefingService();
+      console.log('[CORE] Initialization sequence starting with compact worker profile...');
+      startBaselineDaemons();
       startWeeklyBriefingScheduler();
-      startAirLLM();
     });
   } else {
     console.log('[CORE] Production mode detected. Skipping local daemons.');
@@ -1139,10 +1460,11 @@ initDatabase().then(() => {
 });
 
 function startPythonSidecar() {
+  if (sidecarProcess) return;
   console.log('[AGENT] Starting Gemma 4 Agent Daemon...');
   const scriptPath = path.join(__dirname, 'agent_daemon.py');
 
-  sidecarProcess = spawn('python', [scriptPath], {
+  sidecarProcess = spawnPythonDaemon(scriptPath, {
 
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -1184,8 +1506,9 @@ function startPythonSidecar() {
 
 
   sidecarProcess.on('exit', (code) => {
+    sidecarProcess = null;
     sidecarReady = false;
-    if (code !== 0 && !sidecarProcess.killed) {
+    if (code !== 0 && shouldRestartManagedService('agent')) {
       console.warn(`[SIDECAR] Agent Daemon exited with code ${code}. Restarting in 3s...`);
       setTimeout(startPythonSidecar, 3000);
     }
@@ -1201,18 +1524,26 @@ function startPythonSidecar() {
 
 
 function startAirLLM() {
+  if (airLLMProc) return;
   console.log('[AIRLLM] Initializing Deep Intelligence Bridge (Port 3012)...');
   const scriptPath = path.join(__dirname, 'airllm_service.py');
-  const proc = spawn('python', [scriptPath], {
+  airLLMProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
-  proc.stdout.on('data', (data) => console.log(`[AIRLLM] ${data.toString().trim()}`));
-  proc.stderr.on('data', (data) => console.error(`[AIRLLM ERR] ${data.toString().trim()}`));
+  airLLMProc.stdout.on('data', (data) => console.log(`[AIRLLM] ${data.toString().trim()}`));
+  airLLMProc.stderr.on('data', (data) => console.error(`[AIRLLM ERR] ${data.toString().trim()}`));
+  airLLMProc.on('exit', (code) => {
+    airLLMProc = null;
+    if (code !== 0 && shouldRestartManagedService('airllm')) {
+      setTimeout(startAirLLM, 5000);
+    }
+  });
 }
 
 function startVisualEcho() {
+  if (visualEchoProc) return;
   console.log('[VISUAL ECHO] Starting Gaze Memory Daemon...');
   const scriptPath = path.join(__dirname, 'visual_echo_daemon.js');
 
@@ -1222,20 +1553,22 @@ function startVisualEcho() {
   visualEchoProc.stderr.on('data', (data) => console.error(`[VISUAL ECHO ERR] ${data}`));
 
   visualEchoProc.on('close', (code) => {
-    console.log(`[VISUAL ECHO] Exited with code ${code}. Restarting...`);
-    setTimeout(startVisualEcho, 5000);
+    visualEchoProc = null;
+    if (shouldRestartManagedService('visualEcho')) {
+      console.log(`[VISUAL ECHO] Exited with code ${code}. Restarting...`);
+      setTimeout(startVisualEcho, 5000);
+    }
   });
 }
 
-let selfHealingProc = null;
-let weeklyBriefingProc = null;
 let weeklyBriefingReady = false;
 let lastWeeklyBriefingKey = null;
 
 function startSelfHealingDaemon() {
+  if (selfHealingProc) return;
   console.log('[GUARDIAN] Starting Self-Healing Daemon...');
   const scriptPath = path.join(__dirname, 'self_healing_daemon.py');
-  selfHealingProc = spawn('python', [scriptPath], {
+  selfHealingProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -1243,15 +1576,19 @@ function startSelfHealingDaemon() {
   selfHealingProc.stdout.on('data', (data) => console.log(`[GUARDIAN] ${data.toString().trim()}`));
   selfHealingProc.stderr.on('data', (data) => console.error(`[GUARDIAN ERR] ${data.toString().trim()}`));
   selfHealingProc.on('exit', (code) => {
-    console.warn(`[GUARDIAN] Exited with code ${code}. Restarting in 5s...`);
-    setTimeout(startSelfHealingDaemon, 5000);
+    selfHealingProc = null;
+    if (shouldRestartManagedService('selfHealing')) {
+      console.warn(`[GUARDIAN] Exited with code ${code}. Restarting in 5s...`);
+      setTimeout(startSelfHealingDaemon, 5000);
+    }
   });
 }
 
 function startWeeklyBriefingService() {
+  if (weeklyBriefingProc) return;
   console.log('[WEEKLY] Starting Weekly Briefing Service...');
   const scriptPath = path.join(__dirname, 'weekly_briefing.py');
-  weeklyBriefingProc = spawn('python', [scriptPath], {
+  weeklyBriefingProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -1263,9 +1600,12 @@ function startWeeklyBriefingService() {
   });
   weeklyBriefingProc.stderr.on('data', (data) => console.error(`[WEEKLY ERR] ${data.toString().trim()}`));
   weeklyBriefingProc.on('exit', (code) => {
+    weeklyBriefingProc = null;
     weeklyBriefingReady = false;
-    console.warn(`[WEEKLY] Exited with code ${code}. Restarting in 5s...`);
-    setTimeout(startWeeklyBriefingService, 5000);
+    if (shouldRestartManagedService('weeklyBriefing')) {
+      console.warn(`[WEEKLY] Exited with code ${code}. Restarting in 5s...`);
+      setTimeout(startWeeklyBriefingService, 5000);
+    }
   });
 }
 
@@ -1297,7 +1637,7 @@ function startObserverDaemon() {
   console.log('[OBSERVER] Starting ZAIRE Observer Daemon (Vision & HUD)...');
   const scriptPath = path.join(__dirname, 'observer_daemon.py');
 
-  observerProc = spawn('python', [scriptPath], {
+  observerProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -1318,9 +1658,10 @@ function startObserverDaemon() {
 let vectorMemoryReady = false;
 
 function startVectorMemory() {
+  if (vectorMemoryProc) return;
   console.log('[VECTOR_MEM] Starting ZAIRE Vector Memory (ChromaDB)...');
   const scriptPath = path.join(__dirname, 'vector_memory.py');
-  vectorMemoryProc = spawn('python', [scriptPath], {
+  vectorMemoryProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -1340,8 +1681,9 @@ function startVectorMemory() {
     }
   });
   vectorMemoryProc.on('exit', (code) => {
+    vectorMemoryProc = null;
     vectorMemoryReady = false;
-    if (code !== 0 && !vectorMemoryProc.killed) {
+    if (code !== 0 && shouldRestartManagedService('vectorMemory')) {
       console.warn(`[VECTOR_MEM] Exited with code ${code}. Restarting in 5s...`);
       setTimeout(startVectorMemory, 5000);
     }
@@ -1354,9 +1696,10 @@ function startVectorMemory() {
 let localLLMReady = false;
 
 function startLocalLLM() {
+  if (localLLMProc) return;
   console.log('[LOCAL_LLM] Starting ZAIRE Local LLM Fallback (Ollama bridge)...');
   const scriptPath = path.join(__dirname, 'local_llm_service.py');
-  localLLMProc = spawn('python', [scriptPath], {
+  localLLMProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -1376,8 +1719,9 @@ function startLocalLLM() {
     }
   });
   localLLMProc.on('exit', (code) => {
+    localLLMProc = null;
     localLLMReady = false;
-    if (code !== 0 && !localLLMProc.killed) {
+    if (code !== 0 && shouldRestartManagedService('localLLM')) {
       console.warn(`[LOCAL_LLM] Exited with code ${code}. Restarting in 5s...`);
       setTimeout(startLocalLLM, 5000);
     }
@@ -1387,13 +1731,13 @@ function startLocalLLM() {
 
 
 // ─── Tier 2: Process Monitor Sidecar ──────────────────────────────────────
-let processMonProc = null;
 let processMonReady = false;
 
 function startProcessMonitor() {
+  if (processMonProc) return;
   console.log('[PROCESS_MON] Starting ZAIRE Process & App Monitor...');
   const scriptPath = path.join(__dirname, 'process_monitor.py');
-  processMonProc = spawn('python', [scriptPath], {
+  processMonProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1403,19 +1747,23 @@ function startProcessMonitor() {
     if (msg) console.log(`[PROCESS_MON] ${msg}`);
   });
   processMonProc.stderr.on('data', (data) => { const m = data.toString().trim(); if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[PROCESS_MON ERR] ${m}`); });
-  processMonProc.on('exit', (code) => { processMonReady = false; if (code !== 0 && !processMonProc.killed) setTimeout(startProcessMonitor, 5000); });
+  processMonProc.on('exit', (code) => {
+    processMonProc = null;
+    processMonReady = false;
+    if (code !== 0 && shouldRestartManagedService('processMonitor')) setTimeout(startProcessMonitor, 5000);
+  });
   processMonProc.on('error', (err) => console.error('[PROCESS_MON] Start failed:', err.message));
 }
 
 
 // ─── Tier 2: Clipboard Intelligence Sidecar ────────────────────────────────
-let clipboardProc = null;
 let clipboardReady = false;
 
 function startClipboard() {
+  if (clipboardProc) return;
   console.log('[CLIPBOARD] Starting ZAIRE Clipboard Intelligence...');
   const scriptPath = path.join(__dirname, 'clipboard_daemon.py');
-  clipboardProc = spawn('python', [scriptPath], {
+  clipboardProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1425,19 +1773,23 @@ function startClipboard() {
     if (msg) console.log(`[CLIPBOARD] ${msg}`);
   });
   clipboardProc.stderr.on('data', (data) => { const m = data.toString().trim(); if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[CLIPBOARD ERR] ${m}`); });
-  clipboardProc.on('exit', (code) => { clipboardReady = false; if (code !== 0 && !clipboardProc.killed) setTimeout(startClipboard, 5000); });
+  clipboardProc.on('exit', (code) => {
+    clipboardProc = null;
+    clipboardReady = false;
+    if (code !== 0 && shouldRestartManagedService('clipboard')) setTimeout(startClipboard, 5000);
+  });
   clipboardProc.on('error', (err) => console.error('[CLIPBOARD] Start failed:', err.message));
 }
 
 
 // ─── Tier 2: File Watcher Sidecar ──────────────────────────────────────────
-let fileWatcherProc = null;
 let fileWatcherReady = false;
 
 function startFileWatcher() {
+  if (fileWatcherProc) return;
   console.log('[FILE_WATCHER] Starting ZAIRE File Watcher...');
   const scriptPath = path.join(__dirname, 'file_watcher.py');
-  fileWatcherProc = spawn('python', [scriptPath], {
+  fileWatcherProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1447,19 +1799,23 @@ function startFileWatcher() {
     if (msg) console.log(`[FILE_WATCHER] ${msg}`);
   });
   fileWatcherProc.stderr.on('data', (data) => { const m = data.toString().trim(); if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[FILE_WATCHER ERR] ${m}`); });
-  fileWatcherProc.on('exit', (code) => { fileWatcherReady = false; if (code !== 0 && !fileWatcherProc.killed) setTimeout(startFileWatcher, 5000); });
+  fileWatcherProc.on('exit', (code) => {
+    fileWatcherProc = null;
+    fileWatcherReady = false;
+    if (code !== 0 && shouldRestartManagedService('fileWatcher')) setTimeout(startFileWatcher, 5000);
+  });
   fileWatcherProc.on('error', (err) => console.error('[FILE_WATCHER] Start failed:', err.message));
 }
 
 
 // ─── Tier 2: System Health Monitor Sidecar ─────────────────────────────────
-let sysHealthProc = null;
 let sysHealthReady = false;
 
 function startSysHealth() {
+  if (sysHealthProc) return;
   console.log('[SYS_HEALTH] Starting ZAIRE System Health Monitor...');
   const scriptPath = path.join(__dirname, 'system_health.py');
-  sysHealthProc = spawn('python', [scriptPath], {
+  sysHealthProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1469,20 +1825,23 @@ function startSysHealth() {
     if (msg) console.log(`[SYS_HEALTH] ${msg}`);
   });
   sysHealthProc.stderr.on('data', (data) => { const m = data.toString().trim(); if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[SYS_HEALTH ERR] ${m}`); });
-  sysHealthProc.on('exit', (code) => { sysHealthReady = false; if (code !== 0 && !sysHealthProc.killed) setTimeout(startSysHealth, 5000); });
+  sysHealthProc.on('exit', (code) => {
+    sysHealthProc = null;
+    sysHealthReady = false;
+    if (code !== 0 && shouldRestartManagedService('sysHealth')) setTimeout(startSysHealth, 5000);
+  });
   sysHealthProc.on('error', (err) => console.error('[SYS_HEALTH] Start failed:', err.message));
 }
 
 
 // ─── Tier 4: Alarm Scheduler Sidecar ─────────────────────────────────────────
-let alarmProc = null;
-let visualEchoProc = null; // Gaze Memory sidecar
 let alarmReady = false;
 
 function startAlarmScheduler() {
+  if (alarmProc) return;
   console.log('[ALARM] Starting ZAIRE Smart Alarm Scheduler...');
   const scriptPath = path.join(__dirname, 'alarm_scheduler.py');
-  alarmProc = spawn('python', [scriptPath], {
+  alarmProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1492,7 +1851,11 @@ function startAlarmScheduler() {
     if (msg) console.log(`[ALARM] ${msg}`);
   });
   alarmProc.stderr.on('data', (data) => { const m = data.toString().trim(); if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[ALARM ERR] ${m}`); });
-  alarmProc.on('exit', (code) => { alarmReady = false; if (code !== 0 && !alarmProc.killed) setTimeout(startAlarmScheduler, 5000); });
+  alarmProc.on('exit', (code) => {
+    alarmProc = null;
+    alarmReady = false;
+    if (code !== 0 && shouldRestartManagedService('alarm')) setTimeout(startAlarmScheduler, 5000);
+  });
   alarmProc.on('error', (err) => console.error('[ALARM] Start failed:', err.message));
 }
 
@@ -1500,13 +1863,13 @@ function startAlarmScheduler() {
 const ALARM_URL = 'http://127.0.0.1:3010';
 
 // ─── Tier 5: Face Security Sidecar ──────────────────────────────────────────
-let securityProc = null;
 let securityReady = false;
 
 function startFaceSecurity() {
+  if (securityProc) return;
   console.log('[SECURITY] Starting ZAIRE Face Security Daemon...');
   const scriptPath = path.join(__dirname, 'face_security.py');
-  securityProc = spawn('python', [scriptPath], {
+  securityProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1520,8 +1883,9 @@ function startFaceSecurity() {
     if (m && !m.includes('INFO') && !m.includes('WARNING') && !m.includes('Serving Flask')) console.error(`[SECURITY ERR] ${m}`);
   });
   securityProc.on('exit', (code) => {
+    securityProc = null;
     securityReady = false;
-    if (code !== 0 && !securityProc.killed) setTimeout(startFaceSecurity, 8000);
+    if (code !== 0 && shouldRestartManagedService('security')) setTimeout(startFaceSecurity, 8000);
   });
   securityProc.on('error', (err) => console.error('[SECURITY] Start failed:', err.message));
 }
@@ -1530,13 +1894,13 @@ function startFaceSecurity() {
 const SECURITY_URL = 'http://127.0.0.1:3011';
 
 // ─── Tier 6: Smart Home Sidecar ──────────────────────────────────────────────
-let smartHomeProc = null;
 let smartHomeReady = false;
 
 function startSmartHome() {
+  if (smartHomeProc) return;
   console.log('[SMART_HOME] Starting ZAIRE Smart Home Hub...');
   const scriptPath = path.join(__dirname, 'smart_home.py');
-  smartHomeProc = spawn('python', [scriptPath], {
+  smartHomeProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
@@ -1550,8 +1914,9 @@ function startSmartHome() {
     if (m && !m.includes('INFO') && !m.includes('WARNING')) console.error(`[SMART_HOME ERR] ${m}`);
   });
   smartHomeProc.on('exit', (code) => {
+    smartHomeProc = null;
     smartHomeReady = false;
-    if (code !== 0 && !smartHomeProc.killed) setTimeout(startSmartHome, 5000);
+    if (code !== 0 && shouldRestartManagedService('smartHome')) setTimeout(startSmartHome, 5000);
   });
   smartHomeProc.on('error', (err) => console.error('[SMART_HOME] Start failed:', err.message));
 }
@@ -2623,6 +2988,24 @@ app.get('/api/security/status', (req, res) => {
   });
 });
 
+app.post('/api/system/power', (req, res) => {
+  const profile = applyDaemonPowerProfile({
+    state: req.body?.state,
+    focusMode: req.body?.focusMode
+  });
+
+  if (profile.state === 'active' && process.env.RUN_DAEMONS === 'true') {
+    startBaselineDaemons();
+  }
+
+  return res.status(200).json({
+    success: true,
+    profile,
+    baselineWorkers: Array.from(BASELINE_DAEMON_SERVICES),
+    optionalWorkers: Array.from(OPTIONAL_DAEMON_SERVICES)
+  });
+});
+
 
 
 
@@ -2666,6 +3049,7 @@ app.post('/files/event', (req, res) => {
 
 // System Health HUD proxy — frontend polls this every 2s
 app.get('/health/hud', async (req, res) => {
+  await ensureServiceRunning('sysHealth');
   if (!sysHealthReady) return res.json({ success: false, error: 'Health monitor offline' });
   try {
     const r = await fetch(`${SYS_HEALTH_URL}/health/summary`);
@@ -2677,6 +3061,7 @@ app.get('/health/hud', async (req, res) => {
 
 // Process list proxy
 app.get('/process/list', async (req, res) => {
+  await ensureServiceRunning('processMonitor');
   if (!processMonReady) return res.json({ success: false, processes: [] });
   try {
     const r = await fetch(`${PROCESS_MON_URL}/process/list`);
@@ -2688,6 +3073,7 @@ app.get('/process/list', async (req, res) => {
 
 // Kill process proxy
 app.post('/process/kill', async (req, res) => {
+  await ensureServiceRunning('processMonitor');
   if (!processMonReady) return res.json({ success: false, error: 'Process monitor offline' });
   try {
     const r = await fetch(`${PROCESS_MON_URL}/process/kill`, {
@@ -2726,6 +3112,7 @@ app.get('/task/status', async (req, res) => {
 
 // File watcher study queue proxy
 app.get('/files/study_queue', async (req, res) => {
+  await ensureServiceRunning('fileWatcher');
   if (!fileWatcherReady) return res.json({ success: true, queue: [] });
   try {
     const r = await fetch(`${FILE_WATCHER_URL}/files/study_queue`);
@@ -2816,6 +3203,7 @@ app.post('/security/intruder', (req, res) => {
 
 // Proxy helpers for security endpoints
 const _secProxy = async (path, method, body, res) => {
+  await ensureServiceRunning('security');
   if (!securityReady) return res.json({ success: false, error: 'Security daemon offline' });
   try {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -2851,6 +3239,7 @@ setInterval(async () => {
 
 app.get('/security/status', (req, res) => _secProxy('/security/status', 'GET', null, res));
 app.get('/security/video_feed', async (req, res) => {
+  await ensureServiceRunning('security');
   if (!securityReady) return res.status(503).send('Security daemon offline');
   try {
     const r = await fetch(`${SECURITY_URL}/security/video_feed`);
@@ -2900,6 +3289,7 @@ app.post('/smart/scene', (req, res) => _smartProxy('/scene', 'POST', req.body, r
 app.post('/memory/store', async (req, res) => {
   try {
     const { text, tag } = req.body;
+    await ensureServiceRunning('vectorMemory');
     if (!vectorMemoryReady) return res.json({ success: false, error: 'Vector memory offline' });
     const r = await fetch(`${VECTOR_MEM_URL}/memory/store`, {
       method: 'POST',
@@ -2915,6 +3305,7 @@ app.post('/memory/store', async (req, res) => {
 app.post('/memory/recall', async (req, res) => {
   try {
     const { query, n } = req.body;
+    await ensureServiceRunning('vectorMemory');
     if (!vectorMemoryReady) return res.json({ success: true, results: [] });
     const r = await fetch(`${VECTOR_MEM_URL}/memory/recall`, {
       method: 'POST',
@@ -2929,6 +3320,7 @@ app.post('/memory/recall', async (req, res) => {
 
 app.get('/memory/vector/all', async (req, res) => {
   try {
+    await ensureServiceRunning('vectorMemory');
     if (!vectorMemoryReady) return res.json({ success: true, facts: [] });
     const r = await fetch(`${VECTOR_MEM_URL}/memory/all`);
     res.json(await r.json());
@@ -2939,6 +3331,7 @@ app.get('/memory/vector/all', async (req, res) => {
 
 app.get('/memory/vector/count', async (req, res) => {
   try {
+    await ensureServiceRunning('vectorMemory');
     if (!vectorMemoryReady) return res.json({ facts: 0, study: 0 });
     const r = await fetch(`${VECTOR_MEM_URL}/memory/count`);
     res.json(await r.json());
@@ -2950,6 +3343,7 @@ app.get('/memory/vector/count', async (req, res) => {
 // ─── Local LLM Status Proxy ────────────────────────────────────────────────
 app.get('/llm/status', async (req, res) => {
   try {
+    await ensureServiceRunning('localLLM');
     if (!localLLMReady) return res.json({ status: 'offline', ollama: false });
     const r = await fetch(`${LOCAL_LLM_URL}/llm/health`);
     res.json(await r.json());
@@ -2961,6 +3355,7 @@ app.get('/llm/status', async (req, res) => {
 
 app.get('/llm/models', async (req, res) => {
   try {
+    await ensureServiceRunning('localLLM');
     if (!localLLMReady) return res.json({ models: [] });
     const r = await fetch(`${LOCAL_LLM_URL}/llm/models`);
     res.json(await r.json());
@@ -4270,13 +4665,54 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start Server ────────────────────────────────────────────────────────────
+if (fs.existsSync(FRONTEND_DIR)) {
+  const frontendIndexPath = path.join(FRONTEND_DIR, 'index.html');
+  const passthroughPrefixes = [
+    '/api',
+    '/auth',
+    '/billing',
+    '/health',
+    '/memory',
+    '/memories',
+    '/llm',
+    '/chats',
+    '/config',
+    '/agent',
+    '/task',
+    '/upload',
+    '/process',
+    '/alarm',
+    '/security',
+    '/smart',
+    '/files',
+    '/tts',
+    '/socket.io'
+  ];
+
+  app.get(/.*/, (req, res, next) => {
+    if (passthroughPrefixes.some((prefix) => req.path.startsWith(prefix))) {
+      return next();
+    }
+
+    return res.sendFile(frontendIndexPath);
+  });
+}
+
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`ZAIRE backend running on port ${PORT}`);
+  if (process.env.ZAIRE_OPEN_UI === '1') {
+    setTimeout(() => {
+      open(`http://127.0.0.1:${PORT}`).catch((err) => {
+        console.error('[LAUNCH] Failed to open ZAIRE UI:', err.message);
+      });
+    }, 1200);
+  }
 });
 
 // ─── Graceful Shutdown ───────────────────────────────────────────────────────
 function cleanupAndExit(code = 0) {
+  isShuttingDown = true;
   console.log(`\n[SHUTDOWN] ZAIRE Core exiting with code: ${code}`);
   console.log('[SHUTDOWN] Cleaning up tactical resources...');
 
@@ -4285,6 +4721,17 @@ function cleanupAndExit(code = 0) {
     observerProc,
     vectorMemoryProc,
     localLLMProc,
+    processMonProc,
+    clipboardProc,
+    fileWatcherProc,
+    sysHealthProc,
+    alarmProc,
+    visualEchoProc,
+    securityProc,
+    smartHomeProc,
+    selfHealingProc,
+    weeklyBriefingProc,
+    airLLMProc
   ].filter(Boolean);
 
   processesToKill.forEach((proc) => {

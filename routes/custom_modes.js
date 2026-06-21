@@ -430,4 +430,135 @@ router.post('/custom_modes/:id/duplicate', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/custom_modes/:id/export
+ * Export a custom mode as a Marketplace-ready JSON structure.
+ */
+router.get('/custom_modes/:id/export', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const modeId = req.params.id;
+
+  try {
+    const modeRes = await pool.query('SELECT * FROM custom_modes WHERE id = $1 AND user_id = $2', [modeId, userId]);
+    if (modeRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Mode not found' });
+    }
+    const mode = modeRes.rows[0];
+    const { description, metadata } = unpackModeDescription(mode.description);
+
+    const compRes = await pool.query('SELECT component_type, layout_zone, position_index FROM mode_components WHERE mode_id = $1 ORDER BY position_index ASC', [modeId]);
+    const permRes = await pool.query('SELECT file_system, shell_execution, internet_access, cost_warnings, screen_capture, hardware_media FROM mode_permissions WHERE mode_id = $1', [modeId]);
+
+    const exportData = {
+      zaire_marketplace_version: '1.0',
+      id: mode.id,
+      name: mode.name,
+      desc: description,
+      color: mode.color,
+      capabilities: mode.capabilities || [],
+      persona: mode.persona,
+      goals: mode.goals,
+      neverDo: metadata.neverDo || '',
+      expertBlueprint: metadata.expertBlueprint || null,
+      preferredOutput: mode.preferred_output,
+      routingPriority: mode.routing_priority,
+      components: compRes.rows.map(c => ({
+        type: c.component_type,
+        zone: c.layout_zone,
+        index: c.position_index
+      })),
+      permissions: permRes.rows[0] ? {
+        fileSystem: permRes.rows[0].file_system,
+        shellExecution: permRes.rows[0].shell_execution,
+        internetAccess: permRes.rows[0].internet_access,
+        costWarnings: permRes.rows[0].cost_warnings,
+        screenCapture: permRes.rows[0].screen_capture,
+        hardwareMedia: permRes.rows[0].hardware_media
+      } : {}
+    };
+
+    res.json({ success: true, export_data: exportData });
+  } catch (err) {
+    console.error('[CUSTOM MODES EXPORT ERR]', err);
+    res.status(500).json({ error: 'Failed to export custom mode' });
+  }
+});
+
+/**
+ * POST /api/custom_modes/import
+ * Import a Marketplace-ready JSON structure as a new Custom Mode.
+ */
+router.post('/custom_modes/import', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const { export_data } = req.body;
+
+  if (!export_data || export_data.zaire_marketplace_version !== '1.0') {
+    return res.status(400).json({ error: 'Invalid or unsupported marketplace mode data' });
+  }
+
+  const newModeId = `imported-${export_data.id || Date.now()}-${Date.now()}`;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const packedDescription = packModeDescription(export_data.desc, { 
+      neverDo: export_data.neverDo, 
+      expertBlueprint: export_data.expertBlueprint 
+    });
+
+    await client.query(`
+      INSERT INTO custom_modes (
+        id, user_id, name, description, color, capabilities, persona, goals, preferred_output, routing_priority, enabled, source, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+    `, [
+      newModeId,
+      userId,
+      `${export_data.name} (Imported)`,
+      packedDescription,
+      export_data.color || '#00d4ff',
+      JSON.stringify(export_data.capabilities || []),
+      export_data.persona,
+      export_data.goals,
+      export_data.preferredOutput,
+      export_data.routingPriority || 'Balanced',
+      true,
+      'marketplace'
+    ]);
+
+    if (Array.isArray(export_data.components)) {
+      for (let idx = 0; idx < export_data.components.length; idx++) {
+        const comp = export_data.components[idx];
+        await client.query(`
+          INSERT INTO mode_components (mode_id, component_type, layout_zone, position_index)
+          VALUES ($1, $2, $3, $4)
+        `, [newModeId, comp.type, comp.zone, comp.index !== undefined ? comp.index : idx]);
+      }
+    }
+
+    const perm = export_data.permissions || {};
+    await client.query(`
+      INSERT INTO mode_permissions (
+        mode_id, file_system, shell_execution, internet_access, cost_warnings, screen_capture, hardware_media, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+    `, [
+      newModeId,
+      perm.fileSystem || false,
+      perm.shellExecution || false,
+      perm.internetAccess !== undefined ? perm.internetAccess : true,
+      perm.costWarnings !== undefined ? perm.costWarnings : true,
+      perm.screenCapture || false,
+      perm.hardwareMedia || false
+    ]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, id: newModeId, message: 'Custom mode imported successfully' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[CUSTOM MODES IMPORT ERR]', err);
+    res.status(500).json({ error: 'Failed to import custom mode' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
