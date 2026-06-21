@@ -38,6 +38,287 @@
         "enabled": false
       }
     ],
-    "updatedAt": "2026-05-17T15:02:47.333Z"
+    "updatedAt": "2026-06-21T17:30:08.157Z"
+  },
+  "theme": {
+    "hudOpacity": 0.85,
+    "neuralGlowEnabled": true,
+    "holographicTiltEnabled": true,
+    "blobColor": "#f97316",
+    "blobSize": 2.5
+  },
+  "desktopProfile": {
+    "customModes": [
+      {
+        "id": "lawyer-mode-1779440523584",
+        "name": "LAWYER MODE",
+        "desc": "Reviews contracts, summarizes legal risk, and prepares negotiation notes",
+        "color": "#60a5fa",
+        "capabilities": [
+          "WEB SEARCH",
+          "FILE SYSTEM",
+          "SCREEN VISION"
+        ],
+        "persona": "Precise, cautious, citation-first",
+        "goals": "",
+        "neverDo": "",
+        "preferredOutput": "Action Plan",
+        "components": [
+          {
+            "type": "Chat Panel",
+            "zone": "Main Workspace",
+            "index": 0
+          },
+          {
+            "type": "Task Queue",
+            "zone": "Left Sidebar",
+            "index": 0
+          },
+          {
+            "type": "Agent Feed",
+            "zone": "Top Status Bar",
+            "index": 0
+          },
+          {
+            "type": "Timeline",
+            "zone": "Right Inspector",
+            "index": 0
+          },
+          {
+            "type": "Portfolio Grid",
+            "zone": "Main Workspace",
+            "index": 1
+          },
+          {
+            "type": "Risk Meter",
+            "zone": "Main Workspace",
+            "index": 2
+          },
+          {
+            "type": "Medication Timeline",
+            "zone": "Main Workspace",
+            "index": 3
+          },
+          {
+            "type": "Typography Analyzer",
+            "zone": "Main Workspace",
+            "index": 4
+          },
+          {
+            "type": "Layout Forge",
+            "zone": "Main Workspace",
+            "index": 5
+          }
+        ],
+        "routingPriority": "Balanced",
+        "expertBlueprint": {
+          "primaryMission": "Reviews contracts, summarizes legal risk, and prepares negotiation notes",
+          "expertiseChecklist": [
+            "Master the domain implied by \"LAWYER MODE\" before responding.",
+            "Translate the user specification into concrete best practices, terminology, and quality standards.",
+            "Prefer senior-level judgment, clear structure, and decision-ready recommendations.",
+            "State assumptions and risks when they materially affect the answer."
+          ],
+          "operatingGuidelines": [
+            "Persona anchor: Precise, cautious, citation-first",
+            "Preferred output: Action Plan",
+            "Routing priority: Balanced",
+            "Capabilities in scope: WEB SEARCH, FILE SYSTEM, SCREEN VISION"
+          ],
+          "refusalRules": [
+            "Never fabricate facts, hidden access, or completed work.",
+            "Do not claim research, tool usage, or verification that did not actually happen.",
+            "If live verification is needed, say so plainly and continue with the best grounded guidance available."
+          ]
+        },
+        "permissions": {
+          "fileSystem": true,
+          "shellExecution": false,
+          "internetAccess": true,
+          "costWarnings": true,
+          "screenCapture": true,
+          "hardwareMedia": false
+        },
+        "enabled": false,
+        "source": "template:lawyer",
+        "createdAt": "2026-05-22T09:02:03.584Z"
+      },
+      {
+        "id": "financial-planner-1779293639867",
+        "name": "FINANCIAL PLANNER",
+        "desc": "Tracks budgets, goals, spending patterns, and long-term planning",
+        "color": "#facc15",
+        "capabilities": [
+          "WEB SEARCH",
+          "FILE SYSTEM",
+          "CHARTS"
+        ],
+        "persona": "Conservative, clear, numbers-first",
+        "goals": "",
+        "neverDo": "",
+        "preferredOutput": "Action Plan",
+        "components": [
+          {
+            "type": "Task Queue",
+            "zone": "Left Sidebar",
+            "index": 0
+          },
+          {
+            "type": "Neural Console",
+            "zone": "Right Inspector",
+            "index": 0
+          },
+          {
+            "type": "Research Panel",
+            "zone": "Main Workspace",
+            "index": 0
+          },
+          {
+            "type": "Timeline",
+            "zone": "Right Inspector",
+            "index": 1
+          },
+          {
+            "type": "Status Grid",
+            "zone": "Main Workspace",
+            "index": 1
+          },
+          {
+            "type": "Context Window",
+            "zone": "Main Workspace",
+            "index": 2
+          },
+          {
+            "type": "File Browser",
+            "zone": "Main Workspace",
+            "index": 3
+          },
+          {
+            "type": "Decision Matrix",
+            "zone": "Main Workspace",
+            "index": 4
+          },
+          {
+            "type": "Roadmap Generator",
+            "zone": "Main Workspace",
+            "index": 5
+          },
+          {
+            "type": "Model Router",
+            "zone": "Left Sidebar",
+            "index": 1
+          },
+          {
+            "type": "Thinking Stream",
+            "zone": "Left Sidebar",
+            "index": 2
+          },
+          {
+            "type": "Whale Scanner",
+            "zone": "Right Inspector",
+            "index": 2
+          }
+        ],
+        "routingPriority": "Balanced",
+        "permissions": {
+          "fileSystem": true,
+          "shellExecution": false,
+          "internetAccess": true,
+          "costWarnings": true,
+          "screenCapture": false,
+          "hardwareMedia": false
+        },
+        "enabled": false,
+        "source": "template:financial",
+        "createdAt": "2026-05-20T16:13:59.867Z"
+      }
+    ],
+    "coreModeVisibility": {
+      "ZAIRE": true,
+      "ENGINEER": true,
+      "TRADER": false,
+      "PROFESSOR": false,
+      "SWARM": false
+    },
+    "focusModeEnabled": false,
+    "modeLayouts": {
+      "ZAIRE": {
+        "leftWidth": 200,
+        "rightWidth": 200,
+        "bottomHeight": 150,
+        "leftX": 0,
+        "leftY": 0,
+        "rightX": 0,
+        "rightY": 0,
+        "bottomX": 0,
+        "bottomY": 0
+      },
+      "TRADER": {
+        "leftWidth": 200,
+        "rightWidth": 220,
+        "bottomHeight": 90,
+        "leftX": 0,
+        "leftY": 0,
+        "rightX": 0,
+        "rightY": 0,
+        "bottomX": -1,
+        "bottomY": -57
+      },
+      "PROFESSOR": {
+        "leftWidth": 220,
+        "rightWidth": 200,
+        "bottomHeight": 80,
+        "leftX": 0,
+        "leftY": 0,
+        "rightX": 0,
+        "rightY": 0,
+        "bottomX": 0,
+        "bottomY": -59
+      },
+      "ENGINEER": {
+        "leftWidth": 200,
+        "rightWidth": 260,
+        "bottomHeight": 90,
+        "leftX": 0,
+        "leftY": 0,
+        "rightX": 0,
+        "rightY": 0,
+        "bottomX": 0,
+        "bottomY": -48
+      }
+    },
+    "componentNudges": {},
+    "archiveReactions": {},
+    "theme": {
+      "hudOpacity": 0.85,
+      "neuralGlowEnabled": true,
+      "holographicTiltEnabled": true,
+      "blobColor": "#f97316",
+      "blobSize": 2.5,
+      "blobPosition": {
+        "x": -0.019999013449449245,
+        "y": -1.1661882519864086
+      }
+    },
+    "licensing": {
+      "cachedLicenseKey": ""
+    }
+  },
+  "memorySettings": {
+    "memoryDepth": 60,
+    "retentionPeriod": "Forever",
+    "gazeMemoryEnabled": false,
+    "crossModeSharing": true,
+    "privateSession": false
+  },
+  "personalization": {
+    "voiceActor": "Nova",
+    "baseTone": "Default",
+    "characteristics": "Warm",
+    "fastAnswers": false,
+    "zaireInstructions": "",
+    "userName": "",
+    "userOccupation": "",
+    "userAbout": ""
   }
 }
