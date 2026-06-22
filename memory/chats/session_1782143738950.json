@@ -1,0 +1,18 @@
+{
+  "id": "session_1782143738950",
+  "title": "He",
+  "messages": [
+    {
+      "role": "user",
+      "content": "He",
+      "timestamp": "2026-06-22T15:56:34.864Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, all secure connection lanes (Vault slots, backup keys) and the local fallback are exhausted. Please verify your internet connection or update the AI Vault settings.",
+      "timestamp": "2026-06-22T15:56:35.338Z"
+    }
+  ],
+  "createdAt": "2026-06-22T15:55:38.950Z",
+  "updatedAt": "2026-06-22T15:56:35.338Z"
+}
