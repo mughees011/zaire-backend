@@ -2248,6 +2248,10 @@ function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
     return fallbackModel || 'gpt-4o-mini';
   }
 
+  if (provider === 'openrouter') {
+    return fallbackModel || 'openrouter/auto';
+  }
+
   if (provider === 'deepseek') {
     return 'deepseek-chat';
   }
@@ -2292,17 +2296,20 @@ async function executeLLMCallWithFailover(options) {
           return res;
         }
 
-        if (providerLower === 'siliconflow' || providerLower === 'openai' || providerLower === 'deepseek' || providerLower === 'mistral') {
+        if (providerLower === 'siliconflow' || providerLower === 'openai' || providerLower === 'openrouter' || providerLower === 'deepseek' || providerLower === 'mistral') {
           let baseUrl = slot.baseUrl || "";
           if (!baseUrl) {
             if (providerLower === 'siliconflow') baseUrl = "https://api.siliconflow.cn/v1/chat/completions";
             else if (providerLower === 'openai') baseUrl = "https://api.openai.com/v1/chat/completions";
+            else if (providerLower === 'openrouter') baseUrl = "https://openrouter.ai/api/v1/chat/completions";
             else if (providerLower === 'deepseek') baseUrl = "https://api.deepseek.com/v1/chat/completions";
             else if (providerLower === 'mistral') baseUrl = "https://api.mistral.ai/v1/chat/completions";
           }
 
           const defaultModel = providerLower === 'siliconflow'
             ? 'deepseek-ai/DeepSeek-V3'
+            : providerLower === 'openrouter'
+              ? 'openrouter/auto'
             : providerLower === 'deepseek'
               ? 'deepseek-chat'
               : providerLower === 'mistral'
@@ -3813,7 +3820,9 @@ io.on('connection', (socket) => {
     try {
       const { ok } = mergeAndSaveSystemConfig(config || {});
       if (!ok) throw new Error('Failed to persist system config');
-      if (config?.aiVault?.slots) groq = tryBuildGroqClient();
+      if (config?.aiVault?.slots) {
+        console.log('[CONFIG] AI Vault slots updated locally.');
+      }
       socket.emit('neural_log', { content: "System: ZAIRE Configuration persisted to neural core." });
     } catch (err) {
       console.error(`[CONFIG ERR] Failed to save:`, err.message);
