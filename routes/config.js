@@ -8,7 +8,7 @@ router.get('/', (req, res) => {
     const cfg = readSystemConfig();
     res.json({ success: true, data: cfg });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message, code: 'CONFIG_READ_FAILED' });
   }
 });
 
@@ -19,7 +19,7 @@ router.post('/', (req, res) => {
     if (!result.ok) throw new Error('Failed to save config');
     res.json({ success: true, data: result.next });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message, code: 'CONFIG_SAVE_FAILED' });
   }
 });
 
@@ -29,7 +29,7 @@ router.post('/reset', (req, res) => {
     if (!ok) throw new Error('Failed to reset config');
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: err.message, code: 'CONFIG_RESET_FAILED' });
   }
 });
 

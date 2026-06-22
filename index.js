@@ -12,6 +12,7 @@ const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
 const open = require('open');
+const pool = require('./db');
 const { requireAuth } = require('./middleware/auth');
 const { usageLimit } = require('./middleware/usage_limit');
 const { bootstrapUser } = require('./services/user_bootstrap');
@@ -28,6 +29,11 @@ const {
   buildEngineerPlan,
   buildEngineerScaffold
 } = require('./services/engineer_workflow');
+const {
+  qaProject,
+  repairError,
+  exportProjectZip
+} = require('./services/engineer_qa_repair');
 
 const PACKAGED_FRONTEND_DIR = path.join(__dirname, 'frontend');
 const LOCAL_FRONTEND_DIR = path.join(__dirname, '..', 'frontend-temp', 'build');
@@ -295,7 +301,7 @@ const lemonWebhook = require('./routes/lemonsqueezy_webhook');
 app.use('/api', lemonWebhook);
 
 const vaultRouter = require('./routes/vault');
-app.use('/api', vaultRouter);
+app.use('/', vaultRouter);
 
 const customModesRouter = require('./routes/custom_modes');
 app.use('/api', customModesRouter);
@@ -309,6 +315,8 @@ const configRoutes = require('./routes/config');
 const llmRoutes = require('./routes/llm');
 const chatRoutes = require('./routes/chats');
 
+const downloadsRoutes = require('./routes/downloads');
+
 app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/memory', memoryRoutes);
@@ -320,6 +328,7 @@ app.use('/api/agents', agentRoutes);
 app.use('/config', configRoutes);
 app.use('/llm', llmRoutes);
 app.use('/chats', chatRoutes);
+app.use('/downloads', downloadsRoutes);
 
 if (fs.existsSync(FRONTEND_DIR)) {
   app.use(express.static(FRONTEND_DIR));
@@ -615,6 +624,58 @@ app.post('/engineer/plan', async (req, res) => {
   try {
     const intake = req.body?.intake || req.body || {};
     const plan = buildEngineerPlan(intake);
+
+    const userId = req.body?.userId || 'local-user';
+
+    // Phase 5: Backend Project Memory Integration
+    try {
+      const projectRes = await pool.query(
+        `INSERT INTO projects (user_id, name, type, current_phase) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [userId, plan.appName || 'Untitled', plan.projectTypeLabel || 'Web App', 'Architecture']
+      );
+      const projectId = projectRes.rows[0].id;
+
+      await pool.query(
+        `INSERT INTO project_intake (project_id, project_name) VALUES ($1, $2)`,
+        [projectId, plan.appName]
+      );
+
+      await pool.query(
+        `INSERT INTO architecture_plans (project_id, summary, tech_stack) VALUES ($1, $2, $3)`,
+        [projectId, plan.summary, JSON.stringify(plan.stack)]
+      );
+
+      // Return projectId to frontend for future requests
+      res.json({
+        success: true,
+        projectId: projectId,
+        plan: {
+          summary: plan.summary,
+          stack: plan.stack,
+          pages: plan.pages,
+          components: plan.components,
+          apiRoutes: plan.apiRoutes,
+          databaseSchema: plan.databaseSchema,
+          authFlow: plan.authFlow,
+          paymentFlow: plan.paymentFlow,
+          envVars: plan.envVars,
+          risks: plan.risks,
+          assumptions: plan.assumptions,
+          projectTypeLabel: plan.projectTypeLabel,
+          normalizedName: plan.normalizedName,
+          appName: plan.appName,
+          isFullStack: plan.isFullStack,
+          needsAuth: plan.needsAuth,
+          needsDatabase: plan.needsDatabase,
+          needsPayments: plan.needsPayments,
+          deploymentPlan: plan.deploymentPlan
+        }
+      });
+      return;
+    } catch(dbErr) {
+      console.warn('[ENGINEER PLAN] DB Warning (Project might be local only):', dbErr.message);
+    }
+
     res.json({
       success: true,
       plan: {
@@ -643,7 +704,8 @@ app.post('/engineer/plan', async (req, res) => {
     console.error('[ENGINEER PLAN ERR]', error);
     res.status(500).json({
       success: false,
-      error: 'Engineer plan generation failed.'
+      error: 'Engineer plan generation failed.',
+      code: 'ENGINEER_PLAN_FAILED'
     });
   }
 });
@@ -660,6 +722,22 @@ app.post('/engineer/scaffold', async (req, res) => {
       envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || buildEngineerPlan(intake).envVars
     };
     const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
+
+    const projectId = req.body?.projectId;
+    if (projectId) {
+      try {
+        await pool.query(`UPDATE projects SET current_phase = 'Scaffold' WHERE id = $1`, [projectId]);
+        for (const [filePath, fileRecord] of Object.entries(scaffold.files || {})) {
+           await pool.query(
+             `INSERT INTO project_files (project_id, path, content, explanation) VALUES ($1, $2, $3, $4)`,
+             [projectId, filePath, fileRecord?.content || '', fileRecord?.explanation || null]
+           );
+        }
+      } catch(dbErr) {
+        console.warn('[ENGINEER SCAFFOLD DB]', dbErr.message);
+      }
+    }
+
     res.json({
       success: true,
       scaffold: {
@@ -674,17 +752,85 @@ app.post('/engineer/scaffold', async (req, res) => {
     console.error('[ENGINEER SCAFFOLD ERR]', error);
     res.status(500).json({
       success: false,
-      error: 'Engineer scaffold generation failed.'
+      error: 'Engineer scaffold generation failed.',
+      code: 'ENGINEER_SCAFFOLD_FAILED'
     });
   }
 });
 
+app.post('/engineer/qa', async (req, res) => {
+  try {
+    const { projectId, files } = req.body;
+    if (!projectId || !files) {
+      return res.status(400).json({ success: false, error: 'Missing projectId or files', code: 'ENGINEER_QA_MISSING_PARAMS' });
+    }
+    const qaResult = await qaProject(projectId, files);
+
+    try {
+      await pool.query(
+        `INSERT INTO qa_runs (project_id, status, passed_count, warning_count, error_count, checks) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [projectId, qaResult.status, qaResult.passed_count, qaResult.warning_count, qaResult.error_count, JSON.stringify(qaResult.checks)]
+      );
+      await pool.query(`UPDATE projects SET current_phase = 'QA' WHERE id = $1`, [projectId]);
+    } catch(dbErr) {
+      console.warn('[ENGINEER QA DB]', dbErr.message);
+    }
+
+    res.json({ success: true, result: qaResult });
+  } catch (error) {
+    console.error('[ENGINEER QA ERR]', error);
+    res.status(500).json({ success: false, error: 'QA execution failed.', code: 'ENGINEER_QA_FAILED' });
+  }
+});
+
+app.post('/engineer/repair', async (req, res) => {
+  try {
+    const { projectId, errorText, files } = req.body;
+    if (!projectId || !errorText || !files) {
+      return res.status(400).json({ success: false, error: 'Missing parameters', code: 'ENGINEER_REPAIR_MISSING_PARAMS' });
+    }
+    const repairResult = await repairError(projectId, errorText, files);
+
+    try {
+      await pool.query(
+        `INSERT INTO repair_requests (project_id, raw_error, category, likely_file, proposed_patch) VALUES ($1, $2, $3, $4, $5)`,
+        [projectId, errorText, repairResult.category, repairResult.likelyFile, JSON.stringify(repairResult.proposedPatch)]
+      );
+    } catch(dbErr) {
+      console.warn('[ENGINEER REPAIR DB]', dbErr.message);
+    }
+
+    res.json({ success: true, patch: repairResult });
+  } catch (error) {
+    console.error('[ENGINEER REPAIR ERR]', error);
+    res.status(500).json({ success: false, error: 'Repair execution failed.', code: 'ENGINEER_REPAIR_FAILED' });
+  }
+});
+
+app.post('/engineer/export', async (req, res) => {
+  try {
+    const { projectId, files } = req.body;
+    if (!projectId || !files) {
+      return res.status(400).json({ success: false, error: 'Missing parameters', code: 'ENGINEER_EXPORT_MISSING_PARAMS' });
+    }
+    
+    // Set headers for ZIP download
+    res.setHeader('Content-Type', 'application/zip');
+    
+    await exportProjectZip(projectId, files, res);
+  } catch (error) {
+    console.error('[ENGINEER EXPORT ERR]', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Export failed.', code: 'ENGINEER_EXPORT_FAILED' });
+    }
+  }
+});
 // ─── ZAIRE Sovereign Licensing & Activation API Endpoints ──────────────────
-app.post(['/api/license/validate', '/license/validate'], async (req, res) => {
+app.post(['/api/license/validate', '/license/validate', '/api/license/activate', '/license/activate', '/api/devices/register', '/devices/register'], async (req, res) => {
   const { license_key, machine_id, machine_name, os_version } = req.body;
 
   if (!license_key || !machine_id) {
-    return res.status(400).json({ valid: false, error: 'MISSING_PARAMS' });
+    return res.status(400).json({ valid: false, error: 'MISSING_PARAMS', code: 'LICENSE_MISSING_PARAMS' });
   }
 
   try {
@@ -720,10 +866,11 @@ app.post(['/api/license/validate', '/license/validate'], async (req, res) => {
       if (activeMachines.length >= machineLimit) {
         return res.json({
           valid: false,
-          error: 'MACHINE_LIMIT_REACHED',
-          limit: machineLimit,
-          message: `Your plan allows ${machineLimit} device(s). Deactivate an old device to continue.`
-        });
+        error: 'MACHINE_LIMIT_REACHED',
+        code: 'LICENSE_MACHINE_LIMIT_REACHED',
+        limit: machineLimit,
+        message: `Your plan allows ${machineLimit} device(s). Deactivate an old device to continue.`
+      });
       }
 
       await subscriptionService.addMachine(license_key, {
@@ -752,23 +899,53 @@ app.post(['/api/license/validate', '/license/validate'], async (req, res) => {
 
   } catch (err) {
     console.error('[LICENSE] Validation error:', err);
-    return res.status(500).json({ valid: false, error: 'SERVER_ERROR' });
+    return res.status(500).json({ valid: false, error: 'SERVER_ERROR', code: 'LICENSE_SERVER_ERROR' });
   }
 });
 
-app.post(['/api/license/deactivate', '/license/deactivate'], async (req, res) => {
+app.get(['/api/license/status', '/license/status'], async (req, res) => {
+  const licenseKey = String(req.query.license_key || req.headers['x-license-key'] || '').trim();
+  if (!licenseKey) {
+    return res.status(400).json({ success: false, error: 'MISSING_LICENSE_KEY', code: 'LICENSE_STATUS_MISSING_KEY' });
+  }
+
+  try {
+    const sub = await subscriptionService.getSubscriptionByLicenseKey(licenseKey);
+    if (!sub) {
+      return res.status(404).json({ success: false, error: 'INVALID_KEY', code: 'LICENSE_STATUS_INVALID_KEY' });
+    }
+
+    const activeMachines = (sub.machines || []).filter((machine) => machine.is_active);
+    return res.json({
+      success: true,
+      valid: true,
+      status: sub.status,
+      plan: sub.plan,
+      expiry: sub.current_period_end,
+      current_period_end: sub.current_period_end,
+      license_key: sub.license_key,
+      machines: activeMachines,
+      features: getFeaturesForPlan(sub.plan)
+    });
+  } catch (err) {
+    console.error('[LICENSE] Status error:', err);
+    return res.status(500).json({ success: false, error: 'SERVER_ERROR', code: 'LICENSE_STATUS_FAILED' });
+  }
+});
+
+app.post(['/api/license/deactivate', '/license/deactivate', '/api/devices/deactivate', '/devices/deactivate'], async (req, res) => {
   const { license_key, machine_id } = req.body;
   if (!license_key || !machine_id) {
-    return res.status(400).json({ success: false, error: 'MISSING_PARAMS' });
+    return res.status(400).json({ success: false, error: 'MISSING_PARAMS', code: 'LICENSE_DEACTIVATE_MISSING_PARAMS' });
   }
   try {
     const ok = await subscriptionService.deactivateMachine(license_key, machine_id);
     if (ok) {
       return res.json({ success: true, message: 'Device deactivated successfully.' });
     }
-    return res.status(404).json({ success: false, error: 'Device or license not found.' });
+    return res.status(404).json({ success: false, error: 'Device or license not found.', code: 'LICENSE_DEACTIVATE_NOT_FOUND' });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'SERVER_ERROR' });
+    return res.status(500).json({ success: false, error: 'SERVER_ERROR', code: 'LICENSE_DEACTIVATE_FAILED' });
   }
 });
 
