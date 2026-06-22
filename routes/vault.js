@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../auth_middleware');
 const { saveUserKeys, getKeyStatus, getUserKeys } = require('../vault_service');
+const { mergeAndSaveSystemConfig } = require('../services/system_config_service');
 
 const router = express.Router();
 
@@ -98,6 +99,24 @@ router.post(['/ai-vault', '/api/vault/save'], requireAuth, async (req, res) => {
 
   try {
     const updatedStatus = await saveUserKeys(userId, slots || []);
+    const decryptedSlots = await getUserKeys(userId);
+    const syncResult = mergeAndSaveSystemConfig({
+      aiVault: {
+        slots: decryptedSlots.map((slot) => ({
+          slot: Number(slot.slot),
+          provider: slot.provider || 'Empty',
+          apiKey: slot.key || '',
+          hasKey: Boolean(slot.key),
+          model: slot.model || '',
+          purpose: slot.purpose || '',
+          baseUrl: slot.baseUrl || '',
+          enabled: Boolean(slot.enabled)
+        }))
+      }
+    });
+    if (!syncResult?.ok) {
+      throw new Error('Failed to sync authenticated vault to local runtime.');
+    }
 
     res.status(200).json({
       success: true,
