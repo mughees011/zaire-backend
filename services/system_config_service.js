@@ -184,6 +184,28 @@ function decryptStoredSecret(entry) {
   }
 }
 
+function normalizeProviderIdentity(provider = '') {
+  return String(provider || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function secretMatchesProvider(secretEntry, slotProvider) {
+  if (!secretEntry) return false;
+  return normalizeProviderIdentity(secretEntry.provider) === normalizeProviderIdentity(slotProvider);
+}
+
+function reconcileAiVaultSlots(slots = [], secrets = loadSecrets()) {
+  const clean = sanitizeApiSlots(slots);
+  return clean.map((slot, i) => {
+    const secretEntry = secrets.slots?.[String(i)] || null;
+    const hasMatchingSecret = secretMatchesProvider(secretEntry, slot.provider);
+    return {
+      ...slot,
+      apiKey: '',
+      hasKey: Boolean(hasMatchingSecret)
+    };
+  });
+}
+
 function persistAiVaultSlots(slots = []) {
   const clean = sanitizeApiSlots(slots);
   const secrets = loadSecrets();
@@ -207,8 +229,13 @@ function persistAiVaultSlots(slots = []) {
       }
     } else if (!slot.hasKey) {
       delete secrets.slots[String(i)];
-    } else if (typeof secrets.slots[String(i)] === 'string' || secrets.slots[String(i)]?.key) {
+    } else if (
+      (typeof secrets.slots[String(i)] === 'string' || secrets.slots[String(i)]?.key) &&
+      secretMatchesProvider(secrets.slots[String(i)], slot.provider)
+    ) {
       secretStored = true;
+    } else {
+      delete secrets.slots[String(i)];
     }
 
     out.push({ ...slot, apiKey: '', hasKey: Boolean(secretStored) });
@@ -273,14 +300,15 @@ function hydrateRuntimeProviders() {
   return slots.map((slot, i) => {
     const enc = secrets.slots?.[String(i)] || null;
     let key = '';
-    if (enc) {
+    const hasMatchingSecret = secretMatchesProvider(enc, slot.provider);
+    if (enc && hasMatchingSecret) {
       try {
         key = decryptStoredSecret(enc);
       } catch (err) {
         console.error('[SECRETS] Decrypt failed:', err.message);
       }
     }
-    return { ...slot, apiKey: key };
+    return { ...slot, apiKey: key, hasKey: Boolean(hasMatchingSecret && key) };
   });
 }
 
@@ -330,6 +358,7 @@ module.exports = {
   writeSystemConfig,
   resetSystemConfig,
   sanitizeApiSlots,
+  reconcileAiVaultSlots,
   normalizeExternalApiEntries,
   persistAiVaultSlots,
   persistExternalApiEntries,

@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireAuth } = require('../auth_middleware');
-const { saveUserKeys, getKeyStatus } = require('../vault_service');
+const { saveUserKeys, getKeyStatus, getUserKeys } = require('../vault_service');
 
 const router = express.Router();
 
@@ -75,6 +75,19 @@ function normalizeIncomingSlots(body = {}) {
     }));
 }
 
+function isSupportedProvider(provider = '') {
+  const normalized = String(provider || '').toLowerCase();
+  return [
+    'groq',
+    'openrouter',
+    'openai',
+    'google gemini',
+    'deepseek',
+    'mistral',
+    'siliconflow'
+  ].includes(normalized);
+}
+
 /**
  * POST /ai-vault
  * Safely saves or updates user API keys in AI Vault slots.
@@ -124,8 +137,37 @@ router.get(['/ai-vault', '/api/vault/status'], requireAuth, async (req, res) => 
  */
 router.post(['/ai-vault/test', '/api/vault/test'], requireAuth, async (req, res) => {
   try {
-    // Mock implementation for the test endpoint
-    res.status(200).json({ success: true, message: 'Provider connection successful.' });
+    const userId = req.user.id;
+    const incomingSlot = Array.isArray(req.body?.slots) ? req.body.slots[0] : req.body;
+    const slotNumber = Number(incomingSlot?.slot || 1);
+    const provider = String(incomingSlot?.provider || '').trim();
+    const rawKey = String(incomingSlot?.key || incomingSlot?.apiKey || '').trim();
+    const enabled = Boolean(incomingSlot?.enabled ?? true);
+
+    if (!enabled || !provider || provider === 'Empty') {
+      return res.status(400).json({ success: false, error: 'Choose an active provider before testing.', code: 'VAULT_TEST_PROVIDER_REQUIRED' });
+    }
+
+    if (!isSupportedProvider(provider)) {
+      return res.status(400).json({ success: false, error: `${provider} is saved, but runtime support is not enabled yet. Use Groq, OpenAI, OpenRouter, Google Gemini, DeepSeek, Mistral, or SiliconFlow for now.`, code: 'VAULT_TEST_PROVIDER_UNSUPPORTED' });
+    }
+
+    let keyAvailable = Boolean(rawKey);
+    if (!keyAvailable) {
+      const storedKeys = await getUserKeys(userId);
+      const storedSlot = storedKeys.find((entry) => Number(entry.slot) === slotNumber);
+      keyAvailable = Boolean(
+        storedSlot &&
+        String(storedSlot.provider || '').toLowerCase() === provider.toLowerCase() &&
+        String(storedSlot.key || '').trim()
+      );
+    }
+
+    if (!keyAvailable) {
+      return res.status(400).json({ success: false, error: 'This slot needs a fresh API key for the selected provider before it can run.', code: 'VAULT_TEST_KEY_REQUIRED' });
+    }
+
+    res.status(200).json({ success: true, message: `${provider} is configured and ready for runtime use.` });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to connect to provider.', code: 'VAULT_TEST_FAILED' });
   }

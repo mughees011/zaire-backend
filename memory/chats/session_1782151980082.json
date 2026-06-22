@@ -1,0 +1,28 @@
+{
+  "id": "session_1782151980082",
+  "title": "c",
+  "messages": [
+    {
+      "role": "user",
+      "content": "c",
+      "timestamp": "2026-06-22T18:13:25.609Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, all secure connection lanes (Vault slots, backup keys) and the local fallback are exhausted. Please verify your internet connection or update the AI Vault settings.",
+      "timestamp": "2026-06-22T18:13:26.016Z"
+    },
+    {
+      "role": "user",
+      "content": "d",
+      "timestamp": "2026-06-22T18:14:23.232Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, all secure connection lanes (Vault slots, backup keys) and the local fallback are exhausted. Please verify your internet connection or update the AI Vault settings.",
+      "timestamp": "2026-06-22T18:14:23.648Z"
+    }
+  ],
+  "createdAt": "2026-06-22T18:13:00.082Z",
+  "updatedAt": "2026-06-22T18:14:23.649Z"
+}

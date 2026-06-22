@@ -1,11 +1,17 @@
 const express = require('express');
-const { readSystemConfig, resetSystemConfig } = require('../services/system_config_service');
+const { readSystemConfig, resetSystemConfig, reconcileAiVaultSlots } = require('../services/system_config_service');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
   try {
     const cfg = readSystemConfig();
+    if (cfg?.aiVault?.slots) {
+      cfg.aiVault = {
+        ...cfg.aiVault,
+        slots: reconcileAiVaultSlots(cfg.aiVault.slots)
+      };
+    }
     res.json({ success: true, data: cfg });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message, code: 'CONFIG_READ_FAILED' });
