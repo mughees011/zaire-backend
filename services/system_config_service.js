@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { encrypt: aesEncrypt, decrypt: aesDecrypt } = require('../crypto_utils');
 
 const CONFIG_FILE = path.join(__dirname, '..', 'memory', 'system_config.json');
 const SECRETS_FILE = path.join(__dirname, '..', 'memory', 'api_secrets.json');
@@ -34,6 +35,7 @@ function sanitizeApiSlots(slots = []) {
     'Empty',
     'Groq',
     'OpenAI',
+    'OpenRouter',
     'Anthropic',
     'Google Gemini',
     'DeepSeek',
@@ -61,10 +63,14 @@ function sanitizeApiSlots(slots = []) {
 
 function loadSecrets() {
   try {
-    if (!fs.existsSync(SECRETS_FILE)) return { version: 1, slots: {} };
-    return JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
+    if (!fs.existsSync(SECRETS_FILE)) return { version: 2, slots: {} };
+    const parsed = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf-8'));
+    if (parsed && typeof parsed === 'object' && parsed.slots) {
+      return parsed;
+    }
+    return { version: 2, slots: {} };
   } catch {
-    return { version: 1, slots: {} };
+    return { version: 2, slots: {} };
   }
 }
 
@@ -98,6 +104,55 @@ function dpapiDecrypt(cipher) {
   }).trim();
 }
 
+function encryptStoredSecret(plain) {
+  if (!plain) return null;
+
+  if (process.platform === 'win32') {
+    try {
+      return {
+        scheme: 'dpapi',
+        key: dpapiEncrypt(plain)
+      };
+    } catch (err) {
+      console.warn('[SECRETS] DPAPI encryption unavailable, falling back to AES:', err.message);
+    }
+  }
+
+  const encrypted = aesEncrypt(plain);
+  if (!encrypted) {
+    throw new Error('Fallback encryption failed.');
+  }
+
+  return {
+    scheme: 'aes',
+    key: encrypted
+  };
+}
+
+function decryptStoredSecret(entry) {
+  if (!entry) return '';
+
+  if (typeof entry === 'string') {
+    try {
+      return process.platform === 'win32' ? dpapiDecrypt(entry) : (aesDecrypt(entry) || '');
+    } catch {
+      return aesDecrypt(entry) || '';
+    }
+  }
+
+  if (!entry.key) return '';
+
+  if (entry.scheme === 'aes') {
+    return aesDecrypt(entry.key) || '';
+  }
+
+  try {
+    return process.platform === 'win32' ? dpapiDecrypt(entry.key) : '';
+  } catch {
+    return '';
+  }
+}
+
 function persistAiVaultSlots(slots = []) {
   const clean = sanitizeApiSlots(slots);
   const secrets = loadSecrets();
@@ -105,21 +160,27 @@ function persistAiVaultSlots(slots = []) {
 
   for (let i = 0; i < clean.length; i += 1) {
     const slot = clean[i];
+    let secretStored = false;
     if (slot.apiKey) {
       try {
+        const encryptedSecret = encryptStoredSecret(slot.apiKey);
         secrets.slots[String(i)] = {
-          key: dpapiEncrypt(slot.apiKey),
+          ...encryptedSecret,
           provider: slot.provider,
           updatedAt: new Date().toISOString()
         };
+        secretStored = true;
       } catch (err) {
         console.error('[SECRETS] Encrypt failed:', err.message);
+        delete secrets.slots[String(i)];
       }
     } else if (!slot.hasKey) {
       delete secrets.slots[String(i)];
+    } else if (typeof secrets.slots[String(i)] === 'string' || secrets.slots[String(i)]?.key) {
+      secretStored = true;
     }
 
-    out.push({ ...slot, apiKey: '', hasKey: Boolean(slot.apiKey || slot.hasKey) });
+    out.push({ ...slot, apiKey: '', hasKey: Boolean(secretStored) });
   }
 
   saveSecrets(secrets);
@@ -132,11 +193,11 @@ function hydrateRuntimeProviders() {
   const secrets = loadSecrets();
 
   return slots.map((slot, i) => {
-    const enc = secrets.slots?.[String(i)]?.key || '';
+    const enc = secrets.slots?.[String(i)] || null;
     let key = '';
     if (enc) {
       try {
-        key = dpapiDecrypt(enc);
+        key = decryptStoredSecret(enc);
       } catch (err) {
         console.error('[SECRETS] Decrypt failed:', err.message);
       }
