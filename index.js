@@ -1464,6 +1464,28 @@ app.post('/api/briefings/generate', async (req, res) => {
   }
 });
 
+app.get('/api/briefings/asset', async (req, res) => {
+  const assetPath = String(req.query?.path || '').trim();
+  if (!assetPath.startsWith('/')) {
+    return res.status(400).json({ success: false, error: 'Invalid briefing asset path' });
+  }
+
+  try {
+    const assetRes = await fetch(`http://127.0.0.1:3088${assetPath}`);
+    if (!assetRes.ok) {
+      return res.status(assetRes.status).json({ success: false, error: `Briefing asset HTTP ${assetRes.status}` });
+    }
+
+    const contentType = assetRes.headers.get('content-type') || 'application/octet-stream';
+    const buffer = Buffer.from(await assetRes.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(buffer);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/agent/specialist_action', requireAuth, usageLimit, async (req, res) => {
   const { mode, action, payload } = req.body;
   try {
