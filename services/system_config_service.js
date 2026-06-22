@@ -30,6 +30,21 @@ function writeSystemConfig(nextConfig) {
   }
 }
 
+function resetSystemConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      fs.unlinkSync(CONFIG_FILE);
+    }
+    if (fs.existsSync(SECRETS_FILE)) {
+      fs.unlinkSync(SECRETS_FILE);
+    }
+    return true;
+  } catch (err) {
+    console.error('[CONFIG] Failed to reset system config:', err.message);
+    return false;
+  }
+}
+
 function sanitizeApiSlots(slots = []) {
   const validProviders = new Set([
     'Empty',
@@ -59,6 +74,22 @@ function sanitizeApiSlots(slots = []) {
         enabled: Boolean(slot?.enabled ?? (provider !== 'Empty'))
       };
     });
+}
+
+function normalizeExternalApiEntries(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .slice(0, 24)
+    .map((entry, idx) => ({
+      id: String(entry?.id || `service-${idx + 1}`),
+      name: String(entry?.name || '').trim(),
+      baseUrl: String(entry?.baseUrl || '').trim(),
+      headerKey: String(entry?.headerKey || '').trim(),
+      token: String(entry?.token || '').trim(),
+      hasToken: Boolean(entry?.hasToken),
+      enabled: Boolean(entry?.enabled ?? true),
+      mask: String(entry?.mask || '').trim()
+    }))
+    .filter((entry) => entry.name && entry.baseUrl);
 }
 
 function loadSecrets() {
@@ -187,6 +218,53 @@ function persistAiVaultSlots(slots = []) {
   return out;
 }
 
+function persistExternalApiEntries(entries = []) {
+  const clean = normalizeExternalApiEntries(entries);
+  const secrets = loadSecrets();
+  if (!secrets.externalApis || typeof secrets.externalApis !== 'object') {
+    secrets.externalApis = {};
+  }
+
+  const activeIds = new Set(clean.map((entry) => entry.id));
+  Object.keys(secrets.externalApis).forEach((id) => {
+    if (!activeIds.has(id)) {
+      delete secrets.externalApis[id];
+    }
+  });
+
+  const out = clean.map((entry) => {
+    let tokenStored = false;
+    if (entry.token) {
+      try {
+        const encryptedSecret = encryptStoredSecret(entry.token);
+        secrets.externalApis[entry.id] = {
+          ...encryptedSecret,
+          headerKey: entry.headerKey,
+          updatedAt: new Date().toISOString()
+        };
+        tokenStored = true;
+      } catch (err) {
+        console.error('[SECRETS] External API encrypt failed:', err.message);
+        delete secrets.externalApis[entry.id];
+      }
+    } else if (!entry.hasToken) {
+      delete secrets.externalApis[entry.id];
+    } else if (typeof secrets.externalApis[entry.id] === 'string' || secrets.externalApis[entry.id]?.key) {
+      tokenStored = true;
+    }
+
+    return {
+      ...entry,
+      token: '',
+      hasToken: tokenStored,
+      mask: tokenStored ? (entry.mask || 'Saved Locally') : ''
+    };
+  });
+
+  saveSecrets(secrets);
+  return out;
+}
+
 function hydrateRuntimeProviders() {
   const cfg = readSystemConfig();
   const slots = sanitizeApiSlots(cfg?.aiVault?.slots || []);
@@ -206,6 +284,25 @@ function hydrateRuntimeProviders() {
   });
 }
 
+function hydrateExternalApiEntries() {
+  const cfg = readSystemConfig();
+  const entries = normalizeExternalApiEntries(cfg?.externalApis || []);
+  const secrets = loadSecrets();
+
+  return entries.map((entry) => {
+    const secretEntry = secrets.externalApis?.[entry.id] || null;
+    let token = '';
+    if (secretEntry) {
+      try {
+        token = decryptStoredSecret(secretEntry);
+      } catch (err) {
+        console.error('[SECRETS] External API decrypt failed:', err.message);
+      }
+    }
+    return { ...entry, token };
+  });
+}
+
 function mergeAndSaveSystemConfig(config = {}) {
   const prev = readSystemConfig();
   const next = { ...prev, ...(config || {}) };
@@ -220,6 +317,10 @@ function mergeAndSaveSystemConfig(config = {}) {
     };
   }
 
+  if (config?.externalApis) {
+    next.externalApis = persistExternalApiEntries(config.externalApis);
+  }
+
   const ok = writeSystemConfig(next);
   return { ok, next };
 }
@@ -227,8 +328,12 @@ function mergeAndSaveSystemConfig(config = {}) {
 module.exports = {
   readSystemConfig,
   writeSystemConfig,
+  resetSystemConfig,
   sanitizeApiSlots,
+  normalizeExternalApiEntries,
   persistAiVaultSlots,
+  persistExternalApiEntries,
   hydrateRuntimeProviders,
+  hydrateExternalApiEntries,
   mergeAndSaveSystemConfig
 };
