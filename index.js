@@ -136,6 +136,69 @@ function saveBriefingState(time) {
 }
 
 const BRIEFING_COOLDOWN = 4 * 60 * 60 * 1000;
+const WEEKLY_BRIEFING_ARCHIVE_PATH = path.join(__dirname, 'memory', 'weekly_briefings.json');
+
+function loadWeeklyBriefingArchive() {
+  try {
+    if (!fs.existsSync(WEEKLY_BRIEFING_ARCHIVE_PATH)) {
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(WEEKLY_BRIEFING_ARCHIVE_PATH, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('[BRIEFING] Failed to load weekly archive:', e.message);
+    return [];
+  }
+}
+
+function saveWeeklyBriefingArchive(archive) {
+  try {
+    fs.writeFileSync(WEEKLY_BRIEFING_ARCHIVE_PATH, JSON.stringify(archive, null, 2));
+  } catch (e) {
+    console.error('[BRIEFING] Failed to save weekly archive:', e.message);
+  }
+}
+
+function upsertWeeklyBriefingRecord(record) {
+  const archive = loadWeeklyBriefingArchive();
+  const index = archive.findIndex((entry) => entry.id === record.id);
+  if (index >= 0) {
+    archive[index] = { ...archive[index], ...record };
+  } else {
+    archive.unshift(record);
+  }
+  saveWeeklyBriefingArchive(archive.slice(0, 30));
+}
+
+function getSpecialistFallbackPayload(mode) {
+  const normalizedMode = String(mode || 'ZAIRE').trim().toUpperCase();
+  const base = {
+    success: true,
+    fallback: true,
+    data: {
+      active_persona: 'STARK_GRADE',
+      forge_telemetry: {},
+      active_projects: [],
+      phase: 'IDLE',
+      progress: 0
+    }
+  };
+
+  if (normalizedMode === 'ENGINEER') {
+    base.data.active_persona = 'ENGINEER_CORE';
+    base.data.forge_telemetry = { phase: 'IDLE', status: 'SIDEcar_OFFLINE' };
+  } else if (normalizedMode === 'TRADER') {
+    base.data.active_persona = 'TRADER_LAB';
+    base.data.live_pulse = {};
+  } else if (normalizedMode === 'PROFESSOR') {
+    base.data.active_persona = 'PROFESSOR_LAB';
+  } else if (normalizedMode === 'SWARM') {
+    base.data.active_persona = 'SWARM_LAB';
+    base.data.messages = [];
+  }
+
+  return base;
+}
 
 // ─── Express + Socket.io Setup with Security Enhancements ─────────────────────
 const helmet = require('helmet');
@@ -1313,10 +1376,89 @@ const SIDECAR_URL = "http://127.0.0.1:3002";
 
 app.get('/agent/specialist_data', async (req, res) => {
   const { mode } = req.query;
+  let timeout = null;
   try {
-    const response = await fetch(`${SIDECAR_URL}/agent/mode_data?mode=${mode}`);
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 2500);
+    const response = await fetch(`${SIDECAR_URL}/agent/mode_data?mode=${mode}`, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Sidecar returned HTTP ${response.status}`);
+    }
     const data = await response.json();
     res.json(data);
+  } catch (err) {
+    console.warn('[SPECIALIST] Falling back to local payload:', err.message);
+    res.json(getSpecialistFallbackPayload(mode));
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+});
+
+app.get('/api/briefings', async (req, res) => {
+  try {
+    let archive = loadWeeklyBriefingArchive();
+    const runningJobs = archive.filter((entry) => entry.status === 'running' && entry.job_id);
+
+    for (const entry of runningJobs) {
+      try {
+        const statusRes = await fetch(`http://127.0.0.1:3088/briefing/status/${entry.job_id}`);
+        if (!statusRes.ok) continue;
+        const statusData = await statusRes.json();
+        if (!statusData.success) continue;
+        upsertWeeklyBriefingRecord({
+          ...entry,
+          status: statusData.status || entry.status,
+          pdf_url: statusData.pdf_url || entry.pdf_url || null,
+          audio_url: statusData.audio_url || entry.audio_url || null,
+          summary: statusData.summary || entry.summary || '',
+          error: statusData.error || null,
+          updated_at: new Date().toISOString()
+        });
+      } catch (_) {
+        // Keep archive entry as-is if the sidecar is not reachable yet.
+      }
+    }
+
+    archive = loadWeeklyBriefingArchive().sort((a, b) => {
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+
+    res.json({ success: true, briefings: archive });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message, briefings: [] });
+  }
+});
+
+app.post('/api/briefings/generate', async (req, res) => {
+  await ensureServiceRunning('weeklyBriefing');
+  if (!weeklyBriefingReady) {
+    return res.status(503).json({
+      success: false,
+      error: 'Weekly briefing service is still starting.'
+    });
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:3088/briefing/generate', { method: 'POST' });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Briefing generator HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    const data = await response.json();
+    const record = {
+      id: data.job_id || `briefing-${Date.now()}`,
+      job_id: data.job_id || null,
+      status: 'running',
+      summary: '',
+      pdf_url: null,
+      audio_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    upsertWeeklyBriefingRecord(record);
+    io.emit('neural_log', { content: 'System: Weekly briefing generation queued.' });
+    res.json({ success: true, ...record });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3977,7 +4119,7 @@ io.on('connection', (socket) => {
           })
         });
         const fallbackData = await fallbackRes.json();
-        const content = fallbackData?.content || "Sir, no active provider responded. Please check AI Vault settings.";
+        const content = fallbackData?.content || "Sir, I can't reach an active provider for this request right now. Please review Settings > AI Vault.";
         socket.emit('ai_text_delta', content);
         socket.emit('ai_text_complete', { fullText: content });
       } catch (_) {
