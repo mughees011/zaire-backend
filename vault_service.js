@@ -13,7 +13,7 @@ async function saveUserKeys(userId, slots) {
       if (s.slot === undefined) continue;
 
       // Ensure model is valid
-      if (s.enabled && !s.model) {
+      if (s.enabled && s.provider !== 'Empty' && !s.model) {
         throw new Error('Empty model is invalid for an enabled provider.');
       }
 
@@ -27,10 +27,16 @@ async function saveUserKeys(userId, slots) {
       // Encrypt only if key is provided, otherwise preserve existing encrypted block
       let encKey = existing ? existing.encrypted_api_key : null;
       let hasKey = existing ? existing.has_key : false;
+      const existingProvider = existing ? String(existing.provider || '') : '';
+      const nextProvider = String(s.provider || '');
+      const providerChanged = existing && existingProvider.toLowerCase() !== nextProvider.toLowerCase();
 
       if (s.key) {
         encKey = encrypt(s.key);
         hasKey = true;
+      } else if (!s.enabled || nextProvider === 'Empty' || providerChanged) {
+        encKey = null;
+        hasKey = false;
       }
 
       if (existing) {

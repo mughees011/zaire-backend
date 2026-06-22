@@ -1,5 +1,5 @@
 {
-  "blobColor": "#f97316",
+  "blobColor": "#00d4ff",
   "blobSize": 2.5,
   "blobPosition": {
     "x": -0.019999013449449245,
@@ -9,11 +9,11 @@
     "slots": [
       {
         "slot": 1,
-        "provider": "SiliconFlow",
+        "provider": "Groq",
         "apiKey": "",
         "hasKey": true,
-        "model": "Code Specialist",
-        "purpose": "Coding",
+        "model": "",
+        "purpose": "Primary",
         "baseUrl": "",
         "enabled": true
       },
@@ -23,27 +23,27 @@
         "apiKey": "",
         "hasKey": true,
         "model": "Fast",
-        "purpose": "Primary",
+        "purpose": "Coding",
         "baseUrl": "",
         "enabled": true
       },
       {
         "slot": 3,
-        "provider": "Google Gemini",
+        "provider": "Groq",
         "apiKey": "",
         "hasKey": true,
-        "model": "Deep Reasoning",
-        "purpose": "Research",
+        "model": "",
+        "purpose": "Fallback",
         "baseUrl": "",
-        "enabled": false
+        "enabled": true
       }
     ],
-    "updatedAt": "2026-06-21T17:30:08.157Z"
+    "updatedAt": "2026-06-22T18:14:14.833Z"
   },
   "theme": {
     "hudOpacity": 0.85,
-    "neuralGlowEnabled": true,
-    "holographicTiltEnabled": true,
+    "neuralGlowEnabled": false,
+    "holographicTiltEnabled": false,
     "blobColor": "#f97316",
     "blobSize": 2.5
   },
@@ -291,14 +291,18 @@
     "archiveReactions": {},
     "theme": {
       "hudOpacity": 0.85,
-      "neuralGlowEnabled": true,
-      "holographicTiltEnabled": true,
+      "neuralGlowEnabled": false,
+      "holographicTiltEnabled": false,
       "blobColor": "#f97316",
       "blobSize": 2.5,
       "blobPosition": {
         "x": -0.019999013449449245,
         "y": -1.1661882519864086
       }
+    },
+    "specialistToggles": {
+      "halalFilterEnabled": true,
+      "autoLintEnabled": true
     },
     "licensing": {
       "cachedLicenseKey": ""
@@ -320,5 +324,34 @@
     "userName": "",
     "userOccupation": "",
     "userAbout": ""
+  },
+  "externalApis": [],
+  "interfaceSettings": {
+    "scanlines": false,
+    "adaptiveColor": false,
+    "urgentFlash": false,
+    "transitionSpeed": "CINEMATIC",
+    "gridOverlayDensity": "64px",
+    "nightModeStart": "21:00"
+  },
+  "neuralSettings": {
+    "responseDepth": "TURBO",
+    "routingPolicy": "Auto",
+    "voiceWake": 85,
+    "ambientNoise": true
+  },
+  "securitySettings": {
+    "faceConfidence": 92,
+    "intruderSnapshot": true
+  },
+  "alertSettings": {
+    "alertLevel": "TACTICAL",
+    "missionDigest": true
+  },
+  "specialistSettings": {
+    "neuralDarwinism": true,
+    "defaultDnaProfile": "STARK_FORGE",
+    "halalFilterEnabled": true,
+    "autoLintEnabled": true
   }
 }
