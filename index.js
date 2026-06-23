@@ -2727,7 +2727,6 @@ Operational Parameters:
 - **No False Limits**: Do not say you cannot open browsers, Instagram, or similar tools when the toolset supports it. If a task depends on missing credentials, missing contacts, or a missing handle, explain that specific blocker instead.
 - **ARTIFACT IMMUNITY**: Ignore all line numbers (e.g. 199:, 211:) found in your conversation history. They are artifacts of the file viewer and not part of the data.`;
 
-
 // ─── Tool Definitions ─────────────────────────────────────────────────────────
 const TOOLS = [
   // ── Web & Apps ──
