@@ -3850,14 +3850,15 @@ io.on('connection', (socket) => {
         if (data.success) {
           socket.emit('zaire_status', 'speaking');
           socket.emit('zaire_response_stream', data.content);
-          // Stream text to Speech
-          const ttsRes = await fetch('http://127.0.0.1:3001/tts/stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: data.content })
-          });
-          const audioData = await ttsRes.arrayBuffer();
-          socket.emit('audio_chunk', { audio: Buffer.from(audioData).toString('base64'), index: 0 });
+          const audioRes = await requestTTS(data.content);
+          if (audioRes.audio) {
+            socket.emit('audio_chunk', {
+              index: 0,
+              audio: audioRes.audio,
+              isBase64: false,
+              mimeType: audioRes.mimeType
+            });
+          }
         } else {
           socket.emit('zaire_response_stream', "Deep reasoning failed: " + data.error);
         }
