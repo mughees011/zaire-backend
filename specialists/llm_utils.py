@@ -72,6 +72,38 @@ def _provider_key(provider_name: str) -> str:
     return pool[0] if pool else ""
 
 
+def _normalize_model(provider_name: str, configured_model: str, fallback: str = "") -> str:
+    target = (provider_name or "").strip().lower()
+    model = (configured_model or "").strip()
+    fb = (fallback or "").strip()
+    
+    generic_labels = {"", "auto", "fast", "primary", "coding", "fallback", "deep reasoning", "code specialist"}
+    resolved_fallback = "" if fb.lower() in generic_labels else fb
+
+    if model.lower() not in generic_labels:
+        return model
+            
+    if target == "groq":
+        return os.getenv("GROQ_MODEL", "").strip() or resolved_fallback or "llama-3.3-70b-versatile"
+    if target == "siliconflow":
+        return resolved_fallback or "deepseek-ai/DeepSeek-V3"
+    if target == "google gemini":
+        return resolved_fallback or "gemini-1.5-flash"
+    if target == "openai":
+        return resolved_fallback or "gpt-4o-mini"
+    if target == "openrouter":
+        return resolved_fallback or "openrouter/auto"
+    if target == "deepseek":
+        return resolved_fallback or "deepseek-chat"
+    if target == "mistral":
+        return resolved_fallback or "mistral-small-latest"
+    if target == "anthropic":
+        return os.getenv("ANTHROPIC_MODEL", "").strip() or resolved_fallback or "claude-3-5-sonnet-20241022"
+    if target == "cohere":
+        return os.getenv("COHERE_MODEL", "").strip() or resolved_fallback or "command-r-plus"
+
+    return resolved_fallback or model or "gpt-4o-mini"
+
 def _provider_model(provider_name: str, fallback: str = "") -> str:
     target = (provider_name or "").strip().lower()
     for s in _load_runtime_slots():
@@ -79,11 +111,8 @@ def _provider_model(provider_name: str, fallback: str = "") -> str:
             continue
         if str(s.get("provider", "")).strip().lower() != target:
             continue
-        model = str(s.get("model", "")).strip()
-        if model:
-            return model
-    return fallback
-
+        return _normalize_model(target, str(s.get("model", "")).strip(), fallback)
+    return _normalize_model(target, "", fallback)
 
 _RUNTIME_PROVIDER_CACHE = {"ts": 0.0, "slots": []}
 
@@ -167,14 +196,17 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
         try:
             if provider == "groq":
                 client = Groq(api_key=key)
-                use_model = model or GROQ_DEFAULT_MODEL
+                use_model = _normalize_model("groq", model)
                 r = client.chat.completions.create(model=use_model, messages=messages, temperature=temperature, max_tokens=max_tokens)
                 return r.choices[0].message.content
 
             if provider in {"openai", "deepseek", "mistral", "azure openai"}:
                 base_url = slot.get("baseUrl", "").strip()
                 headers = {"Content-Type": "application/json"}
-                payload = {"model": model or os.getenv("OPENAI_MODEL", "").strip() or "gpt-4o-mini", "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+                use_model = _normalize_model(provider, model)
+                if provider == "openai":
+                    use_model = _normalize_model("openai", model, os.getenv("OPENAI_MODEL", ""))
+                payload = {"model": use_model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
                 if provider == "deepseek" and not base_url:
                     base_url = "https://api.deepseek.com/v1/chat/completions"
                 if provider == "mistral" and not base_url:
@@ -194,7 +226,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
 
             if provider == "anthropic":
                 url = slot.get("baseUrl", "").strip() or "https://api.anthropic.com/v1/messages"
-                use_model = model or os.getenv("ANTHROPIC_MODEL", "").strip() or "claude-3-5-sonnet-20241022"
+                use_model = _normalize_model("anthropic", model)
                 payload = {"model": use_model, "max_tokens": max_tokens, "messages": [m for m in messages if m.get("role") in {"user", "assistant"}]}
                 r = requests.post(url, headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}, json=payload, timeout=45)
                 if r.status_code != 200:
@@ -204,7 +236,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
                 return "".join(texts).strip()
 
             if provider == "google gemini":
-                use_model = model or os.getenv("GEMINI_MODEL", "").strip() or "gemini-1.5-flash"
+                use_model = _normalize_model("google gemini", model)
                 base = slot.get("baseUrl", "").strip() or f"https://generativelanguage.googleapis.com/v1beta/models/{use_model}:generateContent"
                 payload = {"contents": [{"parts": [{"text": "\n".join([str(m.get("content", "")) for m in messages])}]}]}
                 r = requests.post(f"{base}?key={key}", headers={"content-type": "application/json"}, json=payload, timeout=45)
@@ -218,7 +250,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
 
             if provider == "cohere":
                 url = slot.get("baseUrl", "").strip() or "https://api.cohere.com/v2/chat"
-                use_model = model or os.getenv("COHERE_MODEL", "").strip() or "command-r-plus"
+                use_model = _normalize_model("cohere", model)
                 payload = {"model": use_model, "messages": messages, "temperature": temperature}
                 r = requests.post(url, headers={"Authorization": f"Bearer {key}", "content-type": "application/json"}, json=payload, timeout=45)
                 if r.status_code != 200:
@@ -230,7 +262,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
                 )
 
             if provider == "siliconflow":
-                use_model = model or FALLBACK_MODELS[0]
+                use_model = _normalize_model("siliconflow", model)
                 r = _call_siliconflow(messages, use_model, temperature, max_tokens, stream=False, api_key=key)
                 if not r or r == "RATE_LIMIT":
                     continue
@@ -483,7 +515,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
             try:
                 if provider == 'groq':
                     client = Groq(api_key=key)
-                    use_model = str(slot.get('model', '')).strip() or GROQ_DEFAULT_MODEL
+                    use_model = _normalize_model("groq", str(slot.get('model', '')).strip())
                     stream = client.chat.completions.create(
                         model=use_model,
                         messages=messages,
@@ -501,7 +533,9 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
                 if provider in {'openai', 'deepseek', 'mistral', 'azure openai'}:
                     base_url = str(slot.get('baseUrl', '')).strip()
                     headers = {"Content-Type": "application/json"}
-                    use_model = str(slot.get('model', '')).strip() or os.getenv("OPENAI_MODEL", "").strip() or 'gpt-4o-mini'
+                    use_model = _normalize_model(provider, str(slot.get('model', '')).strip())
+                    if provider == "openai":
+                        use_model = _normalize_model("openai", str(slot.get('model', '')).strip(), os.getenv("OPENAI_MODEL", ""))
                     if provider == 'deepseek' and not base_url:
                         base_url = 'https://api.deepseek.com/v1/chat/completions'
                     if provider == 'mistral' and not base_url:
@@ -524,7 +558,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
                         raise Exception(f"HTTP {resp.status_code}")
 
                 if provider == 'siliconflow':
-                    use_model = str(slot.get('model', '')).strip() or FALLBACK_MODELS[0]
+                    use_model = _normalize_model("siliconflow", str(slot.get('model', '')).strip())
                     resp = _call_siliconflow(messages, use_model, temperature, max_tokens, stream=True, api_key=key)
                     if resp and resp != 'RATE_LIMIT' and resp.status_code == 200:
                         for tok in _parse_openai_stream(resp):

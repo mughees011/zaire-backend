@@ -139,10 +139,30 @@ router.get(['/ai-vault', '/api/vault/status'], requireAuth, async (req, res) => 
 
   try {
     const status = await getKeyStatus(userId);
+    const decryptedSlots = await getUserKeys(userId);
+    const syncResult = mergeAndSaveSystemConfig({
+      aiVault: {
+        slots: decryptedSlots.map((slot) => ({
+          slot: Number(slot.slot),
+          provider: slot.provider || 'Empty',
+          apiKey: slot.key || '',
+          hasKey: Boolean(slot.key),
+          model: slot.model || '',
+          purpose: slot.purpose || '',
+          baseUrl: slot.baseUrl || '',
+          enabled: Boolean(slot.enabled)
+        }))
+      }
+    });
+    if (!syncResult?.ok) {
+      throw new Error('Failed to sync authenticated vault status to local runtime.');
+    }
+
     res.status(200).json({
       success: true,
       vault_status: toStatusMap(status),
-      slots: status
+      slots: status,
+      runtimeSynced: true
     });
   } catch (err) {
     console.error('[VAULT ROUTE ERR] Status fetch failed:', err.message);

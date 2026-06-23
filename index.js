@@ -2417,8 +2417,11 @@ function getActiveSlots() {
 function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
   const provider = String(providerName || '').trim().toLowerCase();
   const model = String(configuredModel || '').trim();
+  const fbModel = String(fallbackModel || '').trim();
+
   const genericLabels = new Set([
     '',
+    'auto',
     'fast',
     'primary',
     'coding',
@@ -2431,35 +2434,37 @@ function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
     return model;
   }
 
+  const resolvedFallback = genericLabels.has(fbModel.toLowerCase()) ? '' : fbModel;
+
   if (provider === 'groq') {
-    return process.env.GROQ_MODEL || fallbackModel || 'llama-3.3-70b-versatile';
+    return process.env.GROQ_MODEL || resolvedFallback || 'llama-3.3-70b-versatile';
   }
 
   if (provider === 'siliconflow') {
-    return 'deepseek-ai/DeepSeek-V3';
+    return resolvedFallback || 'deepseek-ai/DeepSeek-V3';
   }
 
   if (provider === 'google gemini') {
-    return 'gemini-1.5-flash';
+    return resolvedFallback || 'gemini-1.5-flash';
   }
 
   if (provider === 'openai') {
-    return fallbackModel || 'gpt-4o-mini';
+    return resolvedFallback || 'gpt-4o-mini';
   }
 
   if (provider === 'openrouter') {
-    return fallbackModel || 'openrouter/auto';
+    return resolvedFallback || 'openrouter/auto';
   }
 
   if (provider === 'deepseek') {
-    return 'deepseek-chat';
+    return resolvedFallback || 'deepseek-chat';
   }
 
   if (provider === 'mistral') {
-    return 'mistral-small-latest';
+    return resolvedFallback || 'mistral-small-latest';
   }
 
-  return fallbackModel || model;
+  return resolvedFallback || model || 'gpt-4o-mini';
 }
 
 async function executeLLMCallWithFailover(options) {
