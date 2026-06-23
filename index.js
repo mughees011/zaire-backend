@@ -3206,7 +3206,202 @@ const TOOLS = [
       }
     }
   },
-  // \u2500\u2500 TIER 5: INTRUDER SNAPSHOTS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+description: "Access Google Calendar to check schedule or add events. Actions: 'list' (today's events) or 'create'.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "create"] },
+          title: { type: "string", description: "Event title (for create)" },
+          time: { type: "string", description: "Start time (for create, e.g. 2024-05-20T14:00:00Z)" }
+        },
+        required: ["action"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "google_gmail",
+      description: "Access Gmail to read recent emails or search messages.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query (optional)" },
+          maxResults: { type: "number", description: "Number of results to retrieve (default: 5)" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Perform a real-time web search to get up-to-date information and synthesized answers.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query" },
+          search_depth: { type: "string", enum: ["basic", "advanced"], description: "The search depth (default: basic)" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_python_code",
+      description: "Execute a block of Python code locally and return the output. Use this for calculations or data analysis.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The Python code to execute" }
+        },
+        required: ["code"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_push_notification",
+      description: "Send a push notification to your devices via Pushbullet.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Notification title" },
+          body: { type: "string", description: "Notification content" }
+        },
+        required: ["title", "body"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "manage_contacts",
+      description: "Add, update, or view entries in your contact database.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["add", "update", "list", "get"] },
+          name: { type: "string", description: "Contact name" },
+          whatsapp: { type: "string", description: "WhatsApp number with country code" },
+          instagram: { type: "string", description: "Instagram handle" }
+        },
+        required: ["action"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_social_message",
+      description: "Automate sending a message on WhatsApp or Instagram.",
+      parameters: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["whatsapp", "instagram"] },
+          contact_name: { type: "string", description: "Name of the person in your contact list" },
+          message: { type: "string", description: "The message to send" },
+          method: { type: "string", enum: ["browser", "desktop"], description: "The method to use (default: browser)" }
+        },
+        required: ["platform", "contact_name", "message"]
+      }
+    }
+  },
+  // ── TIER 4: GMAIL SEND ─────────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "send_email",
+      description: "Compose and SEND a real Gmail email on behalf of Mughees. Use for 'send an email', 'email X about Y', 'draft and send'. Always confirm the recipient and subject before sending.",
+      parameters: {
+        type: "object",
+        properties: {
+          to: { type: "string", description: "Recipient email address" },
+          subject: { type: "string", description: "Email subject line" },
+          body: { type: "string", description: "Full email body (plain text or HTML)" },
+          draft_only: { type: "boolean", description: "If true, save as draft instead of sending (default: false)" }
+        },
+        required: ["to", "subject", "body"]
+      }
+    }
+  },
+  // ── TIER 4: TELEGRAM BOT ────────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "send_telegram",
+      description: "Send a Telegram message via the ZAIRE Telegram bot. Use when user says 'message X on Telegram', 'telegram X', or 'send Telegram message'.",
+      parameters: {
+        type: "object",
+        properties: {
+          chat_id: { type: "string", description: "Telegram chat ID or username (e.g. @username or numeric ID)" },
+          message: { type: "string", description: "Message text to send" }
+        },
+        required: ["chat_id", "message"]
+      }
+    }
+  },
+  // ── TIER 4: SMART ALARM ─────────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "set_alarm",
+      description: "Set a real system alarm or reminder. Use for 'wake me at 7am', 'remind me in 30 minutes', 'set a daily alarm', '7am briefing'. Supports one-shot and recurring alarms.",
+      parameters: {
+        type: "object",
+        properties: {
+          label: { type: "string", description: "What to say/show when the alarm fires (e.g. 'Time for your morning briefing, sir!')" },
+          time: { type: "string", description: "When to fire: '7:00 AM', 'in 30 minutes', '15:30', 'tomorrow at 9am'" },
+          recur: { type: "string", enum: ["once", "daily", "weekdays"], description: "Recurrence (default: once)" }
+        },
+        required: ["label", "time"]
+      }
+    }
+  },
+  // ── TIER 4: CODE AUTO-FIX ───────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "auto_fix_code",
+      description: "Run code, detect errors, auto-patch, and re-run up to 3 times until it works. Use when user says 'fix this code', 'debug and run', 'auto-fix', 'run and fix the errors'.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "The code to run and fix" },
+          language: { type: "string", description: "Programming language: python, javascript, typescript (default: python)" },
+          context: { type: "string", description: "What the code is supposed to do (helps with better fixes)" }
+        },
+        required: ["code"]
+      }
+    }
+  },
+  // ── TIER 5: FACE-LOCK ───────────────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "face_lock",
+      description: "Control the Face-Lock security system. Auto-locks PC when Mughees walks away; unlocks when his face is confirmed. Use for: 'enable face lock', 'turn on face lock', 'disable face lock', 'face lock status', 'lock my pc', 'register my face'.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["enable", "disable", "status", "lock_now", "register_face"],
+            description: "Action to perform"
+          },
+          lock_delay_seconds: {
+            type: "number",
+            description: "Seconds of absence before auto-lock (default: 15)"
+          }
+        },
+        required: ["action"]
+      }
+    }
+  },
+  // ── TIER 5: INTRUDER SNAPSHOTS ──────────────────────────────────────────────
   {
     type: "function",
     function: {
@@ -3280,13 +3475,89 @@ const TOOLS = [
   }
 ];
 
-
-
-
-
+// ─── ZAIRE Voice Actor Catalog ──────────────────────────────────────────────
+const ZAIRE_VOICE_ACTORS = [
+  {
+    id: 'AVA',
+    name: 'Ava',
+    persona: 'ZAIRE Standard',
+    tagline: 'Calm, intelligent, and precisely professional.',
+    voiceName: 'en-US-AvaNeural',
+    pitch: '+0Hz',
+    rate: '+5%',
+    gender: 'female',
+    accent: 'American'
+  },
+  {
+    id: 'ARIA',
+    name: 'Aria',
+    persona: 'Tactical Officer',
+    tagline: 'Confident, assertive, and mission-critical crisp.',
+    voiceName: 'en-US-AriaNeural',
+    pitch: '+0Hz',
+    rate: '+10%',
+    gender: 'female',
+    accent: 'American'
+  },
+  {
+    id: 'JENNY',
+    name: 'Jenny',
+    persona: 'Operations Lead',
+    tagline: 'Warm, grounded, and clear in command.',
+    voiceName: 'en-US-JennyNeural',
+    pitch: '-5Hz',
+    rate: '+0%',
+    gender: 'female',
+    accent: 'American'
+  },
+  {
+    id: 'GUY',
+    name: 'Guy',
+    persona: 'Command Voice',
+    tagline: 'Deep, authoritative, and unmistakably in control.',
+    voiceName: 'en-US-GuyNeural',
+    pitch: '+0Hz',
+    rate: '+5%',
+    gender: 'male',
+    accent: 'American'
+  },
+  {
+    id: 'ERIC',
+    name: 'Eric',
+    persona: 'Field Analyst',
+    tagline: 'Precise, measured, and direct under pressure.',
+    voiceName: 'en-US-EricNeural',
+    pitch: '+0Hz',
+    rate: '+0%',
+    gender: 'male',
+    accent: 'American'
+  },
+  {
+    id: 'SARA',
+    name: 'Sara',
+    persona: 'Research Intel',
+    tagline: 'Bright, articulate, and composed at high velocity.',
+    voiceName: 'en-US-SaraNeural',
+    pitch: '+5Hz',
+    rate: '+8%',
+    gender: 'female',
+    accent: 'American'
+  },
+  {
+    id: 'DAVIS',
+    name: 'Davis',
+    persona: 'Tactical Deep',
+    tagline: 'Low, gravelly, and commanding at all frequencies.',
+    voiceName: 'en-US-DavisNeural',
+    pitch: '-10Hz',
+    rate: '+0%',
+    gender: 'male',
+    accent: 'American'
+  }
+];
 
 // ─── TTS Generator ───────────────────────────────────────────────────────────
-async function requestTTS(text, pitch = '+0Hz', rate = '+0%') {
+async function requestTTS(text, pitch = '+0Hz', rate = '+0%', voiceName = 'en-US-AvaNeural') {
   async function requestWindowsLocalTTS(localText) {
     if (process.platform !== 'win32') {
       return { error: 'Windows local speech fallback unavailable on this platform.' };
@@ -3368,7 +3639,11 @@ async function requestTTS(text, pitch = '+0Hz', rate = '+0%') {
 
 
     try {
-      await ttsInstance.setMetadata('en-US-AvaNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      // Use the requested voice actor name, fall back to Ava if invalid
+      const resolvedVoice = ZAIRE_VOICE_ACTORS.some(v => v.voiceName === voiceName)
+        ? voiceName
+        : 'en-US-AvaNeural';
+      await ttsInstance.setMetadata(resolvedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
       const { audioStream } = ttsInstance.toStream(text, { pitch, rate });
       const buffers = [];
@@ -3398,389 +3673,6 @@ async function requestTTS(text, pitch = '+0Hz', rate = '+0%') {
     }
   });
 }
-
-// ─── Sentence Splitter ───────────────────────────────────────────────────────
-function splitIntoSentences(buffer) {
-  const sentenceRegex = /([.!?])\s+/;
-  const match = buffer.match(sentenceRegex);
-  if (match) {
-    return { sentence: buffer.slice(0, match.index + 1).trim(), rest: buffer.slice(match.index + match[0].length) };
-  }
-  if (buffer.length > 50) {
-    const commaMatch = buffer.match(/[,;]\s+/);
-    if (commaMatch) {
-      return { sentence: buffer.slice(0, commaMatch.index + 1).trim(), rest: buffer.slice(commaMatch.index + commaMatch[0].length) };
-    }
-  }
-  return null;
-}
-
-// ─── HTTP Endpoints ──────────────────────────────────────────────────────────
-// ─── Tactical Uplink Endpoint ────────────────────────────────────────────────
-app.post('/upload', upload.array('artifacts'), (req, res) => {
-  try {
-    const files = req.files;
-    console.log(`[UPLINK] Received ${files.length} artifacts.`);
-
-    const manifest = files.map(f => ({
-      name: f.originalname,
-      path: f.path,
-      size: f.size,
-      mimetype: f.mimetype
-    }));
-
-    res.json({
-      success: true,
-      message: "Artifacts secured in tactical storage.",
-      manifest: manifest
-    });
-  } catch (err) {
-    console.error("[UPLINK] Upload failed:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    tts: ttsReady ? 'ready' : 'starting',
-    sidecar: sidecarReady ? 'ready' : 'starting',
-    vector_memory: vectorMemoryReady ? 'ready' : 'starting',
-    local_llm: localLLMReady ? 'ready' : 'offline',
-    process_mon: processMonReady ? 'ready' : 'starting',
-    clipboard: clipboardReady ? 'ready' : 'starting',
-    file_watcher: fileWatcherReady ? 'ready' : 'starting',
-    sys_health: sysHealthReady ? 'ready' : 'starting'
-  });
-});
-
-
-
-
-app.get('/api/security/status', (req, res) => {
-  console.log('[SAFE ROUTE] /api/security/status hit');
-
-  return res.status(200).json({
-    status: 'online',
-    security: false,
-    visualEcho: false,
-    clipboard: false,
-    fileWatcher: false,
-    environment: 'cloud'
-  });
-});
-
-app.get('/api/security', (req, res) => {
-  return res.status(200).json({
-    status: 'online',
-    security: false,
-    visualEcho: false,
-    clipboard: false,
-    fileWatcher: false,
-    environment: 'cloud'
-  });
-});
-
-app.get('/api/security/status', (req, res) => {
-  return res.status(200).json({
-    status: 'online',
-    security: false,
-    visualEcho: false,
-    clipboard: false,
-    fileWatcher: false,
-    environment: 'cloud'
-  });
-});
-
-app.post('/api/system/power', (req, res) => {
-  const profile = applyDaemonPowerProfile({
-    state: req.body?.state,
-    focusMode: req.body?.focusMode
-  });
-
-  if (profile.state === 'active' && process.env.RUN_DAEMONS === 'true') {
-    startBaselineDaemons();
-  }
-
-  return res.status(200).json({
-    success: true,
-    profile,
-    baselineWorkers: Array.from(BASELINE_DAEMON_SERVICES),
-    optionalWorkers: Array.from(OPTIONAL_DAEMON_SERVICES)
-  });
-});
-
-
-
-
-// ─── Tier 2: Inbound Alert Endpoints (called BY the Python sidecars) ─────
-
-// System alerts from process_monitor.py (RAM/CPU/Break reminder)
-app.post('/system/alert', (req, res) => {
-  const { type, message, data } = req.body;
-  console.log(`[SYSTEM_ALERT] ${type}: ${message?.substring(0, 80)}`);
-  io.emit('system_alert', { type, message, data });
-  io.emit('neural_log', { content: `System: ${message}` });
-  res.sendStatus(200);
-});
-
-// Clipboard events from clipboard_daemon.py
-app.post('/clipboard/event', (req, res) => {
-  const event = req.body;
-  console.log(`[CLIPBOARD] ${event.type}: ${event.analysis?.substring(0, 60)}`);
-  io.emit('clipboard_event', event);
-
-  if (globalProactive) {
-    globalProactive.handleClipboardEvent(event);
-  }
-
-  res.sendStatus(200);
-});
-
-// File events from file_watcher.py
-app.post('/files/event', (req, res) => {
-  const event = req.body;
-  console.log(`[FILE_WATCHER] ${event.category?.toUpperCase()}: ${event.filename}`);
-  io.emit('file_event', event);
-  io.emit('neural_log', { content: `Files: ${event.message}` });
-
-  if (globalProactive) {
-    globalProactive.handleFileEvent(event);
-  }
-
-  res.sendStatus(200);
-});
-
-// System Health HUD proxy — frontend polls this every 2s
-app.get('/health/hud', async (req, res) => {
-  await ensureServiceRunning('sysHealth');
-  if (!sysHealthReady) return res.json({ success: false, error: 'Health monitor offline' });
-  try {
-    const r = await fetch(`${SYS_HEALTH_URL}/health/summary`);
-    res.json(await r.json());
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// Process list proxy
-app.get('/process/list', async (req, res) => {
-  await ensureServiceRunning('processMonitor');
-  if (!processMonReady) return res.json({ success: false, processes: [] });
-  try {
-    const r = await fetch(`${PROCESS_MON_URL}/process/list`);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, processes: [] });
-  }
-});
-
-// Kill process proxy
-app.post('/process/kill', async (req, res) => {
-  await ensureServiceRunning('processMonitor');
-  if (!processMonReady) return res.json({ success: false, error: 'Process monitor offline' });
-  try {
-    const r = await fetch(`${PROCESS_MON_URL}/process/kill`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
-    });
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
-
-// Autonomous task proxy
-app.post('/task/run', requireAuth, usageLimit, async (req, res) => {
-  try {
-    const r = await fetch(`${SIDECAR_URL.replace('3002', '3002')}/task/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
-    });
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
-
-app.get('/task/status', async (req, res) => {
-  try {
-    const r = await fetch(`${SIDECAR_URL}/task/status`);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
-
-// File watcher study queue proxy
-app.get('/files/study_queue', async (req, res) => {
-  await ensureServiceRunning('fileWatcher');
-  if (!fileWatcherReady) return res.json({ success: true, queue: [] });
-  try {
-    const r = await fetch(`${FILE_WATCHER_URL}/files/study_queue`);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, queue: [] });
-  }
-});
-
-// ─── Tier 4: Alarm Endpoints ─────────────────────────────────────────────────
-
-// Inbound: Python alarm_scheduler.py fires this when an alarm triggers
-app.post('/alarm/fire', (req, res) => {
-  const { id, label } = req.body;
-  console.log(`[ALARM] 🔔 Fired — #${id}: ${label}`);
-  // Broadcast to all connected sockets
-  io.emit('alarm_fired', { id, label, timestamp: new Date().toISOString() });
-  io.emit('neural_log', { content: `Alarm: ${label}` });
-  // Speak it through ZAIRE voice
-  io.emit('speak_text', { text: label });
-  res.sendStatus(200);
-});
-
-// REST proxy: list all active alarms
-app.get('/alarm/list', async (req, res) => {
-  if (!alarmReady) return res.json({ success: true, alarms: [] });
-  try {
-    const r = await fetch(`${ALARM_URL}/alarm/list`);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, alarms: [] });
-  }
-});
-
-// REST proxy: delete an alarm
-app.post('/alarm/delete', async (req, res) => {
-  if (!alarmReady) return res.json({ success: false, error: 'Alarm scheduler offline' });
-  try {
-    const r = await fetch(`${ALARM_URL}/alarm/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
-    });
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
-
-// REST proxy: snooze an alarm
-app.post('/alarm/snooze', async (req, res) => {
-  if (!alarmReady) return res.json({ success: false, error: 'Alarm scheduler offline' });
-  try {
-    const r = await fetch(`${ALARM_URL}/alarm/snooze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
-    });
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
-
-// ─── Tier 5: Security Endpoints ───────────────────────────────────────────────────
-
-// Inbound: face_security.py calls this when an intruder is captured
-app.get('/security', (req, res) => {
-  res.json({
-    status: 'cloud-disabled',
-    service: 'ZAIRE Security',
-    message: 'Security daemon runs only in local desktop mode.'
-  });
-});
-
-app.post('/security/intruder', (req, res) => {
-  const { timestamp, snapshot, snapshot_b64 } = req.body;
-  console.log(`[SECURITY] 🚨 Intruder event at ${timestamp}`);
-  io.emit('intruder_detected', {
-    timestamp,
-    snapshot,
-    snapshot_b64: snapshot_b64 || '',
-  });
-  io.emit('neural_log', { content: '🚨 SECURITY ALERT: Unknown face detected at your PC!' });
-  io.emit('speak_text', { text: 'Security alert, sir. Unknown face detected at your PC. Photo captured and alert dispatched.' });
-  res.sendStatus(200);
-});
-
-// Proxy helpers for security endpoints
-const _secProxy = async (path, method, body, res) => {
-  await ensureServiceRunning('security');
-  if (!securityReady) return res.json({ success: false, error: 'Security daemon offline' });
-  try {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    const r = await fetch(`${SECURITY_URL}${path}`, opts);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-};
-
-app.post('/security/start', (req, res) => _secProxy('/security/start', 'POST', req.body, res));
-app.post('/security/stop', (req, res) => _secProxy('/security/stop', 'POST', {}, res));
-app.post('/security/register', (req, res) => _secProxy('/security/register', 'POST', req.body, res));
-
-// Tier 7: HUD Live Telemetry Broadcast ───────────────────────────────────
-setInterval(async () => {
-  if (sysHealthReady) {
-    try {
-      const res = await fetch(`${SYS_HEALTH_URL}/health/snapshot`);
-      const data = await res.json();
-      if (data.success) {
-        io.emit('system_metrics', {
-          cpu: data.cpu.percent,
-          ram: data.ram.percent,
-          gpu: data.gpu[0]?.load_percent || 0,
-          latency: 4 // Placeholder for local loopback
-        });
-      }
-    } catch (e) { /* silent */ }
-  }
-}, 2000);
-
-app.get('/security/status', (req, res) => _secProxy('/security/status', 'GET', null, res));
-app.get('/security/video_feed', async (req, res) => {
-  await ensureServiceRunning('security');
-  if (!securityReady) return res.status(503).send('Security daemon offline');
-  try {
-    const r = await fetch(`${SECURITY_URL}/security/video_feed`);
-    if (!r.ok) return res.status(r.status).send('Daemon error');
-
-    // Set appropriate headers for MJPEG stream
-    res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=frame');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-
-    const { Readable } = require('stream');
-    Readable.fromWeb(r.body).pipe(res);
-  } catch (e) {
-    console.error('[VIDEO_PROXY_ERR]', e.message);
-    res.status(500).send(e.message);
-  }
-});
-app.get('/security/snapshots', (req, res) => _secProxy('/security/snapshots', 'GET', null, res));
-app.get('/security/log', (req, res) => _secProxy('/security/log', 'GET', null, res));
-app.post('/security/lock_now', (req, res) => _secProxy('/security/lock_now', 'POST', {}, res));
-app.post('/security/test_intruder', (req, res) => _secProxy('/security/test_intruder', 'POST', {}, res));
-app.post('/security/toggle_system', (req, res) => _secProxy('/security/toggle_system', 'POST', req.body, res));
-
-// ─── Tier 6: Smart Home Proxies ──────────────────────────────────────────────────
-const _smartProxy = async (path, method, body, res) => {
-  if (!smartHomeReady) return res.json({ success: false, error: 'Smart Home hub offline' });
-  try {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    const r = await fetch(`${SMART_HOME_URL}${path}`, opts);
-    res.json(await r.json());
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-};
-
 app.get('/smart/devices', (req, res) => _smartProxy('/devices', 'GET', null, res));
 app.post('/smart/control', (req, res) => _smartProxy('/control', 'POST', req.body, res));
 app.post('/smart/scene', (req, res) => _smartProxy('/scene', 'POST', req.body, res));
@@ -3871,12 +3763,12 @@ app.get('/llm/models', async (req, res) => {
 // TTS endpoint - more reliable than socket for audio transfer
 app.post('/tts', express.json({ limit: '10mb' }), async (req, res) => {
   try {
-    const { text, pitch = '+0Hz', rate = '+5%' } = req.body;
+    const { text, pitch = '+0Hz', rate = '+5%', voiceName = 'en-US-AvaNeural' } = req.body;
     if (!text) {
       return res.status(400).json({ error: 'No text provided' });
     }
 
-    const result = await requestTTS(text, pitch, rate);
+    const result = await requestTTS(text, pitch, rate, voiceName);
 
     if (result.error) {
       return res.status(500).json({ error: result.error });
@@ -3890,6 +3782,14 @@ app.post('/tts', express.json({ limit: '10mb' }), async (req, res) => {
   }
 });
 
+// \u2500\u2500\u2500 Voice Actor Catalog Endpoint \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+app.get('/tts/voices', (req, res) => {
+  res.json({
+    voices: ZAIRE_VOICE_ACTORS,
+    default: 'AVA',
+    count: ZAIRE_VOICE_ACTORS.length
+  });
+});
 
 
 // ─── Chat History Endpoints ────────────────────────────────────────────────
