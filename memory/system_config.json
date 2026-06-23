@@ -1,5 +1,5 @@
 {
-  "blobColor": "#f97316",
+  "blobColor": "#00d4ff",
   "blobSize": 2.5,
   "blobPosition": {
     "x": -0.019999013449449245,
@@ -21,7 +21,7 @@
         "slot": 2,
         "provider": "Groq",
         "apiKey": "",
-        "hasKey": true,
+        "hasKey": false,
         "model": "Fast",
         "purpose": "Coding",
         "baseUrl": "",
@@ -31,20 +31,20 @@
         "slot": 3,
         "provider": "Groq",
         "apiKey": "",
-        "hasKey": true,
+        "hasKey": false,
         "model": "",
         "purpose": "Fallback",
         "baseUrl": "",
         "enabled": true
       }
     ],
-    "updatedAt": "2026-06-22T19:07:34.497Z"
+    "updatedAt": "2026-06-23T09:53:57.882Z"
   },
   "theme": {
     "hudOpacity": 0.85,
     "neuralGlowEnabled": false,
     "holographicTiltEnabled": false,
-    "blobColor": "#f97316",
+    "blobColor": "#00d4ff",
     "blobSize": 2.5
   },
   "desktopProfile": {

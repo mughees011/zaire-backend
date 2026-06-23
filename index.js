@@ -7,7 +7,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const Groq = require('groq-sdk');
-const { spawn, exec } = require('child_process');
+const { spawn, exec, execFileSync } = require('child_process');
 const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
@@ -3287,12 +3287,83 @@ const TOOLS = [
 
 // ─── TTS Generator ───────────────────────────────────────────────────────────
 async function requestTTS(text, pitch = '+0Hz', rate = '+0%') {
+  async function requestWindowsLocalTTS(localText) {
+    if (process.platform !== 'win32') {
+      return { error: 'Windows local speech fallback unavailable on this platform.' };
+    }
+
+    const tempDir = path.join(__dirname, 'memory');
+    const tempFile = path.join(tempDir, `zaire-tts-${Date.now()}-${Math.random().toString(16).slice(2)}.wav`);
+    const psScript = [
+      'Add-Type -AssemblyName System.Speech',
+      '$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer',
+      '$synth.Volume = 100',
+      '$synth.Rate = 0',
+      '$synth.SetOutputToWaveFile($env:ZAIRE_TTS_OUT)',
+      '$synth.Speak($env:ZAIRE_TTS_TEXT)',
+      '$synth.Dispose()'
+    ].join('; ');
+
+    try {
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      execFileSync('powershell', ['-NoProfile', '-Command', psScript], {
+        env: {
+          ...process.env,
+          ZAIRE_TTS_TEXT: localText,
+          ZAIRE_TTS_OUT: tempFile
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      if (!fs.existsSync(tempFile)) {
+        throw new Error('Windows speech fallback did not produce an audio file.');
+      }
+
+      const audio = fs.readFileSync(tempFile);
+      if (!audio.length) {
+        throw new Error('Windows speech fallback produced empty audio.');
+      }
+
+      console.log(`[TTS] Generated ${audio.length} bytes via Windows local speech for: "${localText.substring(0, 30)}..."`);
+      return { audio, mimeType: 'audio/wav' };
+    } catch (err) {
+      console.error('[TTS] Windows local speech fallback failed:', err.message || err);
+      return { error: 'Windows local speech fallback failed: ' + (err.message || 'Unknown') };
+    } finally {
+      try {
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      } catch (_) {}
+    }
+  }
+
   const ttsInstance = new MsEdgeTTS();
 
   return new Promise(async (resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
+    const fallbackToWindowsLocal = async (reason) => {
+      const localResult = await requestWindowsLocalTTS(text);
+      if (localResult?.audio) {
+        finish(localResult);
+        return;
+      }
+      finish({ error: reason });
+    };
+
     const timeout = setTimeout(() => {
       console.warn(`[TTS] Timeout for: "${text.substring(0, 30)}..."`);
-      resolve({ error: 'TTS timeout' });
+      fallbackToWindowsLocal('TTS timeout');
     }, 25000);
 
 
@@ -3307,26 +3378,23 @@ async function requestTTS(text, pitch = '+0Hz', rate = '+0%') {
       });
 
       audioStream.on('end', () => {
-        clearTimeout(timeout);
         const fullBuffer = Buffer.concat(buffers);
         if (fullBuffer.length > 0) {
           console.log(`[TTS] Generated ${fullBuffer.length} bytes for: "${text.substring(0, 30)}..."`);
-          resolve({ audio: fullBuffer });
+          finish({ audio: fullBuffer, mimeType: 'audio/mpeg' });
         } else {
           console.warn(`[TTS] Generated empty audio for: "${text}"`);
-          resolve({ error: 'Empty audio buffer' });
+          fallbackToWindowsLocal('Empty audio buffer');
         }
       });
 
       audioStream.on('error', (err) => {
-        clearTimeout(timeout);
         console.error('[TTS] Stream error:', err.message || err);
-        resolve({ error: 'TTS stream error: ' + (err.message || 'Unknown') });
+        fallbackToWindowsLocal('TTS stream error: ' + (err.message || 'Unknown'));
       });
     } catch (e) {
-      clearTimeout(timeout);
       console.error('[TTS] Request initialization failed:', e.message || e);
-      resolve({ error: 'TTS init failed: ' + (e.message || 'Unknown') });
+      fallbackToWindowsLocal('TTS init failed: ' + (e.message || 'Unknown'));
     }
   });
 }
@@ -3814,7 +3882,7 @@ app.post('/tts', express.json({ limit: '10mb' }), async (req, res) => {
       return res.status(500).json({ error: result.error });
     }
 
-    res.set('Content-Type', 'audio/mpeg');
+    res.set('Content-Type', result.mimeType || 'audio/mpeg');
     res.send(result.audio);
   } catch (err) {
     console.error('[TTS HTTP] Error:', err.message);
@@ -5035,6 +5103,8 @@ io.on('connection', (socket) => {
       if (textBuffer.trim().length > 1) {
         flushToQueue(textBuffer.trim(), chunkIndex);
       }
+
+      console.log(`[ZAIRE TTS] Sending text_chunks to frontend. Total chunks: ${sentenceChunks.length}`);
 
       // Send all text chunks to frontend so it can fetch audio via HTTP
       socket.emit('text_chunks', { chunks: sentenceChunks });
