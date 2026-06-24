@@ -2300,6 +2300,16 @@ const SMART_HOME_URL = 'http://127.0.0.1:3012';
 
 // ─── Safe LLM Failover & Rotation Client Setup ─────────────────────────────
 
+function splitIntoSentences(text = '') {
+  const input = String(text || '');
+  const match = input.match(/^([\s\S]*?[.!?]+)(\s+|$)/);
+  if (!match) return null;
+
+  const sentence = match[1].trim();
+  const rest = input.slice(match[0].length).trimStart();
+  return sentence ? { sentence, rest } : null;
+}
+
 async function* mockStream(text) {
   const chunkSize = 8;
   for (let i = 0; i < text.length; i += chunkSize) {
@@ -4144,10 +4154,10 @@ io.on('connection', (socket) => {
         }
       }
 
-      const responseMessage = response.choices[0].message;
-      const toolCalls = responseMessage.tool_calls;
+      const responseMessage = response?.choices?.[0]?.message || { role: 'assistant', content: '' };
+      const toolCalls = Array.isArray(responseMessage.tool_calls) ? responseMessage.tool_calls : [];
 
-      if (toolCalls) {
+      if (toolCalls.length > 0) {
         socket.emit('zaire_status', 'executing');
         conversationHistory.push(responseMessage);
 
@@ -4790,7 +4800,7 @@ io.on('connection', (socket) => {
       socket.emit('zaire_status', 'speaking');
 
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content || '';
+        const delta = chunk?.choices?.[0]?.delta?.content || chunk?.choices?.[0]?.message?.content || '';
         if (!delta) continue;
 
         fullAIResponse += delta;
@@ -4825,10 +4835,13 @@ io.on('connection', (socket) => {
       }
 
     } catch (error) {
-      console.error(`\n[FATAL ERROR] Socket: ${socket.id}`);
+      console.error(`
+[FATAL ERROR] Socket: ${socket.id}`);
       console.error(`Message: ${error.message}`);
       console.error(`Stack: ${error.stack}`);
-      socket.emit('ai_error', "I'm experiencing a momentary disruption, sir. Please try again.");
+      const fallbackText = "Sir, the intelligence route hit an internal error, but the voice link is intact. Please check Settings > AI Vault or the backend console for the exact provider error.";
+      socket.emit('ai_text_delta', fallbackText);
+      socket.emit('ai_text_complete', { fullText: fallbackText });
       socket.emit('zaire_status', 'idle');
     }
   };
