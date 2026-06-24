@@ -1710,7 +1710,7 @@ app.post('/agent/specialist_action', localOrAuthRequired, localOrUsageLimit, asy
 
 app.use((err, req, res, next) => {
   console.error('[EXPRESS ERR]', err.stack);
-  res.status(500).json({ success: false, error: "Internal ZAIRE Server Error" });
+  res.status(500).json({ success: false, error: err.stack });
 });
 
 // ─── MsEdgeTTS Setup ─────────────────────────────────────────────────────────
