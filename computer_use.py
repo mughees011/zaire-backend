@@ -1,7 +1,8 @@
 """
 ZAIRE Computer Use Sidecar
-Flask server on port 3002 — handles screen capture & system control
+Flask server on port 3012 — handles screen capture & system control
 via pyautogui. Called by the Node.js backend.
+NOTE: Port changed from 3002 to 3012 to avoid conflict with agent_daemon.py (port 3002).
 """
 import base64
 import io
@@ -698,6 +699,6 @@ if __name__ == '__main__':
 
     print("\n===========================================")
     print("  ZAIRE Computer Use Sidecar")
-    print("  Flask server on port 3002")
+    print("  Flask server on port 3012")
     print("===========================================\n")
-    app.run(host='127.0.0.1', port=3002, debug=False, use_reloader=False)
+    app.run(host='127.0.0.1', port=3012, debug=False, use_reloader=False)
