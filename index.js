@@ -676,8 +676,12 @@ app.post('/engineer/plan', async (req, res) => {
       console.warn('[ENGINEER PLAN] DB Warning (Project might be local only):', dbErr.message);
     }
 
+    // DB offline fallback — generate a local UUID so downstream /engineer/scaffold, /engineer/qa, /engineer/repair work
+    const localProjectId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     res.json({
       success: true,
+      projectId: localProjectId,
+      _offline: true,
       plan: {
         summary: plan.summary,
         stack: plan.stack,
@@ -1663,7 +1667,32 @@ app.get('/api/briefings/asset', async (req, res) => {
   }
 });
 
-app.post('/agent/specialist_action', requireAuth, usageLimit, async (req, res) => {
+// ─── Local/Electron bypass middleware for specialist actions ─────────────────
+function localOrAuthRequired(req, res, next) {
+  const origin = req.headers.origin || '';
+  const isLocal =
+    origin === 'null' ||
+    origin.startsWith('file://') ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1') ||
+    !origin; // Electron sends no Origin header
+  if (isLocal) return next(); // Desktop app — skip Clerk auth
+  return requireAuth(req, res, next);
+}
+
+function localOrUsageLimit(req, res, next) {
+  const origin = req.headers.origin || '';
+  const isLocal =
+    origin === 'null' ||
+    origin.startsWith('file://') ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1') ||
+    !origin;
+  if (isLocal) return next(); // Desktop app — skip usage limit
+  return usageLimit(req, res, next);
+}
+
+app.post('/agent/specialist_action', localOrAuthRequired, localOrUsageLimit, async (req, res) => {
   const { mode, action, payload } = req.body;
   try {
     const response = await fetch(`${SIDECAR_URL}/agent/specialist_action`, {
@@ -1674,7 +1703,8 @@ app.post('/agent/specialist_action', requireAuth, usageLimit, async (req, res) =
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[SPECIALIST_ACTION] Sidecar unreachable:', err.message);
+    res.status(500).json({ success: false, error: err.message, code: 'SIDECAR_UNREACHABLE' });
   }
 });
 
@@ -3920,8 +3950,8 @@ io.on('connection', (socket) => {
 
       try {
         const agentUrl = userText.includes('screen')
-          ? 'http://127.0.0.1:3002/agent/vision'
-          : 'http://127.0.0.1:3002/agent/chat';
+          ? 'http://127.0.0.1:3012/agent/vision'  // computer_use.py on port 3012
+          : 'http://127.0.0.1:3002/agent/chat';   // agent_daemon.py on port 3002
 
         console.log(`[DEBUG] Final Agent URL: ${agentUrl}`);
         const res = await fetch(agentUrl, {
