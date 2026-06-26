@@ -280,6 +280,37 @@ app.use(express.json({
 
 
 
+app.get('/api/security/status', (req, res) => {
+  return res.status(200).json({
+    success: true,
+    status: 'online',
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    environment: process.env.NODE_ENV === 'production' ? 'cloud' : 'local'
+  });
+});
+
+app.get('/api/security', (req, res) => {
+  return res.status(200).json({
+    success: true,
+    status: 'online',
+    security: false,
+    visualEcho: false,
+    clipboard: false,
+    fileWatcher: false,
+    environment: process.env.NODE_ENV === 'production' ? 'cloud' : 'local'
+  });
+});
+
+app.post('/api/security/status/toggle_system', (req, res) => {
+  return res.status(200).json({
+    success: true,
+    disabled: Boolean(req.body?.disabled),
+    status: 'updated'
+  });
+});
 app.get('/api/security/bootstrap', (req, res) => {
   return res.status(200).json({
     status: 'online',
