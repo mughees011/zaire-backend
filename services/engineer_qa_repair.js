@@ -1,6 +1,5 @@
 const fs = require('fs-extra');
 const path = require('path');
-const { exec } = require('child_process');
 const archiver = require('archiver');
 
 /**
@@ -15,7 +14,11 @@ async function qaProject(projectId, files) {
     // 1. Write generated files to temp workspace
     for (const file of files) {
       if (!file.path || !file.content) continue;
-      const fullPath = path.join(tempWorkspace, file.path);
+      const safeRelativePath = assertSafeRelativePath(file.path);
+      const fullPath = path.resolve(tempWorkspace, safeRelativePath);
+      if (!isInsideDirectory(fullPath, path.resolve(tempWorkspace))) {
+        throw new Error(`QA file escaped workspace: ${file.path}`);
+      }
       await fs.ensureDir(path.dirname(fullPath));
       await fs.writeFile(fullPath, file.content, 'utf8');
     }
@@ -106,6 +109,11 @@ function normalizeFileList(files) {
   return [];
 }
 
+function isInsideDirectory(childPath, parentPath) {
+  const relative = path.relative(parentPath, childPath);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 function assertSafeRelativePath(filePath) {
   const normalized = path.normalize(String(filePath || '')).replace(/^([/\\])+/, '');
   if (!normalized || normalized.startsWith('..') || path.isAbsolute(normalized)) {
@@ -124,7 +132,7 @@ async function materializeProject(projectName, files) {
   const resolvedOutputRoot = path.resolve(outputRoot);
   const resolvedOutputDir = path.resolve(outputDir);
 
-  if (!resolvedOutputDir.startsWith(resolvedOutputRoot)) {
+  if (!isInsideDirectory(resolvedOutputDir, resolvedOutputRoot)) {
     throw new Error('Resolved project output path escaped generated_projects.');
   }
 
@@ -135,7 +143,7 @@ async function materializeProject(projectName, files) {
     if (!file.path || file.content === undefined || file.content === null) continue;
     const safeRelativePath = assertSafeRelativePath(file.path);
     const fullPath = path.resolve(outputDir, safeRelativePath);
-    if (!fullPath.startsWith(resolvedOutputDir)) {
+    if (!isInsideDirectory(fullPath, resolvedOutputDir)) {
       throw new Error(`Generated file escaped project folder: ${file.path}`);
     }
     await fs.ensureDir(path.dirname(fullPath));
@@ -152,6 +160,8 @@ async function materializeProject(projectName, files) {
  * Exports a project by zipping the provided files and piping to the response.
  */
 async function exportProjectZip(projectId, files, res) {
+  const safeProjectId = String(projectId || 'project').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'project';
+  const normalizedFiles = normalizeFileList(files);
   const archive = archiver('zip', {
     zlib: { level: 9 }
   });
@@ -172,12 +182,13 @@ async function exportProjectZip(projectId, files, res) {
     throw err;
   });
 
-  res.attachment(`zaire_project_${projectId.substring(0,8)}.zip`);
+  res.attachment(`zaire_project_${safeProjectId.substring(0,8)}.zip`);
   archive.pipe(res);
 
-  for (const file of files) {
-    if (file.path && file.content) {
-      archive.append(file.content, { name: file.path });
+  for (const file of normalizedFiles) {
+    if (file.path && file.content !== undefined && file.content !== null) {
+      const safeRelativePath = assertSafeRelativePath(file.path);
+      archive.append(String(file.content), { name: safeRelativePath });
     }
   }
 

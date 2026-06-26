@@ -630,6 +630,10 @@ app.post(['/api/launcher/session', '/launcher/session'], async (req, res) => {
   }
 });
 
+app.post('/engineer/health', async (req, res) => {
+  res.json({ success: true, status: 'ready' });
+});
+
 app.post('/engineer/plan', async (req, res) => {
   try {
     const intake = req.body?.intake || req.body || {};
@@ -834,17 +838,23 @@ app.post('/engineer/materialize', async (req, res) => {
       envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || basePlan.envVars
     };
 
-    const suppliedFiles = req.body?.files;
-    const scaffold = suppliedFiles
-      ? { files: suppliedFiles }
-      : buildEngineerScaffold(plan, intake, skillLevel);
-    const fileRecords = normalizeFileList(scaffold.files || suppliedFiles);
+    const suppliedFiles = normalizeFileList(req.body?.files);
+    const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
+    const fileMap = new Map();
 
-    if (scaffold.readme) fileRecords.push({ path: 'README.md', content: scaffold.readme });
-    if (scaffold.envExample) fileRecords.push({ path: '.env.example', content: scaffold.envExample });
-    if (scaffold.packageConfig) {
-      fileRecords.push({ path: 'package.json', content: JSON.stringify(scaffold.packageConfig, null, 2) });
+    for (const file of normalizeFileList(scaffold.files)) {
+      if (file.path) fileMap.set(file.path, file);
     }
+    if (scaffold.readme) fileMap.set('README.md', { path: 'README.md', content: scaffold.readme });
+    if (scaffold.envExample) fileMap.set('.env.example', { path: '.env.example', content: scaffold.envExample });
+    if (scaffold.packageConfig) {
+      fileMap.set('package.json', { path: 'package.json', content: JSON.stringify(scaffold.packageConfig, null, 2) });
+    }
+    for (const file of suppliedFiles) {
+      if (file.path) fileMap.set(file.path, file);
+    }
+
+    const fileRecords = Array.from(fileMap.values());
 
     const projectName = plan.normalizedName || intake.projectName || req.body?.projectName || 'zaire-generated-project';
     const result = await materializeProject(projectName, fileRecords);
@@ -858,10 +868,11 @@ app.post('/engineer/materialize', async (req, res) => {
     });
   } catch (error) {
     console.error('[ENGINEER MATERIALIZE ERR]', error);
-    res.status(500).json({
+    const unsafePath = /unsafe generated file path|escaped/i.test(error.message || '');
+    res.status(unsafePath ? 400 : 500).json({
       success: false,
       error: error.message || 'Project materialization failed.',
-      code: 'ENGINEER_MATERIALIZE_FAILED'
+      code: unsafePath ? 'ENGINEER_UNSAFE_FILE_PATH' : 'ENGINEER_MATERIALIZE_FAILED'
     });
   }
 });
