@@ -37,7 +37,15 @@ const {
 
 const PACKAGED_FRONTEND_DIR = path.join(__dirname, 'frontend');
 const LOCAL_FRONTEND_DIR = path.join(__dirname, '..', 'frontend-temp', 'build');
-const FRONTEND_DIR = fs.existsSync(PACKAGED_FRONTEND_DIR) ? PACKAGED_FRONTEND_DIR : LOCAL_FRONTEND_DIR;
+const LEGACY_FRONTEND_DIR = path.join(__dirname, '..', '..', 'zaire_web', 'dist');
+const FRONTEND_CANDIDATES = [
+  PACKAGED_FRONTEND_DIR,
+  LOCAL_FRONTEND_DIR,
+  LEGACY_FRONTEND_DIR
+];
+const FRONTEND_DIR = FRONTEND_CANDIDATES.find((candidate) =>
+  fs.existsSync(path.join(candidate, 'index.html'))
+);
 
 function spawnPythonDaemon(scriptPath, options = {}) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -330,7 +338,7 @@ app.use('/llm', llmRoutes);
 app.use('/chats', chatRoutes);
 app.use('/downloads', downloadsRoutes);
 
-if (fs.existsSync(FRONTEND_DIR)) {
+if (FRONTEND_DIR) {
   app.use(express.static(FRONTEND_DIR));
 }
 
@@ -4977,7 +4985,7 @@ io.on('connection', (socket) => {
 });
 
 // ─── Start Server ────────────────────────────────────────────────────────────
-if (fs.existsSync(FRONTEND_DIR)) {
+if (FRONTEND_DIR) {
   const frontendIndexPath = path.join(FRONTEND_DIR, 'index.html');
   const passthroughPrefixes = [
     '/api',
