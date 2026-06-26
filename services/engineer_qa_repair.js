@@ -95,6 +95,59 @@ async function repairError(projectId, errorText, files) {
   };
 }
 
+function normalizeFileList(files) {
+  if (Array.isArray(files)) return files;
+  if (files && typeof files === 'object') {
+    return Object.entries(files).map(([filePath, record]) => ({
+      path: filePath,
+      content: typeof record === 'string' ? record : record?.content || ''
+    }));
+  }
+  return [];
+}
+
+function assertSafeRelativePath(filePath) {
+  const normalized = path.normalize(String(filePath || '')).replace(/^([/\\])+/, '');
+  if (!normalized || normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    throw new Error(`Unsafe generated file path: ${filePath}`);
+  }
+  return normalized;
+}
+
+async function materializeProject(projectName, files) {
+  const safeName = String(projectName || 'zaire-generated-project')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'zaire-generated-project';
+  const outputRoot = path.join(__dirname, '..', 'generated_projects');
+  const outputDir = path.join(outputRoot, safeName);
+  const resolvedOutputRoot = path.resolve(outputRoot);
+  const resolvedOutputDir = path.resolve(outputDir);
+
+  if (!resolvedOutputDir.startsWith(resolvedOutputRoot)) {
+    throw new Error('Resolved project output path escaped generated_projects.');
+  }
+
+  const normalizedFiles = normalizeFileList(files);
+  await fs.ensureDir(outputDir);
+
+  for (const file of normalizedFiles) {
+    if (!file.path || file.content === undefined || file.content === null) continue;
+    const safeRelativePath = assertSafeRelativePath(file.path);
+    const fullPath = path.resolve(outputDir, safeRelativePath);
+    if (!fullPath.startsWith(resolvedOutputDir)) {
+      throw new Error(`Generated file escaped project folder: ${file.path}`);
+    }
+    await fs.ensureDir(path.dirname(fullPath));
+    await fs.writeFile(fullPath, String(file.content), 'utf8');
+  }
+
+  return {
+    outputDir,
+    fileCount: normalizedFiles.filter((file) => file.path).length,
+    files: normalizedFiles.map((file) => file.path).filter(Boolean)
+  };
+}
 /**
  * Exports a project by zipping the provided files and piping to the response.
  */
@@ -134,5 +187,8 @@ async function exportProjectZip(projectId, files, res) {
 module.exports = {
   qaProject,
   repairError,
-  exportProjectZip
+  exportProjectZip,
+  materializeProject,
+  normalizeFileList
 };
+
