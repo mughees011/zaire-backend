@@ -1126,7 +1126,7 @@ const io = new Server(server, {
     credentials: true
   },
   maxHttpBufferSize: 1e7,
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   allowUpgrades: true,
   pingTimeout: 60000,
   pingInterval: 25000
