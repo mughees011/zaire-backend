@@ -1,0 +1,18 @@
+{
+  "id": "session_1782500171406",
+  "title": "hello zaire core strict check",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello zaire core strict check",
+      "timestamp": "2026-06-26T18:56:11.439Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, I can't reach an active intelligence provider right now. Please check your internet connection or add a provider in Settings > AI Vault.",
+      "timestamp": "2026-06-26T18:56:11.685Z"
+    }
+  ],
+  "createdAt": "2026-06-26T18:56:11.406Z",
+  "updatedAt": "2026-06-26T18:56:11.685Z"
+}

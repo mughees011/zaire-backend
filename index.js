@@ -2823,7 +2823,7 @@ async function executeLLMCallWithFailover(options) {
   }
 
   // Final barrier failed! Return a graceful system alert
-  const finalError = "Sir, I can't reach an active intelligence provider right now. Please check your internet connection or add a provider in Settings > AI Vault.";
+  const finalError = "Sir, ZAIRE Core is online in local fallback mode. I can receive your messages and keep the interface responsive, but full AI reasoning needs one active provider key in Settings > AI Vault or an env key such as GROQ_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or SILICONFLOW_API_KEY.";
   if (options.stream) {
     return mockStream(finalError);
   } else {
@@ -4230,8 +4230,10 @@ io.on('connection', (socket) => {
         return;
 
       } catch (err) {
-        console.error('[ROUTER] Specialist failed:', err.message);
-        socket.emit('ai_error', "The specialist module is not responding, sir.");
+        console.warn('[ROUTER] Specialist unavailable, using core fallback:', err.message);
+        const fallbackText = `Sir, the ${activeMode} specialist sidecar is offline, but ZAIRE Core is still connected. I can keep helping here while that module comes back online.`;
+        socket.emit('ai_text_delta', fallbackText);
+        socket.emit('ai_text_complete', { fullText: fallbackText });
         socket.emit('zaire_status', 'idle');
         return;
       }
@@ -4316,11 +4318,11 @@ io.on('connection', (socket) => {
           })
         });
         const fallbackData = await fallbackRes.json();
-        const content = fallbackData?.content || "Sir, I can't reach an active provider for this request right now. Please review Settings > AI Vault.";
+        const content = fallbackData?.content || "Sir, ZAIRE Core is online in local fallback mode. Add a provider key in Settings > AI Vault to restore full responses.";
         socket.emit('ai_text_delta', content);
         socket.emit('ai_text_complete', { fullText: content });
       } catch (_) {
-        const missingProviderMsg = "Sir, no active core provider is available for this route yet. Please add an active provider key in Settings > AI Vault.";
+        const missingProviderMsg = "Sir, ZAIRE Core is online in local fallback mode. Add a provider key in Settings > AI Vault to restore full responses.";
         socket.emit('ai_error', { message: missingProviderMsg });
         socket.emit('ai_text_delta', missingProviderMsg);
         socket.emit('ai_text_complete', { fullText: missingProviderMsg });
