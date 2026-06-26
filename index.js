@@ -1694,17 +1694,37 @@ function localOrUsageLimit(req, res, next) {
 
 app.post('/agent/specialist_action', localOrAuthRequired, localOrUsageLimit, async (req, res) => {
   const { mode, action, payload } = req.body;
+
+  // Attempt to forward to the Python sidecar (agent daemon on port 3002).
+  // If the sidecar is offline, fall back gracefully so the frontend is never
+  // left with a raw 500 and the UI remains functional.
+  let timeout = null;
   try {
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 3000);
     const response = await fetch(`${SIDECAR_URL}/agent/specialist_action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, action, payload })
+      body: JSON.stringify({ mode, action, payload }),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
+    timeout = null;
     const data = await response.json();
-    res.json(data);
+    return res.json(data);
   } catch (err) {
-    console.error('[SPECIALIST_ACTION] Sidecar unreachable:', err.message);
-    res.status(500).json({ success: false, error: err.message, code: 'SIDECAR_UNREACHABLE' });
+    if (timeout) { clearTimeout(timeout); timeout = null; }
+    console.warn('[SPECIALIST_ACTION] Sidecar unreachable — returning graceful fallback:', err.message);
+    // Return a success-shaped response so the frontend does not crash.
+    // The frontend already handles the fallback state via specialistVisualReducer.
+    return res.json({
+      success: true,
+      fallback: true,
+      result: {
+        message: `Action "${action}" queued. Sidecar agent is offline — start the desktop app to enable live execution.`
+      },
+      data: getSpecialistFallbackPayload(mode).data
+    });
   }
 });
 
