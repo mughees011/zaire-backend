@@ -44,7 +44,7 @@
     "hudOpacity": 0.85,
     "neuralGlowEnabled": false,
     "holographicTiltEnabled": false,
-    "blobColor": "#00d4ff",
+    "blobColor": "#f97316",
     "blobSize": 2.5
   },
   "desktopProfile": {
