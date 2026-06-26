@@ -1151,7 +1151,7 @@ try {
       console.log('[GOOGLE] Existing tokens loaded and client ready.');
     }
   } else {
-    console.warn('[GOOGLE] client_secret.json not found. OAuth will be disabled until configured.');
+    console.log('[GOOGLE] client_secret.json not found. OAuth integration disabled until configured.');
   }
 } catch (err) {
   console.error('[GOOGLE] Error initializing auth client:', err.message);

@@ -1,6 +1,11 @@
 const pool = require('./db');
 
 async function initDatabase() {
+  if (!process.env.DATABASE_URL) {
+    console.log('[DATABASE] DATABASE_URL not configured. Skipping database migration for local/offline mode.');
+    return;
+  }
+
   console.log('[DATABASE] Starting database migration check...');
   try {
     // 1. Create subscriptions table
@@ -297,7 +302,7 @@ async function initDatabase() {
 
     console.log('[DATABASE] Database schema migration completed successfully.');
   } catch (err) {
-    console.error('[DATABASE ERR] Migration failed:', err.message);
+    console.warn('[DATABASE] Migration skipped or failed:', err.message || 'Unknown database error');
   }
 }
 
