@@ -1,0 +1,18 @@
+{
+  "id": "session_1782500013191",
+  "title": "hello zaire quick health check",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello zaire quick health check",
+      "timestamp": "2026-06-26T18:53:33.229Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, I can't reach an active intelligence provider right now. Please check your internet connection or add a provider in Settings > AI Vault.",
+      "timestamp": "2026-06-26T18:53:33.441Z"
+    }
+  ],
+  "createdAt": "2026-06-26T18:53:33.191Z",
+  "updatedAt": "2026-06-26T18:53:33.441Z"
+}

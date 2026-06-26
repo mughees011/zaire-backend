@@ -1,0 +1,18 @@
+{
+  "id": "session_1782500513152",
+  "title": "hello zaire final check",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello zaire final check",
+      "timestamp": "2026-06-26T19:01:53.192Z"
+    },
+    {
+      "role": "assistant",
+      "content": "Sir, ZAIRE Core is online in local fallback mode. I can receive your messages and keep the interface responsive, but full AI reasoning needs one active provider key in Settings > AI Vault or an env key such as GROQ_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or SILICONFLOW_API_KEY.",
+      "timestamp": "2026-06-26T19:01:53.629Z"
+    }
+  ],
+  "createdAt": "2026-06-26T19:01:53.152Z",
+  "updatedAt": "2026-06-26T19:01:53.629Z"
+}

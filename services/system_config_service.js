@@ -197,11 +197,13 @@ function reconcileAiVaultSlots(slots = [], secrets = loadSecrets()) {
   const clean = sanitizeApiSlots(slots);
   return clean.map((slot, i) => {
     const secretEntry = secrets.slots?.[String(i)] || null;
-    const hasMatchingSecret = secretMatchesProvider(secretEntry, slot.provider);
+    const storedProvider = secretEntry && typeof secretEntry === 'object' ? secretEntry.provider : '';
+    const hasStoredSecret = Boolean(secretEntry && (typeof secretEntry === 'string' || secretEntry.key));
     return {
       ...slot,
+      provider: hasStoredSecret && storedProvider ? storedProvider : slot.provider,
       apiKey: '',
-      hasKey: Boolean(hasMatchingSecret)
+      hasKey: hasStoredSecret
     };
   });
 }
@@ -229,16 +231,19 @@ function persistAiVaultSlots(slots = []) {
       }
     } else if (!slot.hasKey) {
       delete secrets.slots[String(i)];
-    } else if (
-      (typeof secrets.slots[String(i)] === 'string' || secrets.slots[String(i)]?.key) &&
-      secretMatchesProvider(secrets.slots[String(i)], slot.provider)
-    ) {
+    } else if (typeof secrets.slots[String(i)] === 'string' || secrets.slots[String(i)]?.key) {
       secretStored = true;
     } else {
       delete secrets.slots[String(i)];
     }
 
-    out.push({ ...slot, apiKey: '', hasKey: Boolean(secretStored) });
+    const storedProvider = secrets.slots[String(i)] && typeof secrets.slots[String(i)] === 'object' ? secrets.slots[String(i)].provider : '';
+    out.push({
+      ...slot,
+      provider: secretStored && storedProvider ? storedProvider : slot.provider,
+      apiKey: '',
+      hasKey: Boolean(secretStored)
+    });
   }
 
   saveSecrets(secrets);
@@ -292,24 +297,63 @@ function persistExternalApiEntries(entries = []) {
   return out;
 }
 
+function envProviderSlots() {
+  const candidates = [
+    { provider: 'Groq', env: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL' },
+    { provider: 'OpenAI', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MODEL' },
+    { provider: 'OpenRouter', env: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL' },
+    { provider: 'SiliconFlow', env: 'SILICONFLOW_API_KEY', modelEnv: 'SILICONFLOW_MODEL' },
+    { provider: 'Google Gemini', env: 'GEMINI_API_KEY', modelEnv: 'GEMINI_MODEL' },
+    { provider: 'DeepSeek', env: 'DEEPSEEK_API_KEY', modelEnv: 'DEEPSEEK_MODEL' },
+    { provider: 'Mistral', env: 'MISTRAL_API_KEY', modelEnv: 'MISTRAL_MODEL' }
+  ];
+
+  return candidates
+    .filter((item) => String(process.env[item.env] || '').trim())
+    .map((item, index) => ({
+      slot: index + 1,
+      provider: item.provider,
+      apiKey: String(process.env[item.env] || '').trim(),
+      hasKey: true,
+      model: String(process.env[item.modelEnv] || '').trim(),
+      purpose: index === 0 ? 'Primary' : 'Fallback',
+      baseUrl: '',
+      enabled: true,
+      source: 'env'
+    }));
+}
 function hydrateRuntimeProviders() {
   const cfg = readSystemConfig();
   const slots = sanitizeApiSlots(cfg?.aiVault?.slots || []);
   const secrets = loadSecrets();
 
-  return slots.map((slot, i) => {
+  const hydrated = slots.map((slot, i) => {
     const enc = secrets.slots?.[String(i)] || null;
     let key = '';
-    const hasMatchingSecret = secretMatchesProvider(enc, slot.provider);
-    if (enc && hasMatchingSecret) {
+    const storedProvider = enc && typeof enc === 'object' ? enc.provider : '';
+    const hasStoredSecret = Boolean(enc && (typeof enc === 'string' || enc.key));
+    if (hasStoredSecret) {
       try {
         key = decryptStoredSecret(enc);
       } catch (err) {
         console.error('[SECRETS] Decrypt failed:', err.message);
       }
     }
-    return { ...slot, apiKey: key, hasKey: Boolean(hasMatchingSecret && key) };
+    return {
+      ...slot,
+      provider: hasStoredSecret && storedProvider ? storedProvider : slot.provider,
+      apiKey: key,
+      hasKey: Boolean(hasStoredSecret && key)
+    };
   });
+
+  const usableVaultSlots = hydrated.filter((slot) => slot.enabled && slot.provider !== 'Empty' && slot.apiKey);
+  if (usableVaultSlots.length > 0) {
+    return hydrated;
+  }
+
+  const envSlots = envProviderSlots();
+  return envSlots.length > 0 ? envSlots : hydrated;
 }
 
 function hydrateExternalApiEntries() {
