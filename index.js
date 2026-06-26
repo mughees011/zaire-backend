@@ -49,6 +49,14 @@ const FRONTEND_DIR = FRONTEND_CANDIDATES.find((candidate) =>
   fs.existsSync(path.join(candidate, 'index.html'))
 );
 
+function pythonModuleAvailable(moduleName) {
+  try {
+    execFileSync('python', ['-c', `import ${moduleName}`], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 function spawnPythonDaemon(scriptPath, options = {}) {
   const isProduction = process.env.NODE_ENV === 'production';
   const exeName = process.platform === 'win32' ? 'zaire_core.exe' : 'zaire_core';
@@ -2387,6 +2395,14 @@ let securityReady = false;
 
 function startFaceSecurity() {
   if (securityProc) return;
+  const requiredModules = ['flask', 'flask_cors'];
+  const missingModules = requiredModules.filter((moduleName) => !pythonModuleAvailable(moduleName));
+  if (missingModules.length > 0) {
+    securityReady = false;
+    console.log(`[SECURITY] Face Security disabled. Missing Python modules: ${missingModules.join(', ')}. Install with: python -m pip install flask flask-cors opencv-python`);
+    return;
+  }
+
   console.log('[SECURITY] Starting ZAIRE Face Security Daemon...');
   const scriptPath = path.join(__dirname, 'face_security.py');
   securityProc = spawnPythonDaemon(scriptPath, {
@@ -2395,7 +2411,7 @@ function startFaceSecurity() {
   });
   securityProc.stdout.on('data', (data) => {
     const msg = data.toString().trim();
-    if (msg.includes('port 3011')) { securityReady = true; console.log('[SECURITY] ✓ Ready on port 3011'); }
+    if (msg.includes('port 3011')) { securityReady = true; console.log('[SECURITY] Ready on port 3011'); }
     if (msg) console.log(`[SECURITY] ${msg}`);
   });
   securityProc.stderr.on('data', (data) => {
@@ -2407,9 +2423,12 @@ function startFaceSecurity() {
     securityReady = false;
     if (code !== 0 && shouldRestartManagedService('security')) setTimeout(startFaceSecurity, 8000);
   });
-  securityProc.on('error', (err) => console.error('[SECURITY] Start failed:', err.message));
+  securityProc.on('error', (err) => {
+    securityProc = null;
+    securityReady = false;
+    console.log('[SECURITY] Face Security could not start:', err.message);
+  });
 }
-
 
 const SECURITY_URL = 'http://127.0.0.1:3011';
 
