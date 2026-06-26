@@ -123,6 +123,57 @@ function buildEngineerPlan(intake = {}) {
 
 function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL') {
   const files = {
+    'app/layout.tsx': {
+      content: `import type { ReactNode } from 'react';
+import './globals.css';
+
+export const metadata = {
+  title: '${plan.appName}',
+  description: '${plan.summary.replace(/'/g, "\\'")}'
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+`,
+      explanation: {
+        what: 'This is the root layout required by the Next.js App Router.',
+        why: 'Without it, the generated app cannot run as a real Next project.',
+        edit: 'Metadata, providers, and global wrappers can be added here.',
+        protect: 'Keep the html/body structure and children render intact.'
+      }
+    },
+    'app/globals.css': {
+      content: `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #050505;
+  color: #ffffff;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+`,
+      explanation: {
+        what: 'This provides Tailwind directives and base runtime styling.',
+        why: 'The generated pages use Tailwind classes and need global CSS to render correctly.',
+        edit: 'Brand tokens and base styles can be refined here.',
+        protect: 'Keep the Tailwind directives while Tailwind is part of the stack.'
+      }
+    },
     'app/page.tsx': {
       content: `export default function Page() {\n  return (\n    <main className="min-h-screen bg-black text-white">\n      <section className="mx-auto max-w-6xl px-6 py-24">\n        <h1 className="text-5xl font-semibold tracking-tight">${plan.appName}</h1>\n        <p className="mt-4 max-w-2xl text-zinc-400">\n          ${intake.what}\n        </p>\n      </section>\n    </main>\n  );\n}\n`,
       explanation: {
@@ -201,14 +252,127 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL') {
       lint: 'next lint'
     },
     dependencies: {
-      next: '14.x',
-      react: '18.x',
-      'react-dom': '18.x',
-      tailwindcss: '^3.4.0',
-      typescript: '^5.0.0',
-      ...(plan.needsAuth ? { '@clerk/nextjs': '^5.0.0' } : {}),
-      ...(plan.needsDatabase ? { prisma: '^5.0.0', '@prisma/client': '^5.0.0' } : {}),
-      ...(plan.needsPayments ? { stripe: '^16.0.0' } : {})
+      '@types/node': '^20.14.10',
+      '@types/react': '^18.3.3',
+      '@types/react-dom': '^18.3.0',
+      autoprefixer: '^10.4.19',
+      next: '^14.2.4',
+      postcss: '^8.4.39',
+      react: '^18.3.1',
+      'react-dom': '^18.3.1',
+      tailwindcss: '^3.4.4',
+      typescript: '^5.5.3',
+      ...(plan.needsAuth ? { '@clerk/nextjs': '^5.2.4' } : {}),
+      ...(plan.needsDatabase ? { prisma: '^5.16.1', '@prisma/client': '^5.16.1' } : {}),
+      ...(plan.needsPayments ? { stripe: '^16.2.0' } : {})
+    },
+    devDependencies: {}
+  };
+  files['next.config.mjs'] = {
+    content: `/** @type {import('next').NextConfig} */
+const nextConfig = {};
+
+export default nextConfig;
+`,
+    explanation: {
+      what: 'This is the Next.js runtime configuration file.',
+      why: 'It lets the generated app boot with a standard Next project shape.',
+      edit: 'Add image, redirect, or experimental settings here as needed.',
+      protect: 'Keep it valid ESM because the file uses .mjs.'
+    }
+  };
+
+  files['tailwind.config.js'] = {
+    content: `/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}'],
+  theme: {
+    extend: {}
+  },
+  plugins: []
+};
+`,
+    explanation: {
+      what: 'This tells Tailwind where generated UI code lives.',
+      why: 'Without it, Tailwind classes will not be emitted correctly.',
+      edit: 'Add brand colors, fonts, and plugins here.',
+      protect: 'Keep content globs aligned with generated folders.'
+    }
+  };
+
+  files['postcss.config.js'] = {
+    content: `module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {}
+  }
+};
+`,
+    explanation: {
+      what: 'This wires Tailwind into the CSS build pipeline.',
+      why: 'Next uses PostCSS to process the global Tailwind CSS file.',
+      edit: 'Add PostCSS plugins only when the styling system needs them.',
+      protect: 'Keep tailwindcss and autoprefixer configured while Tailwind is used.'
+    }
+  };
+
+  files['tsconfig.json'] = {
+    content: JSON.stringify({
+      compilerOptions: {
+        target: 'es5',
+        lib: ['dom', 'dom.iterable', 'esnext'],
+        allowJs: true,
+        skipLibCheck: true,
+        strict: true,
+        noEmit: true,
+        esModuleInterop: true,
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        resolveJsonModule: true,
+        isolatedModules: true,
+        jsx: 'preserve',
+        incremental: true,
+        plugins: [{ name: 'next' }],
+        paths: { '@/*': ['./*'] }
+      },
+      include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
+      exclude: ['node_modules']
+    }, null, 2),
+    explanation: {
+      what: 'This is the TypeScript configuration used by Next.',
+      why: 'It gives the generated TSX files a valid compiler setup.',
+      edit: 'Compiler strictness and path aliases can evolve with the project.',
+      protect: 'Keep Next plugin and include patterns intact.'
+    }
+  };
+
+  files['next-env.d.ts'] = {
+    content: `/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// This file is generated by Next.js. Do not edit manually.
+`,
+    explanation: {
+      what: 'This provides Next.js TypeScript ambient types.',
+      why: 'Next expects this file in TypeScript projects.',
+      edit: 'This file should normally be left alone.',
+      protect: 'Do not remove the reference directives.'
+    }
+  };
+
+  files['.gitignore'] = {
+    content: `.next
+node_modules
+.env.local
+.env
+.vercel
+dist
+`,
+    explanation: {
+      what: 'This keeps generated dependencies, builds, and secrets out of source control.',
+      why: 'Generated projects should be safe to commit without leaking local artifacts.',
+      edit: 'Add tool-specific output folders as the app grows.',
+      protect: 'Keep env and dependency folders ignored.'
     }
   };
 

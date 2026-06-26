@@ -32,7 +32,9 @@ const {
 const {
   qaProject,
   repairError,
-  exportProjectZip
+  exportProjectZip,
+  materializeProject,
+  normalizeFileList
 } = require('./services/engineer_qa_repair');
 
 const PACKAGED_FRONTEND_DIR = path.join(__dirname, 'frontend');
@@ -819,6 +821,50 @@ app.post('/engineer/repair', async (req, res) => {
   }
 });
 
+app.post('/engineer/materialize', async (req, res) => {
+  try {
+    const intake = req.body?.intake || {};
+    const skillLevel = req.body?.skillLevel || 'PROFESSIONAL';
+    const incomingPlan = req.body?.plan || buildEngineerPlan(intake);
+    const basePlan = buildEngineerPlan(intake);
+    const plan = {
+      ...basePlan,
+      ...incomingPlan,
+      stack: incomingPlan.stack || incomingPlan.techStack || basePlan.stack,
+      envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || basePlan.envVars
+    };
+
+    const suppliedFiles = req.body?.files;
+    const scaffold = suppliedFiles
+      ? { files: suppliedFiles }
+      : buildEngineerScaffold(plan, intake, skillLevel);
+    const fileRecords = normalizeFileList(scaffold.files || suppliedFiles);
+
+    if (scaffold.readme) fileRecords.push({ path: 'README.md', content: scaffold.readme });
+    if (scaffold.envExample) fileRecords.push({ path: '.env.example', content: scaffold.envExample });
+    if (scaffold.packageConfig) {
+      fileRecords.push({ path: 'package.json', content: JSON.stringify(scaffold.packageConfig, null, 2) });
+    }
+
+    const projectName = plan.normalizedName || intake.projectName || req.body?.projectName || 'zaire-generated-project';
+    const result = await materializeProject(projectName, fileRecords);
+
+    res.json({
+      success: true,
+      projectName,
+      outputDir: result.outputDir,
+      fileCount: result.fileCount,
+      files: result.files
+    });
+  } catch (error) {
+    console.error('[ENGINEER MATERIALIZE ERR]', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Project materialization failed.',
+      code: 'ENGINEER_MATERIALIZE_FAILED'
+    });
+  }
+});
 app.post('/engineer/export', async (req, res) => {
   try {
     const { projectId, files } = req.body;
@@ -5100,3 +5146,4 @@ function cleanupAndExit(code = 0) {
 
 process.on('SIGINT', () => cleanupAndExit(0));
 process.on('SIGTERM', () => cleanupAndExit(0));
+
