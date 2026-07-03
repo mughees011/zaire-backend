@@ -1,0 +1,14 @@
+psutil
+requests
+python-dotenv
+opencv-python-headless
+numpy
+pillow
+pyautogui
+flask
+flask-cors
+fastapi
+uvicorn
+pydantic
+sentence-transformers
+faiss-cpu
