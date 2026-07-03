@@ -210,7 +210,9 @@ function getSpecialistFallbackPayload(mode) {
 
   if (normalizedMode === 'ENGINEER') {
     base.data.active_persona = 'ENGINEER_CORE';
-    base.data.forge_telemetry = { phase: 'IDLE', status: 'SIDEcar_OFFLINE' };
+    base.data.forge_telemetry = { phase: 'IDLE', progress: 0, status: 'CLOUD_RUNTIME' };
+    base.data.forge_build_log = [];
+    base.data.recent_files = [];
   } else if (normalizedMode === 'TRADER') {
     base.data.active_persona = 'TRADER_LAB';
     base.data.live_pulse = {};
@@ -668,7 +670,6 @@ app.post(['/api/launcher/session', '/launcher/session'], async (req, res) => {
     return res.status(500).json({ valid: false, error: 'SERVER_ERROR' });
   }
 });
-
 app.post('/engineer/health', async (req, res) => {
   res.json({ success: true, status: 'ready' });
 });
@@ -695,7 +696,7 @@ app.post('/engineer/plan', async (req, res) => {
 
       await pool.query(
         `INSERT INTO architecture_plans (project_id, summary, tech_stack) VALUES ($1, $2, $3)`,
-        [projectId, plan.summary, JSON.stringify(plan.stack)]
+        [projectId, plan.summary, JSON.stringify(plan.techStack || plan.stack || [])]
       );
 
       // Return projectId to frontend for future requests
@@ -4134,7 +4135,6 @@ io.on('connection', (socket) => {
             });
           }
         }
-
         if (sentenceBuffer.trim()) {
           const currentIndex = audioIndex++;
           requestTTS(sentenceBuffer.trim()).then(audioRes => {
@@ -4152,11 +4152,7 @@ io.on('connection', (socket) => {
         return;
 
       } catch (err) {
-        console.error('[ROUTER] Agent failed:', err.message);
-        socket.emit('ai_text_delta', "Unfortunately, sir, the local vision daemon is still initializing. Please wait a moment and try again.");
-        socket.emit('ai_text_complete', { fullText: "Unfortunately, sir, the local vision daemon is still initializing. Please wait a moment and try again." });
-        socket.emit('zaire_status', 'idle');
-        return;
+        console.warn('[ROUTER] Agent failed, falling back to ZAIRE Core LLM:', err.message);
       }
     }
 
@@ -4231,11 +4227,6 @@ io.on('connection', (socket) => {
 
       } catch (err) {
         console.warn('[ROUTER] Specialist unavailable, using core fallback:', err.message);
-        const fallbackText = `Sir, the ${activeMode} specialist sidecar is offline, but ZAIRE Core is still connected. I can keep helping here while that module comes back online.`;
-        socket.emit('ai_text_delta', fallbackText);
-        socket.emit('ai_text_complete', { fullText: fallbackText });
-        socket.emit('zaire_status', 'idle');
-        return;
       }
     }
 
@@ -4276,7 +4267,11 @@ io.on('connection', (socket) => {
       .replace('{{MODE}}', currentPersonalityMode)
       .replace('{{MOOD}}', currentSystemMood);
 
-    const augmentedSystemPrompt = dynamicBase + (memoryContext || "");
+    let engineerContext = "";
+    if (activeMode === "ENGINEER") {
+      engineerContext = "\n\n[ENGINEER MODE ACTIVE]\nAct as a strict, direct, code-focused engineer specialist. Provide exact code, files, and architectural guidance without generic AI pleasantries.";
+    }
+    const augmentedSystemPrompt = dynamicBase + engineerContext + (memoryContext || "");
 
     // Update the system message with fresh memory context
     conversationHistory[0] = { role: 'system', content: augmentedSystemPrompt };
