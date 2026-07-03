@@ -340,6 +340,7 @@ def launch_zaire_runtime():
 
     env = os.environ.copy()
     env["ZAIRE_OPEN_UI"] = "1"
+    env["RUN_DAEMONS"] = "true"
 
     try:
         process = subprocess.Popen(
