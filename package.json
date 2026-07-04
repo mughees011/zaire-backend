@@ -17,7 +17,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1071.0",
     "@clerk/clerk-sdk-node": "^4.13.23",
     "@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
-    "archiver": "^8.0.0",
+    "archiver": "^7.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
