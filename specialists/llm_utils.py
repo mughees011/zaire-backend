@@ -269,7 +269,7 @@ def _call_provider_sync(slot: dict, messages, temperature, max_tokens):
                 return r.json().get("choices", [{}])[0].get("message", {}).get("content")
 
         except Exception as e:
-            print(f"[FAILOVER] Key failure for provider {provider} (index {idx+1}): {e}")
+            import sys; print(f"[FAILOVER] Key failure for provider {provider} (index {idx+1}): {e}", file=sys.stderr)
             continue
 
     return None
@@ -300,7 +300,7 @@ class NeuralLaneManager:
         if self.lane_failures[lane] >= self.max_failures:
             self.lane_status[lane] = "SATURATED"
             self.lane_last_check[lane] = time.time()
-            print(f"[NEURAL_LINK] 🚨 Lane {lane} saturated. Shifting operational focus.")
+            import sys; print(f"[NEURAL_LINK] 🚨 Lane {lane} saturated. Shifting operational focus.", file=sys.stderr)
 
     def report_success(self, lane):
         self.lane_failures[lane] = 0
@@ -455,7 +455,7 @@ def call_llm_sync(messages, model=None, temperature=0.3, max_tokens=3000):
     if len(user_query) > 10:
         cached = _check_cache(user_query)
         if cached:
-            print("[NEURAL_LINK] Semantic Cache HIT.")
+            import sys; print("[NEURAL_LINK] Semantic Cache HIT.", file=sys.stderr)
             return cached
 
     messages = _optimize_prompt(messages)
@@ -469,7 +469,7 @@ def call_llm_sync(messages, model=None, temperature=0.3, max_tokens=3000):
     for idx, slot in enumerate(slots, start=1):
         lane = min(idx, 3)
         try:
-            print(f"[NEURAL_LINK] Lane {lane}: provider={slot.get('provider')} purpose={slot.get('purpose')}")
+            import sys; print(f"[NEURAL_LINK] Lane {lane}: provider={slot.get('provider')} purpose={slot.get('purpose')}", file=sys.stderr)
             content = _call_provider_sync(slot, messages, temperature, max_tokens)
             if content:
                 lane_manager.report_success(lane)
@@ -480,7 +480,7 @@ def call_llm_sync(messages, model=None, temperature=0.3, max_tokens=3000):
         except Exception as e:
             if _is_rate_limit(str(e)):
                 lane_manager.report_failure(lane)
-            print(f"[NEURAL_LINK] Provider error ({slot.get('provider')}): {e}")
+            import sys; print(f"[NEURAL_LINK] Provider error ({slot.get('provider')}): {e}", file=sys.stderr)
 
     return "[SYSTEM ERROR] No configured provider returned a response. Please update AI Vault keys."
 def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
@@ -489,7 +489,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
     if len(user_query) > 10:
         cached = _check_cache(user_query)
         if cached:
-            print("[NEURAL_LINK] Semantic Cache HIT (stream).")
+            import sys; print("[NEURAL_LINK] Semantic Cache HIT (stream).", file=sys.stderr)
             yield cached
             return
 
@@ -569,7 +569,7 @@ def call_llm_stream(messages, model=None, temperature=0.3, max_tokens=3000):
                         raise Exception("SiliconFlow request failed")
 
             except Exception as e:
-                print(f"[FAILOVER] Stream key fail for {provider} (index {key_idx + 1}): {e}")
+                import sys; print(f"[FAILOVER] Stream key fail for {provider} (index {key_idx + 1}): {e}", file=sys.stderr)
                 if _is_rate_limit(str(e)):
                     lane_manager.report_failure(lane)
                 continue
