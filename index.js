@@ -919,18 +919,18 @@ app.post('/engineer/materialize', async (req, res) => {
 app.post('/engineer/export', async (req, res) => {
   try {
     const { projectId, files } = req.body;
-    if (!projectId || !files) {
-      return res.status(400).json({ success: false, error: 'Missing parameters', code: 'ENGINEER_EXPORT_MISSING_PARAMS' });
+    console.log(`[ENGINEER EXPORT] projectId=${projectId}, filesCount=${Array.isArray(files) ? files.length : typeof files}`);
+    if (!projectId) {
+      return res.status(400).json({ success: false, error: 'Missing projectId', code: 'ENGINEER_EXPORT_MISSING_PROJECT_ID' });
     }
-    
-    // Set headers for ZIP download
-    res.setHeader('Content-Type', 'application/zip');
-    
+    if (!files || (Array.isArray(files) && files.length === 0)) {
+      return res.status(400).json({ success: false, error: 'No files to export', code: 'ENGINEER_EXPORT_NO_FILES' });
+    }
     await exportProjectZip(projectId, files, res);
   } catch (error) {
-    console.error('[ENGINEER EXPORT ERR]', error);
+    console.error('[ENGINEER EXPORT ERR]', error.message, error.stack);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: 'Export failed.', code: 'ENGINEER_EXPORT_FAILED' });
+      res.status(500).json({ success: false, error: error.message || 'Export failed.', code: 'ENGINEER_EXPORT_FAILED' });
     }
   }
 });
