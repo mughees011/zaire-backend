@@ -392,6 +392,15 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ─── System Signal Routes ──────────────────────────────────────────────────────
+// Performance profile sync signal from the frontend HUD
+app.post('/api/system/power', (req, res) => {
+  const { state, focusMode } = req.body || {};
+  console.log(`[SYSTEM] Power profile sync: state=${state}, focusMode=${focusMode}`);
+  res.json({ success: true, state, focusMode });
+});
+
+
 app.get('/api/profile', requireAuth, async (req, res) => {
   const userId = req.auth?.userId || req.auth?.sub || req.auth?.user?.id || null;
   res.json({
@@ -780,6 +789,43 @@ app.post('/engineer/scaffold', async (req, res) => {
       envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || buildEngineerPlan(intake).envVars
     };
     const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
+
+    // AI Injection: Generate an "extra professional" page.tsx
+    try {
+      console.log(`[ENGINEER SCAFFOLD] Generating premium UI for: ${plan.appName}`);
+      const prompt = `You are ZAIRE, an expert UI/UX engineer. The user wants to build a website: ${plan.appName}.
+Description: ${plan.summary}
+Stack: ${plan.stack.join(', ')}
+
+Please generate a stunning, premium, extra professional React component for the landing page (app/page.tsx). 
+Use Tailwind CSS. Make it look modern, with dark mode aesthetics, glassmorphism if applicable, and beautiful typography.
+Return ONLY valid TSX code, with no markdown formatting or extra text. Start directly with 'export default function Page()'.`;
+
+      const aiRes = await executeLLMCallWithFailover({
+        messages: [
+          { role: 'system', content: 'You are an elite frontend engineer producing highly professional, premium UI code. Return ONLY valid TSX code. NO markdown formatting. Do not wrap in ```tsx.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+        stream: false
+      });
+      
+      if (aiRes) {
+        let cleanCode = aiRes.replace(/^```(tsx|typescript|javascript|js)?/gmi, '').replace(/```$/gmi, '').trim();
+        if (scaffold.files['app/page.tsx']) {
+          scaffold.files['app/page.tsx'].content = cleanCode;
+          scaffold.files['app/page.tsx'].explanation = {
+            what: 'AI Generated Premium Landing Page',
+            why: 'Provides an extra professional design using modern React and Tailwind CSS.',
+            edit: 'You can modify the components, colors, and layout directly.',
+            protect: 'Ensure Tailwind CSS classes remain intact.'
+          };
+        }
+      }
+    } catch (aiErr) {
+      console.warn('[ENGINEER SCAFFOLD AI FAIL]', aiErr.message);
+    }
 
     const projectId = req.body?.projectId;
     if (projectId) {
