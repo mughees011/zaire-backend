@@ -158,41 +158,49 @@ async function materializeProject(projectName, files) {
 }
 /**
  * Exports a project by zipping the provided files and piping to the response.
+ * Returns a Promise that resolves/rejects correctly so errors can be caught by callers.
  */
-async function exportProjectZip(projectId, files, res) {
-  const safeProjectId = String(projectId || 'project').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'project';
-  const normalizedFiles = normalizeFileList(files);
-  const archive = archiver('zip', {
-    zlib: { level: 9 }
-  });
+function exportProjectZip(projectId, files, res) {
+  return new Promise((resolve, reject) => {
+    try {
+      const safeProjectId = String(projectId || 'project').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'project';
+      const normalizedFiles = normalizeFileList(files);
 
-  archive.on('end', function() {
-    console.log(`[EXPORT] ZIP created successfully, total bytes: ${archive.pointer()}`);
-  });
+      const archive = archiver('zip', { zlib: { level: 9 } });
 
-  archive.on('warning', function(err) {
-    if (err.code === 'ENOENT') {
-      console.warn('[EXPORT WARN]', err);
-    } else {
-      throw err;
+      archive.on('warning', function(err) {
+        if (err.code === 'ENOENT') {
+          console.warn('[EXPORT WARN]', err);
+        } else {
+          reject(err);
+        }
+      });
+
+      archive.on('error', function(err) {
+        reject(err);
+      });
+
+      // Set headers before piping
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="zaire_project_${safeProjectId.substring(0, 8)}.zip"`);
+
+      archive.pipe(res);
+
+      for (const file of normalizedFiles) {
+        if (file.path && file.content !== undefined && file.content !== null) {
+          const safeRelativePath = assertSafeRelativePath(file.path);
+          archive.append(String(file.content), { name: safeRelativePath });
+        }
+      }
+
+      archive.finalize().then(() => {
+        console.log(`[EXPORT] ZIP finalized, total bytes: ${archive.pointer()}`);
+        resolve();
+      }).catch(reject);
+    } catch (err) {
+      reject(err);
     }
   });
-
-  archive.on('error', function(err) {
-    throw err;
-  });
-
-  res.attachment(`zaire_project_${safeProjectId.substring(0,8)}.zip`);
-  archive.pipe(res);
-
-  for (const file of normalizedFiles) {
-    if (file.path && file.content !== undefined && file.content !== null) {
-      const safeRelativePath = assertSafeRelativePath(file.path);
-      archive.append(String(file.content), { name: safeRelativePath });
-    }
-  }
-
-  await archive.finalize();
 }
 
 module.exports = {
