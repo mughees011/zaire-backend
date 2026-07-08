@@ -5,7 +5,7 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const accountId = process.env.R2_ACCOUNT_ID || "demo_account_id";
 const accessKeyId = process.env.R2_ACCESS_KEY_ID || "demo_access_key";
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || "demo_secret_key";
-const bucketName = process.env.R2_BUCKET_NAME || "zaire-releases";
+const bucketName = process.env.R2_BUCKET_NAME || "zaire-downloads";
 
 const s3Client = new S3Client({
   region: "auto",
@@ -31,3 +31,4 @@ async function generateSignedDownloadUrl(platform) {
 }
 
 module.exports = { generateSignedDownloadUrl };
+

@@ -1,8 +1,14 @@
 const crypto = require('crypto');
 require('dotenv').config();
 
-// Retrieve server-side encryption key (fallback to secure key for local sandbox if not in .env)
-const ENCRYPTION_SECRET = process.env.ENCRYPTION_KEY || 'zaire_sovereign_default_encryption_secret_key_9999';
+// Require a real server-side encryption key for vault data.
+const ENCRYPTION_SECRET = process.env.ENCRYPTION_KEY;
+
+if (!ENCRYPTION_SECRET) {
+  throw new Error(
+    'Missing ENCRYPTION_KEY in backend environment. Set a strong secret before starting ZAIRE.'
+  );
+}
 
 // Derive a static 32-byte cryptographic key using SHA-256 hash of the secret
 const KEY = crypto.createHash('sha256').update(ENCRYPTION_SECRET).digest();
@@ -68,3 +74,4 @@ module.exports = {
   decrypt,
   maskKey
 };
+

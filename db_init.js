@@ -1,4 +1,4 @@
-const pool = require('./db');
+﻿const pool = require('./db');
 
 async function initDatabase() {
   if (!process.env.DATABASE_URL) {
@@ -8,6 +8,10 @@ async function initDatabase() {
 
   console.log('[DATABASE] Starting database migration check...');
   try {
+    const enableRls = async (tableName) => {
+      await pool.query(`ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY;`);
+    };
+
     // 1. Create subscriptions table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subscriptions (
@@ -25,6 +29,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('subscriptions');
     console.log('[DATABASE] ✓ subscriptions table checked.');
 
     // 2. Create machines table
@@ -41,6 +46,7 @@ async function initDatabase() {
         UNIQUE(license_key, machine_id)
       );
     `);
+    await enableRls('machines');
     console.log('[DATABASE] ✓ machines table checked.');
 
     // 3. Create user_vault table for AES-256 encrypted keys
@@ -56,7 +62,8 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
-    console.log('[DATABASE] ✓ secure user_vault table checked.');
+    await enableRls('user_vault');
+    console.log('[DATABASE] ✓ user_vault table checked.');
 
     // 4. Create custom_modes table
     await pool.query(`
@@ -78,6 +85,7 @@ async function initDatabase() {
       );
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_custom_modes_user_id ON custom_modes(user_id);`);
+    await enableRls('custom_modes');
     console.log('[DATABASE] ✓ custom_modes table checked.');
 
     // 5. Create mode_components table
@@ -92,6 +100,7 @@ async function initDatabase() {
       );
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_mode_components_mode_id ON mode_components(mode_id);`);
+    await enableRls('mode_components');
     console.log('[DATABASE] ✓ mode_components table checked.');
 
     // 6. Create mode_permissions table
@@ -108,6 +117,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('mode_permissions');
     console.log('[DATABASE] ✓ mode_permissions table checked.');
 
     // 7. Create user_settings table
@@ -120,6 +130,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('user_settings');
     console.log('[DATABASE] ✓ user_settings table checked.');
 
     // 8. Create weekly_briefings table
@@ -136,6 +147,7 @@ async function initDatabase() {
       );
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_weekly_briefings_user_id ON weekly_briefings(user_id);`);
+    await enableRls('weekly_briefings');
     console.log('[DATABASE] ✓ weekly_briefings table checked.');
 
     // 9. Create projects table
@@ -153,6 +165,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('projects');
     console.log('[DATABASE] ✓ projects table checked.');
 
     // 10. Create project_intake table
@@ -175,6 +188,7 @@ async function initDatabase() {
         created_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('project_intake');
     console.log('[DATABASE] ✓ project_intake table checked.');
 
     // 11. Create architecture_plans table
@@ -199,6 +213,7 @@ async function initDatabase() {
         created_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('architecture_plans');
     console.log('[DATABASE] ✓ architecture_plans table checked.');
 
     // 12. Create project_files table
@@ -214,6 +229,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('project_files');
     console.log('[DATABASE] ✓ project_files table checked.');
 
     // 13. Create qa_runs table
@@ -229,6 +245,7 @@ async function initDatabase() {
         created_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('qa_runs');
     console.log('[DATABASE] ✓ qa_runs table checked.');
 
     // 14. Create repair_requests table
@@ -248,6 +265,7 @@ async function initDatabase() {
         applied_at      TIMESTAMP
       );
     `);
+    await enableRls('repair_requests');
     console.log('[DATABASE] ✓ repair_requests table checked.');
 
     // 15. Create memories table
@@ -264,6 +282,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('memories');
     console.log('[DATABASE] ✓ memories table checked.');
 
     // 16. Create ai_vault_slots table
@@ -283,6 +302,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await enableRls('ai_vault_slots');
     console.log('[DATABASE] ✓ ai_vault_slots table checked.');
 
     // 17. Create downloads table
@@ -298,6 +318,7 @@ async function initDatabase() {
         ip_address      TEXT
       );
     `);
+    await enableRls('downloads');
     console.log('[DATABASE] ✓ downloads table checked.');
 
     console.log('[DATABASE] Database schema migration completed successfully.');
@@ -307,3 +328,4 @@ async function initDatabase() {
 }
 
 module.exports = { initDatabase };
+
