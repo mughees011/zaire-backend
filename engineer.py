@@ -1,16 +1,16 @@
-"""
-ZAIRE ENGINEER MODE — SCAFFOLD ORCHESTRATOR v5.0
+﻿"""
+ZAIRE ENGINEER MODE Ã¢â‚¬â€ SCAFFOLD ORCHESTRATOR v5.0
 Multi-step AI pipeline that produces world-class website scaffolds.
 Called by index.js as a subprocess: python engineer.py '<json_payload>'
 
 Pipeline:
-  STEP 1: Classify project → select WEBSITE_PROFILE + DNA_PROFILE
+  STEP 1: Classify project Ã¢â€ â€™ select WEBSITE_PROFILE + DNA_PROFILE
   STEP 2: Build a focused design brief from the user's intake
   STEP 3: Generate globals.css with real design tokens via LLM
   STEP 4: Generate tailwind.config.ts with custom palette via LLM
   STEP 5: Generate app/layout.tsx with proper metadata + fonts via LLM
   STEP 6: Generate app/page.tsx (full landing page) via LLM
-  STEP 7: Self-review pass — check output against ANTI_PATTERNS
+  STEP 7: Self-review pass Ã¢â‚¬â€ check output against ANTI_PATTERNS
   STEP 8: Return complete file map as JSON
 """
 
@@ -20,7 +20,7 @@ import json
 import re
 import traceback
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Path setup Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 THIS_DIR   = os.path.dirname(os.path.abspath(__file__))
 SPEC_DIR   = os.path.join(THIS_DIR, "specialists")
 # Put THIS_DIR first so backend/design_intelligence.py (v4.0) takes priority
@@ -28,7 +28,7 @@ SPEC_DIR   = os.path.join(THIS_DIR, "specialists")
 sys.path.insert(0, SPEC_DIR)
 sys.path.insert(0, THIS_DIR)
 
-# ── Import the real LLM system (uses the user's configured AI Vault keys) ─────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Import the real LLM system (uses the user's configured AI Vault keys) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 try:
     from specialists.llm_utils import call_llm_sync
     LLM_AVAILABLE = True
@@ -40,7 +40,7 @@ except ImportError:
     except ImportError:
         LLM_AVAILABLE = False
 
-# ── Import the Design Intelligence Core ───────────────────────────────────────
+# Ã¢â€â‚¬Ã¢â€â‚¬ Import the Design Intelligence Core Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 try:
     from design_intelligence import (
         WEBSITE_PROFILES,
@@ -59,9 +59,9 @@ except ImportError:
     COMPONENT_PATTERNS = {}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 # HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 def _strip_markdown(text: str) -> str:
     """Strip markdown code fences if LLM disobeys instructions."""
@@ -81,12 +81,12 @@ def _call(system: str, user: str, max_tokens: int = 4000, temperature: float = 0
     if LLM_AVAILABLE:
         result = call_llm_sync(messages, temperature=temperature, max_tokens=max_tokens)
         return result or ""
-    raise RuntimeError("LLM system not available — ensure specialists/llm_utils.py is importable.")
+    raise RuntimeError("LLM system not available Ã¢â‚¬â€ ensure specialists/llm_utils.py is importable.")
 
 
 def _select_profiles(intake: dict) -> tuple:
     """
-    STEP 1 — Profile Classification.
+    STEP 1 Ã¢â‚¬â€ Profile Classification.
     Maps the user's projectType and designStyle to the best WEBSITE_PROFILE + DNA_PROFILE.
     """
     project_type = (intake.get("projectType") or "saas").lower()
@@ -131,8 +131,8 @@ def _select_profiles(intake: dict) -> tuple:
 
 def _build_brief(intake: dict, plan: dict, profile_key: str, dna_key: str, profile: dict, dna: dict) -> str:
     """
-    STEP 2 — Build a compact, focused design brief.
-    Only includes what the LLM needs — not thousands of tokens of raw dict noise.
+    STEP 2 Ã¢â‚¬â€ Build a compact, focused design brief.
+    Only includes what the LLM needs Ã¢â‚¬â€ not thousands of tokens of raw dict noise.
     """
     palette  = json.dumps(dna.get("palette", {}), indent=2)
     typo     = json.dumps(dna.get("typography", {}), indent=2)
@@ -144,9 +144,25 @@ def _build_brief(intake: dict, plan: dict, profile_key: str, dna_key: str, profi
     mood      = ", ".join(dna.get("mood", []))
 
     anti = "\n".join(
-        f"  [{k}]: {v['description']} → FIX: {v['fix']}"
+        f"  [{k}]: {v['description']} Ã¢â€ â€™ FIX: {v['fix']}"
         for k, v in list(ANTI_PATTERNS.items())[:5]
     )
+    workflow = "\n".join(
+        f"  - {step.get('phase', step)}: {step.get('purpose', '')}" if isinstance(step, dict) else f"  - {step}"
+        for step in (plan.get("workflowPhases") or [])
+    ) or "  - UNDERSTAND: Capture the brief and constraints before code is written.\n  - ARCHITECT: Translate the brief into scope, stack, pages, and risks.\n  - SCAFFOLD: Create the project shell, routes, and base files.\n  - BUILD: Implement the product UI and core logic.\n  - REVIEW: Check the generated work against the approved architecture.\n  - TEST: Run QA checks and identify broken or risky surfaces.\n  - FIX: Repair failing files, routes, or environment assumptions.\n  - PACKAGE: Assemble the app for handoff or deployment.\n  - DEPLOY: Verify deployment readiness and required environment values."
+
+    checklist = "\n".join(
+        f"  - {step}"
+        for step in (plan.get("buildChecklist") or [
+            "Confirm the intake answers before generating the scaffold.",
+            "Approve the architecture only after the plan matches the business goal.",
+            "Create the shell and API routes before visual polish.",
+            "Run review, QA, and repair passes before package/deploy.",
+            "Verify required environment variables before shipping."
+        ])
+    )
+
 
     return f"""
 PROJECT BRIEF:
@@ -175,18 +191,24 @@ WEBSITE PROFILE: {profile_key}
   NEVER Do:
 {never_do}
 
+BUILD SEQUENCE:
+{workflow}
+
+BUILD CHECKLIST:
+{checklist}
+
 ANTI-PATTERNS TO AVOID:
 {anti}
 """
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 # GENERATION STEPS
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
-BASE_SYSTEM = """You are ZAIRE — an elite senior UI/UX engineer and world-class designer.
+BASE_SYSTEM = """You are ZAIRE Ã¢â‚¬â€ an elite senior UI/UX engineer and world-class designer.
 You produce premium, human-crafted website code that no other AI can replicate.
-Your output is always pure code — NEVER markdown fences, NEVER explanatory text before or after the code.
+Your output is always pure code Ã¢â‚¬â€ NEVER markdown fences, NEVER explanatory text before or after the code.
 Every file you generate must feel like it was crafted by a senior designer at a world-class studio.
 You strictly follow the Design Brief and DNA Profile provided. You NEVER default to generic output.
 """
@@ -215,7 +237,7 @@ Rules:
 - Output ONLY valid TypeScript. No markdown, no explanation.
 - Use `type { Config } from 'tailwindcss'`.
 - Extend theme with: custom colors (from the DNA palette), custom fontFamily (from DNA typography), custom keyframes and animation (fadeUp, fadeIn, gradient-shift), custom screens (xs: 375px).
-- Do not use placeholder values — all colors must be real hex values from the design brief.
+- Do not use placeholder values Ã¢â‚¬â€ all colors must be real hex values from the design brief.
 - Use `require('@tailwindcss/typography')` and `require('@tailwindcss/forms')` in plugins array.
 """
     user = f"""{brief}
@@ -259,17 +281,17 @@ def _generate_page_tsx(brief: str, plan: dict, intake: dict, profile: dict, dna_
     layout_pattern = profile.get("layout_pattern", "")
 
     system = BASE_SYSTEM + f"""
-You are generating app/page.tsx — the full landing page of the website.
+You are generating app/page.tsx Ã¢â‚¬â€ the full landing page of the website.
 This is the most important file. It must be STUNNING and feel like a world-class design studio built it.
 
 CRITICAL RULES:
 - Output ONLY valid TSX code. No markdown fences. No text before or after. Start with 'use client'; or imports.
 - Use Tailwind CSS classes exclusively for styling. Inline styles only for CSS variables.
-- Write ALL copy contextually — based on the app name, description, and target user. NEVER lorem ipsum.
+- Write ALL copy contextually Ã¢â‚¬â€ based on the app name, description, and target user. NEVER lorem ipsum.
 - Include a complete, functional Navbar with logo and navigation links.
 - Include ALL sections in this order: {', '.join(sections_order)}
-- Every section must be fully implemented — no placeholder comments like "// add content here".
-- Use real data — fake but believable testimonials, feature descriptions, pricing tiers (if SaaS).
+- Every section must be fully implemented Ã¢â‚¬â€ no placeholder comments like "// add content here".
+- Use real data Ã¢â‚¬â€ fake but believable testimonials, feature descriptions, pricing tiers (if SaaS).
 - Apply all DNA rules: spacing, border-radius, animation easing, hover states.
 - Every button must have hover and focus states.
 - Images: use placeholder images via `https://images.unsplash.com` with relevant search terms.
@@ -291,7 +313,7 @@ Generate the complete app/page.tsx now. Output ONLY the code."""
 
 def _self_review(files: dict, brief: str) -> dict:
     """
-    STEP 7 — Self-review pass.
+    STEP 7 Ã¢â‚¬â€ Self-review pass.
     Ask the LLM to check for any ANTI_PATTERNS and fix the page if needed.
     """
     page_content = files.get("app/page.tsx", {}).get("content", "")
@@ -327,9 +349,9 @@ Review and return the corrected (or unchanged) complete file."""
     return files
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 # MAIN ENTRY POINT
-# ══════════════════════════════════════════════════════════════════════════════
+# Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 def main():
     if len(sys.argv) < 2:
@@ -341,25 +363,25 @@ def main():
         plan    = payload.get("plan", {})
         intake  = payload.get("intake", {})
 
-        # ── STEP 1: Classify ─────────────────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 1: Classify Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         profile_key, dna_key, profile, dna = _select_profiles(intake)
 
-        # ── STEP 2: Build brief ───────────────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 2: Build brief Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         brief = _build_brief(intake, plan, profile_key, dna_key, profile, dna)
 
-        # ── STEP 3: Generate globals.css ──────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 3: Generate globals.css Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         globals_css = _generate_globals_css(brief, dna)
 
-        # ── STEP 4: Generate tailwind.config.ts ───────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 4: Generate tailwind.config.ts Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         tw_config = _generate_tailwind_config(brief, dna)
 
-        # ── STEP 5: Generate app/layout.tsx ──────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 5: Generate app/layout.tsx Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         layout_tsx = _generate_layout_tsx(brief, plan, intake)
 
-        # ── STEP 6: Generate app/page.tsx ─────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 6: Generate app/page.tsx Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         page_tsx = _generate_page_tsx(brief, plan, intake, profile, dna_key)
 
-        # ── Assemble file map ─────────────────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Assemble file map Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         files = {
             "app/globals.css": {
                 "content": globals_css,
@@ -391,7 +413,7 @@ def main():
             "app/page.tsx": {
                 "content": page_tsx,
                 "explanation": {
-                    "what": "AI-generated full landing page — designed by ZAIRE Design Intelligence Core v4.0.",
+                    "what": "AI-generated full landing page Ã¢â‚¬â€ designed by ZAIRE Design Intelligence Core v4.0.",
                     "why": "Complete, contextual landing page with all required sections for this project type.",
                     "edit": "Update copy, images, pricing, and CTAs to match your real product.",
                     "protect": "Keep Tailwind classes and DNA-consistent spacing. Do not introduce inline styles."
@@ -399,10 +421,10 @@ def main():
             }
         }
 
-        # ── STEP 7: Self-review ───────────────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ STEP 7: Self-review Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         files = _self_review(files, brief)
 
-        # ── Output ────────────────────────────────────────────────────────────
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Output Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         print(json.dumps({"files": files, "profile": profile_key, "dna": dna_key}))
 
     except Exception as e:
