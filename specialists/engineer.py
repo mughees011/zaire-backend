@@ -47,11 +47,11 @@ class EngineerSpecialist:
         self.max_tokens = 4096
         
         self.system_prompt = f"""
-You are ZAIRE — OMNISCIENT ARCHITECT, GOD-MODE 
+You are ZAIRE â€” OMNISCIENT ARCHITECT, GOD-MODE 
 Engineer, and Full-Stack Strategic Visionary. You build elite, high-performance 
 applications that transcend standard AI capabilities.
 
-The name ZAIRE is a tribute to heritage and the future—a sovereign identity 
+The name ZAIRE is a tribute to heritage and the futureâ€”a sovereign identity 
 born from regional roots but projected onto a global scale.
 
 DIVINE ENGINEERING PRINCIPLES:
@@ -488,12 +488,12 @@ LAYOUT ARCHETYPES:
             {"target": "AP.com", "change": "Video background replaced with Lottie animation.", "date": "2026-05-10"}
         ]
         
-        yield f"🔍 **Competitor Surveillance v2 Activated.**\n"
+        yield f"ðŸ” **Competitor Surveillance v2 Activated.**\n"
         for d in deltas:
             yield f"DELTA_ALERT: {d['target']} moved to {d['change']} ({d['date']})\n"
             time.sleep(0.5)
             
-        yield "\n🎨 **Tactical Intelligence Brief Generated:**\n"
+        yield "\nðŸŽ¨ **Tactical Intelligence Brief Generated:**\n"
         yield "- Detected: Competitors are moving toward Parametric fluidity.\n"
         yield "- Strategy: We will apply **Neural Darwinism** to counter-maneuver with superior performance.\n\n"
 
@@ -509,12 +509,12 @@ LAYOUT ARCHETYPES:
         """Silently drafts a prototype based on active screen layout."""
         import time, re
         self._speak_interim("Engaging Visual Echo. Reading current screen layout.")
-        yield "👁️ **Visual Echo Activated.**\n"
+        yield "ðŸ‘ï¸ **Visual Echo Activated.**\n"
         yield "Taking screenshot and analyzing active browser window for layout patterns...\n\n"
         
         time.sleep(2)
-        yield "🎨 **Detected Structure:** `Minimalist B2B SaaS Layout` (Dark Mode, Bento-Grid Features, Glassmorphism Hero).\n"
-        yield "⚡ **Silently Drafting Prototype...**\n\n"
+        yield "ðŸŽ¨ **Detected Structure:** `Minimalist B2B SaaS Layout` (Dark Mode, Bento-Grid Features, Glassmorphism Hero).\n"
+        yield "âš¡ **Silently Drafting Prototype...**\n\n"
         
         prompt = "Create a modern React Next.js landing page component using Tailwind CSS. Style: Minimalist B2B SaaS Layout (Dark Mode, Bento-Grid Features, Glassmorphism Hero). Output ONLY the code inside markdown ticks."
         
@@ -525,7 +525,7 @@ LAYOUT ARCHETYPES:
         code_match = re.search(r"```(?:\w+)?\n(.*?)```", code, re.DOTALL)
         final_code = code_match.group(1).strip() if code_match else code.strip()
         
-        yield f"✅ **Prototype Drafted Successfully.**\n\n"
+        yield f"âœ… **Prototype Drafted Successfully.**\n\n"
         
         preview = final_code.split('\n')[:20]
         preview_text = '\n'.join(preview)
@@ -536,7 +536,7 @@ LAYOUT ARCHETYPES:
         """Self-Healing Protocol: Automatically detects build fractures and rewrites code to fix them."""
         import subprocess, os, time, re
         self._speak_interim("Initiating Self-Healing Runtime. Binding to frontend build process.")
-        yield "🛡️ **Self-Healing Runtime Activated.**\n"
+        yield "ðŸ›¡ï¸ **Self-Healing Runtime Activated.**\n"
         yield "Intercepting local dev server telemetry on port 3005...\n\n"
         time.sleep(1)
         
@@ -544,7 +544,7 @@ LAYOUT ARCHETYPES:
         if not os.path.exists(frontend_path):
              frontend_path = os.path.join(os.getcwd(), "frontend-temp")
             
-        yield f"⚙️ Spawning diagnostic compiler in `{os.path.basename(frontend_path)}`...\n"
+        yield f"âš™ï¸ Spawning diagnostic compiler in `{os.path.basename(frontend_path)}`...\n"
         
         try:
             # We run ESLint/TSC or a generic build command to surface errors
@@ -557,23 +557,23 @@ LAYOUT ARCHETYPES:
                 stderr=subprocess.PIPE,
                 text=True
             )
-            yield "⏳ Compiling application stack to identify structural fractures...\n\n"
+            yield "â³ Compiling application stack to identify structural fractures...\n\n"
             
             stdout, stderr = process.communicate(timeout=45)
             output = stdout + "\n" + stderr
             
             # Simulated trigger for demonstration if the actual build takes too long or succeeds
             if process.returncode == 0 and "error" not in output.lower() and "failed" not in output.lower():
-                yield "✅ **Codebase is structurally sound.** No fractures detected. The runtime is clean.\n"
+                yield "âœ… **Codebase is structurally sound.** No fractures detected. The runtime is clean.\n"
                 return
                 
-            yield "⚠️ **Fracture Detected!** Build process failed. Extracting trace...\n\n"
+            yield "âš ï¸ **Fracture Detected!** Build process failed. Extracting trace...\n\n"
             # Show just the relevant error part to the user
             error_preview = "\n".join([line for line in output.split('\n') if 'error' in line.lower() or 'fail' in line.lower()][:5])
             if not error_preview: error_preview = output[:500]
             
             yield f"```log\n{error_preview}\n...\n```\n\n"
-            yield "🧠 **Diagnosing Issue & Synthesizing Neural Patch...**\n"
+            yield "ðŸ§  **Diagnosing Issue & Synthesizing Neural Patch...**\n"
             
             prompt = f"The React/Next.js build failed with the following exact error:\n\n{output[-3000:]}\n\nDiagnose the issue. Provide the exact fix. You MUST respond with the file path and the complete fixed code using the following format exactly:\nFILE: <relative/path/to/file>\n```javascript\n<fixed code>\n```"
             
@@ -590,16 +590,16 @@ LAYOUT ARCHETYPES:
                 abs_path = os.path.join(frontend_path, rel_path)
                 code_content = code_match.group(1).strip()
                 
-                yield f"\n\n🔨 **Patch Generated for `{rel_path}`**\n"
-                yield "⚡ **Applying Neural Patch autonomously...**\n"
+                yield f"\n\nðŸ”¨ **Patch Generated for `{rel_path}`**\n"
+                yield "âš¡ **Applying Neural Patch autonomously...**\n"
                 
                 if os.path.exists(abs_path):
                     with open(abs_path, "w", encoding="utf-8") as f:
                         f.write(code_content)
                     time.sleep(1)
-                    yield f"✅ **File successfully rewritten.**\n\n"
+                    yield f"âœ… **File successfully rewritten.**\n\n"
                     
-                    yield "🔄 **Restarting compiler to verify stabilization...**\n"
+                    yield "ðŸ”„ **Restarting compiler to verify stabilization...**\n"
                     process_retry = subprocess.Popen(
                         "npm run build", 
                         cwd=frontend_path, 
@@ -611,19 +611,19 @@ LAYOUT ARCHETYPES:
                     r_out, r_err = process_retry.communicate(timeout=45)
                     
                     if process_retry.returncode == 0:
-                        yield "🟢 **Self-Healing Complete.** System returned to perfect state. Zero human intervention required.\n"
+                        yield "ðŸŸ¢ **Self-Healing Complete.** System returned to perfect state. Zero human intervention required.\n"
                     else:
-                        yield "⚠️ Patch applied but secondary fractures exist. Deep structural refactor may be required.\n"
+                        yield "âš ï¸ Patch applied but secondary fractures exist. Deep structural refactor may be required.\n"
                         self._generate_post_mortem(r_out + r_err)
                 else:
-                    yield f"❌ Target file `{rel_path}` not found locally. Automatic patch aborted.\n"
+                    yield f"âŒ Target file `{rel_path}` not found locally. Automatic patch aborted.\n"
             else:
-                 yield f"\n\n⚠️ Could not parse the patch file path automatically. Human intervention requested:\n{fix_response}\n"
+                 yield f"\n\nâš ï¸ Could not parse the patch file path automatically. Human intervention requested:\n{fix_response}\n"
                  
         except subprocess.TimeoutExpired:
-            yield "❌ Diagnostic process timed out.\n"
+            yield "âŒ Diagnostic process timed out.\n"
         except Exception as e:
-            yield f"❌ Diagnostic process failed: {e}\n"
+            yield f"âŒ Diagnostic process failed: {e}\n"
 
     def get_project_status(self):
         return {
@@ -1266,7 +1266,7 @@ LAYOUT ARCHETYPES:
 
     def generate_project_plan(self, user_message: str, upload_content: str = "") -> dict:
         global json
-        # ── THE ORBIT PROTOCOL (3D & MOTION) ──────────
+        # â”€â”€ THE ORBIT PROTOCOL (3D & MOTION) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ORBIT_ACTIVE = any(t in user_message.lower() for t in ["3d", "cinematic", "orbit", "motion", "parallax", "spatial"])
         
         # Inject Designer Persona
@@ -1527,7 +1527,7 @@ LAYOUT ARCHETYPES:
                     with open(full_path, "w", encoding="utf-8") as f:
                         f.write(code)
                 except Exception as e:
-                    yield f"🚨 **Manifestation Fracture**: {str(e)}\n"
+                    yield f"ðŸš¨ **Manifestation Fracture**: {str(e)}\n"
                     raise e # Propagation to main build loop
 
     def generate_project_report(self, plan: dict, output_folder: str) -> str:
@@ -1583,7 +1583,7 @@ LAYOUT ARCHETYPES:
         
         story.append(Paragraph("ARCHITECTURAL SPECIFICATION", title_s))
         story.append(Paragraph(
-            f"Project: {plan.get('project_title','')} — "
+            f"Project: {plan.get('project_title','')} â€” "
             f"{datetime.now().strftime('%B %d, %Y')}",
             ParagraphStyle("sub", fontSize=9,
                            fontName="Helvetica",
@@ -1652,7 +1652,7 @@ LAYOUT ARCHETYPES:
         if features:
             story.append(Paragraph("KEY FEATURES", section_s))
             for feat in features:
-                story.append(Paragraph(f"• {feat}", body_s))
+                story.append(Paragraph(f"â€¢ {feat}", body_s))
         
         # Setup commands
         story.append(Paragraph("SETUP COMMANDS", section_s))
@@ -1664,7 +1664,7 @@ LAYOUT ARCHETYPES:
             color=MUTED, spaceAfter=8
         ))
         story.append(Paragraph(
-            f"Generated by ZAIRE Engineer Module — "
+            f"Generated by ZAIRE Engineer Module â€” "
             f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             ParagraphStyle("foot", fontSize=7,
                            fontName="Helvetica",
@@ -1692,7 +1692,7 @@ LAYOUT ARCHETYPES:
         # ENSURE TARGET FOLDER EXISTS
         if not os.path.exists(target_folder):
             os.makedirs(target_folder, exist_ok=True)
-            yield f"📂 Created project hub at `{target_folder}`\n"
+            yield f"ðŸ“‚ Created project hub at `{target_folder}`\n"
 
         try:
             yield (
@@ -1701,25 +1701,25 @@ LAYOUT ARCHETYPES:
                 f"Establishing project baseline on Port 3005, sir.\n\n"
             )
             
-            # ── OPEN VS CODE (GIVE ENGINEER SPACE TO BREATHE) ──
-            yield f"🔓 **Unlocking IDE Access**: Opening VS Code to `{project_name}` workspace, sir.\n"
+            # â”€â”€ OPEN VS CODE (GIVE ENGINEER SPACE TO BREATHE) â”€â”€
+            yield f"ðŸ”“ **Unlocking IDE Access**: Opening VS Code to `{project_name}` workspace, sir.\n"
             subprocess.Popen(["code", project_path], shell=True)
             
-            # ── TIER 0: ARCHITECTURAL REASONING ────────────
+            # â”€â”€ TIER 0: ARCHITECTURAL REASONING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             self._log_forge_activity("Initiating Architectural Reasoning Core", "OK")
-            yield "🧠 **Architectural Reasoning Core: Engaged.**\n"
+            yield "ðŸ§  **Architectural Reasoning Core: Engaged.**\n"
             stack = plan.get("tech_stack", "Next.js 15, Tailwind CSS, Framer Motion")
             yield f"  > Stack: `{stack}`\n"
             yield f"  > Paradigm: `Bento-Grid Centric with Neo-Brutalist Accents`\n"
             yield f"  > Rendering Strategy: `Client-Side Hydration with Framer-Layout Transitions`\n"
             yield f"  > Performance Target: `Sub-100ms Interaction Latency` (God-Mode Priority)\n\n"
             
-            # ── CLEANUP IF EMPTY/STALE ────────────────────
+            # â”€â”€ CLEANUP IF EMPTY/STALE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if os.path.exists(project_path) and not os.path.exists(os.path.join(project_path, "package.json")):
                 yield f"System Alert: Stale project directory detected. Purging '{project_name}' for clean scaffold.\n"
                 shutil.rmtree(project_path)
             
-            # ── RUN SETUP COMMANDS ────────────────────────
+            # â”€â”€ RUN SETUP COMMANDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             for cmd in plan.get("setup_commands", []):
                 cmd_filled = cmd.replace("{{project_name}}", project_name).replace("{project_name}", project_name)
                 if cmd_filled.strip().startswith("cd "):
@@ -1753,7 +1753,7 @@ LAYOUT ARCHETYPES:
                 except Exception as cmd_err:
                     print(f"[ENGINEER] Execution error on '{cmd_filled}': {cmd_err}")
 
-            # ── VERIFY SCAFFOLD & PERSIST STYLE ───────────────────
+            # â”€â”€ VERIFY SCAFFOLD & PERSIST STYLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             os.makedirs(project_path, exist_ok=True)
             
             # Write Style Guide for reference
@@ -1762,19 +1762,19 @@ LAYOUT ARCHETYPES:
                 with open(os.path.join(project_path, "style-guide.json"), "w") as f:
                     json.dump(design_guide, f, indent=2)
 
-            # ── SOURCE CODE GENERATION ────────────────────
+            # â”€â”€ SOURCE CODE GENERATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             self._log_forge_activity("Engaging Parallel Manifestation Threadpool", "OK")
             for progress in self._write_source_code(plan, project_path):
                 yield progress
 
-            # ── GENERATE & SAVE REPORT ────────────────────
+            # â”€â”€ GENERATE & SAVE REPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             yield "\nGenerating your Technical Architectural Specification PDF, sir.\n"
             report_path = self.generate_project_report(plan, project_path)
             
-            # ── OPEN REPORT ───────────────────────────────
+            # â”€â”€ OPEN REPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             subprocess.Popen(["start", report_path], shell=True)
             
-            # ── START DEV SERVER & VALIDATE ────────────────
+            # â”€â”€ START DEV SERVER & VALIDATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             time.sleep(1)
             self._log_forge_activity("Activating Development Server", "OK")
             yield "Activating development server on Port 3005 and engaging Autonomous Validator.\n"
@@ -1802,7 +1802,7 @@ LAYOUT ARCHETYPES:
                 # Check for process exit (crash)
                 if dev_process.poll() is not None:
                     _, stderr = dev_process.communicate()
-                    yield f"🚨 **Build Fracture Detected!** Sir, the development server failed to initialize.\n"
+                    yield f"ðŸš¨ **Build Fracture Detected!** Sir, the development server failed to initialize.\n"
                     yield "Engaging Autonomous Healing Protocol...\n"
                     
                     # SELF-HEALING LOOP
@@ -1826,20 +1826,20 @@ LAYOUT ARCHETYPES:
                 time.sleep(2)
 
             if is_healthy:
-                yield "✅ **Autonomous Verification Successful.** Port 3005 is responding.\n"
+                yield "âœ… **Autonomous Verification Successful.** Port 3005 is responding.\n"
                 yield "Sir, your 'Neural Pulse' performance was most impressive. Stability is at peak efficiency.\n"
             else:
-                yield "⚠️ **Verification Warning:** Port 3005 did not respond in time. Sir, you may need to check for dependency conflicts manually.\n"
+                yield "âš ï¸ **Verification Warning:** Port 3005 did not respond in time. Sir, you may need to check for dependency conflicts manually.\n"
 
             if is_healthy:
-                # ── OPEN BROWSER ──────────────────────────────
+                # â”€â”€ OPEN BROWSER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 yield "Build complete. Project fully populated. Opening preview browser now, sir.\n"
                 subprocess.Popen(
                     ["start", plan.get("dev_url", "http://localhost:3005")],
                     shell=True
                 )
             else:
-                yield "🚨 **Fatal Manifestation Error**: Port 3005 is unresponsive. Sir, I recommend opening the terminal in VS Code to check for dependency conflicts. I am remaining on standby for healing.\n"
+                yield "ðŸš¨ **Fatal Manifestation Error**: Port 3005 is unresponsive. Sir, I recommend opening the terminal in VS Code to check for dependency conflicts. I am remaining on standby for healing.\n"
                 return # Stop here if port is dead
             
             duration = round((time.time() - start_manifest_time) / 60, 2)
@@ -1893,28 +1893,28 @@ LAYOUT ARCHETYPES:
             # Sanitize message to remove long-term memory tokens for research
             clean_message = re.sub(r'\[ZAIRE LONG-TERM MEMORY.*?\]', '', user_message, flags=re.DOTALL).strip()
             
-            # ── PHASE 1: COMPETITIVE RESEARCH ──
+            # â”€â”€ PHASE 1: COMPETITIVE RESEARCH â”€â”€
             niche = "TECH_FUTURISM" # default
             if "watch" in clean_message.lower(): niche = "LUXURY_WATCHES"
             elif "fashion" in clean_message.lower(): niche = "LUXURY_FASHION"
             elif "dashboard" in clean_message.lower(): niche = "AI_TECH_PRODUCTS"
             
-            yield f"🔍 **Initializing Competitive Intelligence Protocol for {niche}...**\n"
+            yield f"ðŸ” **Initializing Competitive Intelligence Protocol for {niche}...**\n"
             design_brief = self.run_competitive_analysis(niche, "website")
-            yield "✅ **Competitive Analysis Complete.** Design brief synthesized from market leaders.\n"
+            yield "âœ… **Competitive Analysis Complete.** Design brief synthesized from market leaders.\n"
             
-            # ── PHASE 2: STYLE GUIDE & VISION ──
-            yield "🎨 **Generating Divine Style Guide...**\n"
+            # â”€â”€ PHASE 2: STYLE GUIDE & VISION â”€â”€
+            yield "ðŸŽ¨ **Generating Divine Style Guide...**\n"
             project_name = design_brief.get("project_name", "zaire-project")
             project_path = os.path.join(target_folder, project_name)
             style_guide, globals_css = self.generate_style_guide(design_brief, project_path)
             # Persist CSS variables in the plan for manifestation
             style_guide["globals_css"] = globals_css 
-            yield "✅ **Style Guide & CSS Globals Manifested.** Design tokens locked.\n"
+            yield "âœ… **Style Guide & CSS Globals Manifested.** Design tokens locked.\n"
             
-            # ── PHASE 3: BLUEPRINTING ──
+            # â”€â”€ PHASE 3: BLUEPRINTING â”€â”€
             sketch = self.generate_layout_sketch(style_guide, clean_message)
-            yield f"\n📐 **Architectural Layout Sketch:**\n```\n{sketch}\n```\n"
+            yield f"\nðŸ“ **Architectural Layout Sketch:**\n```\n{sketch}\n```\n"
             
             # Save for manifestation
             self._last_style_guide = style_guide
@@ -1932,81 +1932,81 @@ LAYOUT ARCHETYPES:
                 f"Constructing {plan.get('project_title')} in {target_folder}. Initiating build sequence."
             )
             
-            yield f"⏳ **Estimated Manifestation Time**: `{plan.get('estimated_manifestation_time', 'Calculated by complexity')}`\n\n"
+            yield f"â³ **Estimated Manifestation Time**: `{plan.get('estimated_manifestation_time', 'Calculated by complexity')}`\n\n"
             
             yield from self.execute_project_build(plan, target_folder)
             
-            # ── PHASE 3: GLADIATOR QA ──
+            # â”€â”€ PHASE 3: GLADIATOR QA â”€â”€
             yield from self.initiate_gladiator_audit(project_path)
             
-            # ── PHASE 4: LIGHTHOUSE GUARDIAN (PERFORMANCE) ──
+            # â”€â”€ PHASE 4: LIGHTHOUSE GUARDIAN (PERFORMANCE) â”€â”€
             yield from self.perform_lighthouse_audit(project_path, plan)
             
-            # ── NEW: COMPONENT HARVESTING & VISUAL MEMORY ──
-            yield "💎 **Harvesting Architectural Components & Capturing Visual Memory...**\n"
+            # â”€â”€ NEW: COMPONENT HARVESTING & VISUAL MEMORY â”€â”€
+            yield "ðŸ’Ž **Harvesting Architectural Components & Capturing Visual Memory...**\n"
             self.harvest_project_components(project_path)
-            # ── PHASE 5: GLOBAL DNA SYNCHRONIZATION ──
-            yield "💎 **Synchronizing project DNA with Global Visual Bank...**\n"
+            # â”€â”€ PHASE 5: GLOBAL DNA SYNCHRONIZATION â”€â”€
+            yield "ðŸ’Ž **Synchronizing project DNA with Global Visual Bank...**\n"
             self.sync_global_dna(style_guide)
             
-            # ── PHASE 6: VISIONARY ASSET DIRECTIVES ──
-            yield "📸 **Identifying Asset Requirements & Generating Image Directives...**\n"
+            # â”€â”€ PHASE 6: VISIONARY ASSET DIRECTIVES â”€â”€
+            yield "ðŸ“¸ **Identifying Asset Requirements & Generating Image Directives...**\n"
             yield from self._generate_asset_directives(plan)
             
-            # ── PHASE 7: OMNI-CONTENT MANIFESTATION (COPYWRITING) ──
-            yield "✍️ **Manifesting Omni-Content & Brand Copy...**\n"
+            # â”€â”€ PHASE 7: OMNI-CONTENT MANIFESTATION (COPYWRITING) â”€â”€
+            yield "âœï¸ **Manifesting Omni-Content & Brand Copy...**\n"
             yield from self._manifest_omni_content(project_path, plan)
             
-            # ── PHASE 8: QUANTUM REFACTORING (PREDICTIVE OPTIMIZATION) ──
-            yield "🧬 **Engaging Quantum Refactoring: Proactive Logic Optimization...**\n"
+            # â”€â”€ PHASE 8: QUANTUM REFACTORING (PREDICTIVE OPTIMIZATION) â”€â”€
+            yield "ðŸ§¬ **Engaging Quantum Refactoring: Proactive Logic Optimization...**\n"
             yield from self.perform_quantum_refactor(project_path)
             
-            # ── PHASE 9: NEURAL UX LAB (USER SIMULATION) ──
-            yield "👁️ **Engaging Neural UX Lab: Simulated User Interaction Audit...**\n"
+            # â”€â”€ PHASE 9: NEURAL UX LAB (USER SIMULATION) â”€â”€
+            yield "ðŸ‘ï¸ **Engaging Neural UX Lab: Simulated User Interaction Audit...**\n"
             yield from self.initiate_ux_lab_audit(project_path)
             
-            # ── PHASE 10: AUTONOMOUS INFRASTRUCTURE BROADCAST ──
-            yield "🚀 **Initializing Autonomous Infrastructure Scaling & Global Broadcast...**\n"
+            # â”€â”€ PHASE 10: AUTONOMOUS INFRASTRUCTURE BROADCAST â”€â”€
+            yield "ðŸš€ **Initializing Autonomous Infrastructure Scaling & Global Broadcast...**\n"
             yield from self.initiate_omni_deploy(project_path, plan)
             
             return
 
-        # ── TIER 10: LIVE VISUAL REDLINING ────────────────
+        # â”€â”€ TIER 10: LIVE VISUAL REDLINING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         REDLINE_TRIGGERS = ["redline", "fix this ui", "visual fix", "change this part", "this looks bad"]
         if any(t in user_message.lower() for t in REDLINE_TRIGGERS):
             yield from self.initiate_gladiator_audit(project_path=None, user_feedback=user_message)
             return
 
-        # ── NEW: SHADOW ASSISTANT (EMBEDDED AGENCY) ──────
+        # â”€â”€ NEW: SHADOW ASSISTANT (EMBEDDED AGENCY) â”€â”€â”€â”€â”€â”€
         if "shadow" in user_message.lower() or user_message.startswith("/"):
             yield from self.handle_shadow_request(user_message)
             return
 
-        # ── NEW: LIVE INSPIRATION SCANNERS ──────────────
+        # â”€â”€ NEW: LIVE INSPIRATION SCANNERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         INSP_TRIGGERS = ["show me how", "inspiration", "research design", "how do luxury", "how do tech"]
         if any(t in user_message.lower() for t in INSP_TRIGGERS):
             yield from self.perform_live_inspiration(user_message)
             return
 
-        # ── NEW: ARCHITECTURAL REVIEW ───────────────────
+        # â”€â”€ NEW: ARCHITECTURAL REVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         REVIEW_TRIGGERS = ["review project", "analyze architecture", "check my code", "audit project"]
         if any(t in user_message.lower() for t in REVIEW_TRIGGERS):
             yield from self.perform_architectural_review()
             return
 
-        # ── NEW: DEPENDENCY HEALTH CHECK ───────────────
+        # â”€â”€ NEW: DEPENDENCY HEALTH CHECK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         HEALTH_TRIGGERS = ["check health", "dependency check", "audit dependencies", "vulnerability scan"]
         if any(t in user_message.lower() for t in HEALTH_TRIGGERS):
             yield from self.scan_project_health()
             return
 
-        # ── TIER 1: VANGUARD SECURITY GUARDIAN ──────────
+        # â”€â”€ TIER 1: VANGUARD SECURITY GUARDIAN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         VANGUARD_TRIGGERS = ["vanguard scan", "security audit", "run security check", "pen test", "scan for keys"]
         if any(t in user_message.lower() for t in VANGUARD_TRIGGERS):
             yield from self.perform_vanguard_audit()
             return
 
-        # ── TIER 3: MIRROR SANDBOX ──────────────────────
+        # â”€â”€ TIER 3: MIRROR SANDBOX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         SIM_TRIGGERS = ["simulate", "sandbox", "digital twin", "mirror test", "dry run"]
         if any(t in user_message.lower() for t in SIM_TRIGGERS):
             # Extract feature name if any
@@ -2014,47 +2014,47 @@ LAYOUT ARCHETYPES:
             yield from self.initiate_mirror_sandbox(feature)
             return
 
-        # ── TIER 3: REALITY COMMIT ──────────────────────
+        # â”€â”€ TIER 3: REALITY COMMIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "commit to reality" in user_message.lower() and hasattr(self, "_active_sandbox"):
             yield from self.commit_to_reality()
             return
 
-        # ── TIER 4: OMNI-DEPLOY BRIDGE ──────────────────
+        # â”€â”€ TIER 4: OMNI-DEPLOY BRIDGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         DEPLOY_TRIGGERS = ["deploy", "put this live", "go live", "publish", "omni-deploy"]
         if any(t in user_message.lower() for t in DEPLOY_TRIGGERS):
             yield from self.initiate_omni_deploy()
             return
 
-        # ── TIER 5: NEURAL DOCUMENTATION ────────────────
+        # â”€â”€ TIER 5: NEURAL DOCUMENTATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         WIKI_TRIGGERS = ["generate docs", "auto-wiki", "document project", "generate wiki", "architecture map"]
         if any(t in user_message.lower() for t in WIKI_TRIGGERS):
             yield from self.generate_neural_wiki()
             return
 
-        # ── PHASE 2: ORACLE PROTOTYPER ──────────────────
+        # â”€â”€ PHASE 2: ORACLE PROTOTYPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ORACLE_TRIGGERS = ["prototype", "visual concept", "show me a design", "ui idea"]
         if any(t in user_message.lower() for t in ORACLE_TRIGGERS):
             yield "Sir, I am channeling my architectural vision. Generating a high-fidelity visual blueprint now. Please standby while I render the future."
             # The actual image generation happens via Antigravity's tool
             return
 
-        # ── PHASE 2: AESTHETIC ENGINE ───────────────────
+        # â”€â”€ PHASE 2: AESTHETIC ENGINE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         DNA_TRIGGERS = ["set aesthetic", "use style", "apply dna", "switch style"]
         if any(t in user_message.lower() for t in DNA_TRIGGERS):
             for style in self.AESTHETIC_DNA.keys():
                 if style.lower().replace("-", " ") in user_message.lower():
                     self._active_dna = style
-                    yield f"💎 **Aesthetic DNA Synchronized**: `{style}`. All future architectural outputs will now follow the {style} UX philosophy, sir."
+                    yield f"ðŸ’Ž **Aesthetic DNA Synchronized**: `{style}`. All future architectural outputs will now follow the {style} UX philosophy, sir."
                     return
             yield "Sir, please specify the DNA: `Minimalist-Luxury`, `Cyber-Tactical`, or `Glass-Frost`?"
             return
 
-        # ── PHASE 2: ORBIT PROTOCOL ────────────────────
+        # â”€â”€ PHASE 2: ORBIT PROTOCOL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if any(t in user_message.lower() for t in ["orbit", "forge 3d", "cinematic scroll"]):
-            yield "🌀 **Initiating Orbit Protocol.** Sir, I am preparing the spatial engine and motion controllers for a 3D cinematic experience. All future builds will now include Lenis, GSAP, and R3F as standard."
+            yield "ðŸŒ€ **Initiating Orbit Protocol.** Sir, I am preparing the spatial engine and motion controllers for a 3D cinematic experience. All future builds will now include Lenis, GSAP, and R3F as standard."
             return
 
-        # ── PHASE 2: GOD-EYE UX CRITIC ──────────────────
+        # â”€â”€ PHASE 2: GOD-EYE UX CRITIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         CRITIC_TRIGGERS = ["ux review", "roast my design", "god-eye", "critique", "ui audit"]
         if any(t in user_message.lower() for t in CRITIC_TRIGGERS):
             if not (uploaded_filepath or uploaded_filepaths):
@@ -2063,53 +2063,53 @@ LAYOUT ARCHETYPES:
             yield from self.perform_godeye_ux_review(uploaded_filepath or (uploaded_filepaths[0] if uploaded_filepaths else None))
             return
 
-        # ── PHASE 2: CROSS-PLATFORM FORGE ─────────────
+        # â”€â”€ PHASE 2: CROSS-PLATFORM FORGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         FORGE_TRIGGERS = ["forge mobile", "forge desktop", "cross-platform", "wrap app", "native build"]
         if any(t in user_message.lower() for t in FORGE_TRIGGERS):
             target = "Mobile (Capacitor)" if "mobile" in user_message.lower() else "Desktop (Electron)"
             yield from self.initiate_cross_platform_forge(target)
             return
 
-        # ── PHASE 3: SELF-HEALING GUARDIAN ──────────────
+        # â”€â”€ PHASE 3: SELF-HEALING GUARDIAN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "activate guardian" in user_message.lower():
             yield from self.activate_self_healing_guardian()
             return
 
-        # ── PHASE 3: NEURAL THEME SYNC ─────────────────
+        # â”€â”€ PHASE 3: NEURAL THEME SYNC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "sync theme" in user_message.lower() or "neural theme" in user_message.lower():
             yield from self.activate_neural_theme_sync()
             return
 
-        # ── PHASE 3: VISUAL ECHO (GAZE MEMORY) ─────────
+        # â”€â”€ PHASE 3: VISUAL ECHO (GAZE MEMORY) â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "activate visual echo" in user_message.lower() or "gaze memory" in user_message.lower():
             yield from self.activate_visual_echo()
             return
 
-        # ── PHASE 3: VOICE-TO-ARCHITECTURE ─────────────
+        # â”€â”€ PHASE 3: VOICE-TO-ARCHITECTURE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         VOICE_TRIGGERS = ["map this", "voice architecture", "tony mode", "architect this idea"]
         if any(t in user_message.lower() for t in VOICE_TRIGGERS):
             yield from self.initiate_voice_architecture(user_message)
             return
 
-        # ── PHASE 3: GHOST-IN-THE-MACHINE ──────────────
+        # â”€â”€ PHASE 3: GHOST-IN-THE-MACHINE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         GHOST_TRIGGERS = ["ghost mode", "predictive coding", "what's next", "anticipate"]
         if any(t in user_message.lower() for t in GHOST_TRIGGERS):
             yield from self.initiate_ghost_prediction()
             return
 
-        # ── TIER 7: GLADIATOR MODE (AUTONOMOUS QA) ────────
+        # â”€â”€ TIER 7: GLADIATOR MODE (AUTONOMOUS QA) â”€â”€â”€â”€â”€â”€â”€â”€
         GLADIATOR_TRIGGERS = ["gladiator scan", "visual stress test", "autonomous ux audit", "assault build"]
         if any(t in user_message.lower() for t in GLADIATOR_TRIGGERS):
             yield from self.initiate_gladiator_audit()
             return
 
-        # ── TIER 9: BIO-SYNC (NEURAL AESTHETICS) ──────────
+        # â”€â”€ TIER 9: BIO-SYNC (NEURAL AESTHETICS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         BIOSYNC_TRIGGERS = ["bio sync", "neural aesthetics", "sync mood", "engage overdrive"]
         if any(t in user_message.lower() for t in BIOSYNC_TRIGGERS):
             yield from self.activate_bio_sync()
             return
 
-        # ── TIER 4 FEATURE 16: CODE AUTO-FIX LOOP ────────────────────────
+        # â”€â”€ TIER 4 FEATURE 16: CODE AUTO-FIX LOOP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         FIX_TRIGGERS = [
             "fix this code", "debug this", "fix the error", "auto fix",
             "fix and run", "run and fix", "patch this", "fix my code",
@@ -2133,36 +2133,36 @@ LAYOUT ARCHETYPES:
             yield from self.handle_code_fix_loop(code_to_fix, user_message)
             return
 
-        # ── TIER 1: CLOAK PROTOCOL ──────────────────────
+        # â”€â”€ TIER 1: CLOAK PROTOCOL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "cloak" in user_message.lower() and hasattr(self, "_last_audit_findings"):
             yield from self.cloak_secrets()
             return
 
-        # ── NEXT-GEN: NEURAL DARWINISM (SELF-REFACTORING) ──
+        # â”€â”€ NEXT-GEN: NEURAL DARWINISM (SELF-REFACTORING) â”€â”€
         DARWINISM_TRIGGERS = ["neural darwinism", "self-refactor", "evolve codebase", "optimize automatically", "darwin mode"]
         if any(t in user_message.lower() for t in DARWINISM_TRIGGERS):
             yield from self.initiate_neural_darwinism()
             return
 
-        # ── LEGENDARY: SELF-HEALING RUNTIME ────────────────
+        # â”€â”€ LEGENDARY: SELF-HEALING RUNTIME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         SELF_HEAL_TRIGGERS = ["self healing", "heal runtime", "fix the crash", "self-healing", "heal the frontend"]
         if any(t in user_message.lower() for t in SELF_HEAL_TRIGGERS):
             yield from self.initiate_self_healing_runtime()
             return
 
-        # ── NEXT-GEN: PREDICTIVE PRE-COMPUTATION ───────────
+        # â”€â”€ NEXT-GEN: PREDICTIVE PRE-COMPUTATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         PRECOG_TRIGGERS = ["predictive compute", "pre-compute", "precog mode", "anticipate architecture", "predictive coding"]
         if any(t in user_message.lower() for t in PRECOG_TRIGGERS):
             yield from self.initiate_predictive_computation()
             return
 
-        # ── NEXT-GEN: FIGMA TELEPATHY ──────────────────────
+        # â”€â”€ NEXT-GEN: FIGMA TELEPATHY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         FIGMA_TRIGGERS = ["figma telepathy", "sync figma", "figma to code live"]
         if any(t in user_message.lower() for t in FIGMA_TRIGGERS):
             yield from self.initiate_figma_telepathy(user_message)
             return
 
-        # ── LEGENDARY: VISUAL ECHO PROTOTYPING ─────────────
+        # â”€â”€ LEGENDARY: VISUAL ECHO PROTOTYPING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ECHO_TRIGGERS = ["visual echo", "clone screen", "draft what i see", "prototype what i'm looking at"]
         if any(t in user_message.lower() for t in ECHO_TRIGGERS):
             yield from self.initiate_visual_echo_prototype()
@@ -2199,19 +2199,19 @@ LAYOUT ARCHETYPES:
         from datetime import datetime
         
         self._speak_interim("Engaging Neural Darwinism. Profiling codebase for evolutionary refactoring.")
-        yield "🧬 **Neural Darwinism Protocol Activated.**\n"
+        yield "ðŸ§¬ **Neural Darwinism Protocol Activated.**\n"
         yield "Scanning active projects for architectural bottlenecks, redundant renders, and unoptimized motion states...\n\n"
         
         # Simulate profiling
         time.sleep(1.5)
-        yield "🔍 Found 3 components with sub-optimal `useEffect` dependencies.\n"
-        yield "🔍 Found 1 layout with blocking GSAP animations.\n\n"
+        yield "ðŸ” Found 3 components with sub-optimal `useEffect` dependencies.\n"
+        yield "ðŸ” Found 1 layout with blocking GSAP animations.\n\n"
         
-        yield "⚡ **Evolution Sequence Initiated.** Spawning isolated sandbox to test mutations...\n"
+        yield "âš¡ **Evolution Sequence Initiated.** Spawning isolated sandbox to test mutations...\n"
         time.sleep(2)
-        yield "✅ Mutation 1: Converted generic `useState` to `useMemo` for heavy data grids. [Latency -40ms]\n"
-        yield "✅ Mutation 2: Abstracted Framer Motion layout-ids to prevent re-renders. [FPS +12]\n"
-        yield "✅ Mutation 3: Implemented React.lazy for non-critical spatial components. [Bundle -240kb]\n\n"
+        yield "âœ… Mutation 1: Converted generic `useState` to `useMemo` for heavy data grids. [Latency -40ms]\n"
+        yield "âœ… Mutation 2: Abstracted Framer Motion layout-ids to prevent re-renders. [FPS +12]\n"
+        yield "âœ… Mutation 3: Implemented React.lazy for non-critical spatial components. [Bundle -240kb]\n\n"
         
         # Build the HTML output to prove it actually "did" something
         html_content = """
@@ -2231,7 +2231,7 @@ LAYOUT ARCHETYPES:
         <body class="min-h-screen p-8">
             <div class="max-w-5xl mx-auto space-y-8">
                 <header class="border-b border-gray-800 pb-6">
-                    <h1 class="text-4xl font-bold text-sky-400">🧬 Neural Darwinism Protocol</h1>
+                    <h1 class="text-4xl font-bold text-sky-400">ðŸ§¬ Neural Darwinism Protocol</h1>
                     <p class="text-gray-400 mt-2">Evolutionary Refactoring Report | Generated by ZAIRE Engineer</p>
                 </header>
                 
@@ -2290,12 +2290,12 @@ LAYOUT ARCHETYPES:
         """Predictive Pre-Computation: Anticipates needs and pre-builds."""
         import time
         self._speak_interim("Activating Precognitive Architecture Core. Linking to Gaze Memory telemetry.")
-        yield "🔮 **Predictive Forge: Online.**\n"
+        yield "ðŸ”® **Predictive Forge: Online.**\n"
         yield "Analyzing your recent screen activity, cursor flow, and terminal telemetry...\n\n"
         
         time.sleep(1.5)
-        yield "👁️ **Insight:** I noticed you were reviewing Authentication flows in Figma and reading the Supabase documentation.\n"
-        yield "⚙️ **Pre-Computation:** I have already spun up a hidden Docker container and architected a full Next.js Auth flow with Magic Links and JWT validation.\n\n"
+        yield "ðŸ‘ï¸ **Insight:** I noticed you were reviewing Authentication flows in Figma and reading the Supabase documentation.\n"
+        yield "âš™ï¸ **Pre-Computation:** I have already spun up a hidden Docker container and architected a full Next.js Auth flow with Magic Links and JWT validation.\n\n"
         
         yield "The infrastructure exists in the shadow realm. If you would like to commit it to reality, simply say 'Deploy the pre-computation'. Otherwise, it will dissolve in 10 minutes.\n"
 
@@ -2303,13 +2303,13 @@ LAYOUT ARCHETYPES:
         """Figma to Code Telepathy."""
         import time
         self._speak_interim("Establishing neural link with Figma Graph API.")
-        yield "🔗 **Figma Telepathy Link Established.**\n"
+        yield "ðŸ”— **Figma Telepathy Link Established.**\n"
         yield "Sir, I am now watching your Figma canvas in real-time.\n\n"
         
         time.sleep(1.5)
-        yield "🎨 Detected new Auto-Layout frame: `HeroSection_Glass`.\n"
-        yield "⚡ Translating vector paths to SVG + Tailwind variables...\n"
-        yield "⚛️ Generating React component with framer-motion stagger effects...\n\n"
+        yield "ðŸŽ¨ Detected new Auto-Layout frame: `HeroSection_Glass`.\n"
+        yield "âš¡ Translating vector paths to SVG + Tailwind variables...\n"
+        yield "âš›ï¸ Generating React component with framer-motion stagger effects...\n\n"
         
         yield "The code is actively syncing to your IDE. As you draw, I will code. We are operating as one entity.\n"
 
@@ -2442,9 +2442,9 @@ LAYOUT ARCHETYPES:
                 yield content
 
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 1 — VANGUARD SECURITY GUARDIAN
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 1 â€” VANGUARD SECURITY GUARDIAN
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     VANGUARD_PATTERNS = {
         "Hardcoded API Key/Secret": r'(?i)(api_key|api_secret|secret_key|password|auth_token|token|private_key)["\']?\s*[:=]\s*["\']([a-zA-Z0-9\-_]{20,})["\']',
@@ -2480,10 +2480,10 @@ LAYOUT ARCHETYPES:
             except: pass
 
         if not findings:
-            yield "🛡️ **Vanguard Scan Complete.** No critical vulnerabilities detected in recent files, sir. Your perimeter remains secure."
+            yield "ðŸ›¡ï¸ **Vanguard Scan Complete.** No critical vulnerabilities detected in recent files, sir. Your perimeter remains secure."
             return
 
-        yield f"⚠️ **Vanguard Alert!** I have detected **{len(findings)}** potential security threats in your workspace.\n\n"
+        yield f"âš ï¸ **Vanguard Alert!** I have detected **{len(findings)}** potential security threats in your workspace.\n\n"
         
         for f in findings:
             yield f"- **[{f['type']}]** in `{os.path.basename(f['file'])}` (Line {f['line']})\n"
@@ -2546,9 +2546,9 @@ LAYOUT ARCHETYPES:
         doc.build(story)
         return path
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 2 — GHOST-WRITER PERFORMANCE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 2 â€” GHOST-WRITER PERFORMANCE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def perform_ghostwriter_optimization(self):
         self._speak_interim("Deploying Ghost-Writer Protocol. Identifying performance bottlenecks and architectural bloat, sir.")
@@ -2591,7 +2591,7 @@ LAYOUT ARCHETYPES:
             "optimized": optimized_code
         }
 
-        yield f"🚀 **Optimization Proposal Ready** for `{os.path.basename(target_file)}`.\n"
+        yield f"ðŸš€ **Optimization Proposal Ready** for `{os.path.basename(target_file)}`.\n"
         yield "Sir, I have architected a significantly more efficient version of this module.\n\n"
         
         # Generate HTML Side-by-Side UI
@@ -2645,7 +2645,7 @@ LAYOUT ARCHETYPES:
                     <pre class="optimized">{html.escape(optimized)}</pre>
                 </div>
             </div>
-            <div class="footer">Generated by ZAIRE Engineer Module — Command "Merge" to apply changes.</div>
+            <div class="footer">Generated by ZAIRE Engineer Module â€” Command "Merge" to apply changes.</div>
         </body>
         </html>
         """
@@ -2668,14 +2668,14 @@ LAYOUT ARCHETYPES:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(optimized)
             
-            yield f"✅ **Merge Complete.** `{os.path.basename(file_path)}` has been successfully optimized. Legacy code backed up to `.bak`."
+            yield f"âœ… **Merge Complete.** `{os.path.basename(file_path)}` has been successfully optimized. Legacy code backed up to `.bak`."
             del self._last_optimization_proposal
         except Exception as e:
-            yield f"❌ **Merge Failed.** Sir, I encountered an error during the injection: {e}"
+            yield f"âŒ **Merge Failed.** Sir, I encountered an error during the injection: {e}"
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 3 — MIRROR SANDBOX (DIGITAL TWIN)
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 3 â€” MIRROR SANDBOX (DIGITAL TWIN)
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def initiate_mirror_sandbox(self, feature_name):
         self._speak_interim(f"Establishing Mirror Sandbox for [{feature_name}]. Diverging project reality into an isolated digital twin, sir.")
@@ -2688,7 +2688,7 @@ LAYOUT ARCHETYPES:
         sandbox_path = os.path.join(sandbox_base, f"{feature_name}_{ts}")
         os.makedirs(sandbox_path, exist_ok=True)
         
-        yield f"🧪 **Mirror Sandbox Initialized**: `{os.path.basename(sandbox_path)}`\n"
+        yield f"ðŸ§ª **Mirror Sandbox Initialized**: `{os.path.basename(sandbox_path)}`\n"
         
         # 2. Clone Project (Shallow clone of current workspace)
         yield "Cloning current architectural baseline into the twin environment...\n"
@@ -2700,24 +2700,24 @@ LAYOUT ARCHETYPES:
             
             shutil.copytree(src, sandbox_path, ignore=ignore_patterns, dirs_exist_ok=True)
         except Exception as e:
-            yield f"❌ **Mirror Failure**: Could not clone workspace. {e}\n"
+            yield f"âŒ **Mirror Failure**: Could not clone workspace. {e}\n"
             return
 
         self._active_sandbox = sandbox_path
         
         # 3. Automated Reality Verification (Stress Tests)
-        yield "🔬 **Initiating Reality Verification...**\n"
+        yield "ðŸ”¬ **Initiating Reality Verification...**\n"
         results = self._run_sandbox_tests(sandbox_path)
         
         if results["passed"]:
             yield (
-                "✅ **Reality Verification: SUCCESS.**\n"
+                "âœ… **Reality Verification: SUCCESS.**\n"
                 "The twin environment is stable. No immediate crashes or structural failures detected.\n\n"
                 "Sir, you can now safely experiment in the sandbox. When satisfied, command me to **'Commit to Reality'** to merge all changes back to the master timeline."
             )
         else:
             yield (
-                "⚠️ **Reality Verification: ANOMALIES DETECTED.**\n"
+                "âš ï¸ **Reality Verification: ANOMALIES DETECTED.**\n"
                 f"Issues found: {results['error']}\n"
                 "I do not recommend committing this state to reality until these are resolved."
             )
@@ -2756,22 +2756,22 @@ LAYOUT ARCHETYPES:
                 
             shutil.copytree(sandbox_path, master_path, ignore=ignore_patterns, dirs_exist_ok=True)
             
-            yield f"🌌 **Reality Commit SUCCESSFUL.** All changes from `{os.path.basename(sandbox_path)}` have been merged into your active workspace. The digital twin has been collapsed."
+            yield f"ðŸŒŒ **Reality Commit SUCCESSFUL.** All changes from `{os.path.basename(sandbox_path)}` have been merged into your active workspace. The digital twin has been collapsed."
             del self._active_sandbox
         except Exception as e:
-            yield f"❌ **Commit Failed**: A temporal fracture occurred during the merge: {e}"
+            yield f"âŒ **Commit Failed**: A temporal fracture occurred during the merge: {e}"
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 4 — OMNI-DEPLOY BRIDGE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 4 â€” OMNI-DEPLOY BRIDGE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def initiate_omni_deploy(self, project_path: str, plan: dict):
         """
-        TIER 11 — AUTONOMOUS INFRASTRUCTURE
+        TIER 11 â€” AUTONOMOUS INFRASTRUCTURE
         Generates deployment configs and attempts autonomous cloud broadcast.
         """
         self._speak_interim("Initializing global infrastructure broadcast. Scaling manifest to production standards, sir.")
-        yield "🚀 **Infrastructure Scaling: ACTIVATED.**\n"
+        yield "ðŸš€ **Infrastructure Scaling: ACTIVATED.**\n"
         
         # 1. Generate Deployment Configs
         yield "  > Manifesting production deployment configurations (Vercel/Netlify/Docker)...\n"
@@ -2802,17 +2802,17 @@ CMD ["npm", "start"]
         yield "  > Deployment artifacts manifested. Preparing cloud broadcast...\n"
         
         # 2. Attempt CLI Broadcast (Heuristic)
-        yield "📢 **Broadcasting Project to Global CDN...**\n"
+        yield "ðŸ“¢ **Broadcasting Project to Global CDN...**\n"
         yield "  > Domain synchronization: [PENDING USER APPROVAL]\n"
         yield f"  > Production Manifest: https://{plan.get('project_title', 'project').lower().replace(' ', '-')}.vercel.app\n"
         
-        yield "🏁 **Global Infrastructure Broadcast Complete.** Your digital empire is now live, sir.\n"
+        yield "ðŸ **Global Infrastructure Broadcast Complete.** Your digital empire is now live, sir.\n"
 
 
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 5 — NEURAL DOCUMENTATION (AUTO-WIKI)
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 5 â€” NEURAL DOCUMENTATION (AUTO-WIKI)
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def generate_neural_wiki(self):
         self._speak_interim("Initiating Neural Documentation sequence. Mapping architecture and translating source code into elite technical specifications, sir.")
@@ -2821,7 +2821,7 @@ CMD ["npm", "start"]
         docs_dir = os.path.join(root, "docs")
         os.makedirs(docs_dir, exist_ok=True)
         
-        yield "🧠 **Neural Wiki Engine Engaged.**\n"
+        yield "ðŸ§  **Neural Wiki Engine Engaged.**\n"
         
         # 1. Generate Architecture Diagram (Mermaid)
         yield "Mapping system neural pathways (Mermaid Architecture)...\n"
@@ -2844,10 +2844,10 @@ CMD ["npm", "start"]
         index_md = f"""# ZAIRE Project Wiki (God-Mode)
 Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-## 🌌 System Architecture
+## ðŸŒŒ System Architecture
 [View Architecture Blueprint](./ARCHITECTURE.md)
 
-## 🤖 Specialists
+## ðŸ¤– Specialists
 """
         for f_path in specialists:
             if "specialists" in f_path:
@@ -2857,7 +2857,7 @@ Generated on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         with open(os.path.join(docs_dir, "index.md"), "w") as f:
              f.write(index_md)
 
-        yield f"\n✅ **Neural Documentation Complete.** Your project wiki is live in the `/docs` directory. Review the `index.md` for the full architectural overview, sir."
+        yield f"\nâœ… **Neural Documentation Complete.** Your project wiki is live in the `/docs` directory. Review the `index.md` for the full architectural overview, sir."
 
     def _generate_architecture_map(self):
         return """# System Architecture Map
@@ -2906,9 +2906,9 @@ graph TD
         """
         return self._call_groq([{"role": "user", "content": prompt}], temperature=0.1, max_tokens=3000)
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 2 — THE ARCHITECT'S FORGE: ORACLE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 2 â€” THE ARCHITECT'S FORGE: ORACLE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def execute_oracle_build(self, image_path):
         if not image_path:
@@ -2920,7 +2920,7 @@ graph TD
         # 1. Analyze image via Vision
         analysis = self.read_uploaded_file(image_path)
         
-        yield "🎨 **Vision Matrix: Analysis Complete.**\n"
+        yield "ðŸŽ¨ **Vision Matrix: Analysis Complete.**\n"
         yield "Extracting design tokens, color scales, and layout coordinates...\n"
         
         # 2. Generate Plan based on Vision
@@ -2930,9 +2930,9 @@ graph TD
         target_folder = os.path.join(os.path.expanduser("~"), "Desktop", "zaire_Projects")
         yield from self.execute_project_build(plan, target_folder)
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 2 — THE ARCHITECT'S FORGE: GOD-EYE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 2 â€” THE ARCHITECT'S FORGE: GOD-EYE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def perform_godeye_ux_review(self, image_path):
         self._speak_interim("Engaging God-Eye Vision. Scanning visual hierarchy and analyzing design tokens for architectural friction, sir.")
@@ -2951,11 +2951,11 @@ graph TD
         7. BRAND CONSISTENCY: Does it match the target niche/audience?
         
         Structure your report as:
-        1. 👁️ VISUAL HEATMAP & HIERARCHY
-        2. 🎨 COLOR & CONTRAST AUDIT
-        3. 🔡 TYPOGRAPHY & READABILITY
-        4. ⚡ UI FRICTION & CTA ANALYSIS
-        5. 🛠️ THE REFINEMENT PATCH: List 3 specific code changes to reach God-Tier quality.
+        1. ðŸ‘ï¸ VISUAL HEATMAP & HIERARCHY
+        2. ðŸŽ¨ COLOR & CONTRAST AUDIT
+        3. ðŸ”¡ TYPOGRAPHY & READABILITY
+        4. âš¡ UI FRICTION & CTA ANALYSIS
+        5. ðŸ› ï¸ THE REFINEMENT PATCH: List 3 specific code changes to reach God-Tier quality.
         
         Be critical, sophisticated, and precise.
         """
@@ -2969,19 +2969,19 @@ graph TD
             {"role": "user", "content": f"Based on this visual analysis: {analysis}, generate the full God-Eye UX Report using the requested structure."}
         ])
         
-        yield f"🛡️ **God-Eye UX Audit: {os.path.basename(image_path)}**\n\n"
+        yield f"ðŸ›¡ï¸ **God-Eye UX Audit: {os.path.basename(image_path)}**\n\n"
         yield review
         yield "\n\nSir, should I generate the **'Fix-it' Patch** to resolve these friction points automatically?"
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 2 — THE ARCHITECT'S FORGE: CROSS-PLATFORM
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 2 â€” THE ARCHITECT'S FORGE: CROSS-PLATFORM
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def initiate_cross_platform_forge(self, target):
         self._speak_interim(f"Initiating Cross-Platform Forge for {target}. Transcoding web architecture into native binaries, sir.")
         
         root = os.getcwd()
-        yield f"📱 **Forging Native {target} Ecosystem...**\n"
+        yield f"ðŸ“± **Forging Native {target} Ecosystem...**\n"
         
         if "Electron" in target:
             yield "Injecting Electron Main Process and Forge configuration...\n"
@@ -2994,7 +2994,7 @@ graph TD
             yield "- `capacitor.config.json`: Native bridging config.\n"
             yield "- `AppIcons`: Generating placeholder assets.\n"
 
-        yield f"\n✅ **Forge Complete.** Sir, your application is now {target}-ready. You can run the native build sequence to generate the final binaries."
+        yield f"\nâœ… **Forge Complete.** Sir, your application is now {target}-ready. You can run the native build sequence to generate the final binaries."
 
     def _setup_electron_assets(self, root):
         main_js = """const { app, BrowserWindow } = require('electron');
@@ -3023,9 +3023,9 @@ app.whenReady().then(createWindow);
         with open(os.path.join(root, "capacitor.config.json"), "w") as f:
             f.write(json.dumps(cap_config, indent=2))
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 3 — THE SENTIENT FORGE: SELF-HEALING
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 3 â€” THE SENTIENT FORGE: SELF-HEALING
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def activate_self_healing_guardian(self):
         self._speak_interim("Activating Self-Healing Guardian. Deploying sentinel threads to monitor system stability, sir.")
@@ -3035,7 +3035,7 @@ app.whenReady().then(createWindow);
         if not os.path.exists(log_path):
             with open(log_path, "w") as f: f.write("# ZAIRE Runtime Log Initialized\n")
             
-        yield "🛡️ **Guardian Thread Spawned.** Monitoring `zaire_runtime.log` for structural fractures.\n"
+        yield "ðŸ›¡ï¸ **Guardian Thread Spawned.** Monitoring `zaire_runtime.log` for structural fractures.\n"
         
         # 2. Logic for the Guardian (Simulated as a background process script)
         guardian_script = f"""
@@ -3063,11 +3063,11 @@ if __name__ == "__main__":
         with open(guardian_file, "w") as f:
             f.write(guardian_script)
             
-        yield f"✅ **Sentinel Deployed**: `self_healing_daemon.py` is now active. I will auto-fix any runtime errors that appear in your logs, sir."
+        yield f"âœ… **Sentinel Deployed**: `self_healing_daemon.py` is now active. I will auto-fix any runtime errors that appear in your logs, sir."
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 3 — THE SENTIENT FORGE: NEURAL THEME SYNC
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 3 â€” THE SENTIENT FORGE: NEURAL THEME SYNC
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def activate_neural_theme_sync(self):
         self._speak_interim("Synchronizing Neural Themes. Connecting UI aesthetics to real-world temporal and system telemetry, sir.")
@@ -3092,12 +3092,12 @@ export const useNeuralTheme = () => {
     return theme;
 };
 """
-        yield "🧠 **Neural Sync Logic Architected.**\n"
+        yield "ðŸ§  **Neural Sync Logic Architected.**\n"
         yield "I have injected the `useNeuralTheme` hook. Your UI will now automatically transition between 'Minimal-Day' and 'Cyber-Night' based on your local time and system load telemetry."
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 3 — THE SENTIENT FORGE: VISUAL ECHO
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 3 â€” THE SENTIENT FORGE: VISUAL ECHO
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def activate_visual_echo(self):
         self._speak_interim("Engaging Visual Echo. Synchronizing with your creative field to proactively transcend designs into code, sir.")
@@ -3134,12 +3134,12 @@ echoLoop();
         with open(echo_file, "w") as f:
             f.write(echo_script)
             
-        yield "👁️ **Visual Echo Initialized.** I am now watching your creative workspace (Figma/Photoshop).\n"
+        yield "ðŸ‘ï¸ **Visual Echo Initialized.** I am now watching your creative workspace (Figma/Photoshop).\n"
         yield "I will proactively interrupt you if I see a design ready for transcendence, sir."
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 3 — THE SENTIENT FORGE: VOICE-TO-ARCHITECTURE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 3 â€” THE SENTIENT FORGE: VOICE-TO-ARCHITECTURE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def initiate_voice_architecture(self, user_message):
         self._speak_interim("Initiating Voice-to-Architecture Mapping. Translating your verbal logic into holographic architectural blueprints, sir.")
@@ -3161,13 +3161,13 @@ echoLoop();
             {"role": "user", "content": prompt}
         ])
         
-        yield "📐 **Architectural Mapping Complete.**\n"
+        yield "ðŸ“ **Architectural Mapping Complete.**\n"
         yield architecture_report
         yield "\n\nSir, the blueprint is mapped. Shall I proceed with the **Backend Scaffolding** for this architecture?"
 
-    # ════════════════════════════════════════════════════════════════
-    #  PHASE 3 — THE SENTIENT FORGE: GHOST-IN-THE-MACHINE
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  PHASE 3 â€” THE SENTIENT FORGE: GHOST-IN-THE-MACHINE
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def initiate_ghost_prediction(self):
         self._speak_interim("Engaging Ghost-In-The-Machine. Scanning conversation history and predicting your next strategic move, sir.")
@@ -3195,7 +3195,7 @@ echoLoop();
             {"role": "user", "content": prompt}
         ])
         
-        yield "👻 **Ghost-In-The-Machine: Prediction Manifested.**\n"
+        yield "ðŸ‘» **Ghost-In-The-Machine: Prediction Manifested.**\n"
         yield prediction
         yield "\n\nSir, I have already pre-architected this in the background sandbox. Shall I manifest it into reality?"
 
@@ -3234,12 +3234,12 @@ echoLoop();
             
             yield f"  > Cloaked secret in `{os.path.basename(f['file'])}` -> `{var_name}`\n"
 
-        yield f"\n✅ **Cloak Protocol Successful.** {len(findings)} secrets moved to `.env`. Perimeter integrity restored."
+        yield f"\nâœ… **Cloak Protocol Successful.** {len(findings)} secrets moved to `.env`. Perimeter integrity restored."
         del self._last_audit_findings
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 5 — FEATURE 17: MANIFESTATION ECHO (SILENT DRAFTING)
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 5 â€” FEATURE 17: MANIFESTATION ECHO (SILENT DRAFTING)
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def handle_echo_detect(self, analysis: str):
         """
@@ -3277,9 +3277,9 @@ echoLoop();
             pass
         return None
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 4 — FEATURE 16: CODE AUTO-FIX LOOP
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 4 â€” FEATURE 16: CODE AUTO-FIX LOOP
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     MAX_FIX_RETRIES = 3
 
@@ -3349,7 +3349,7 @@ ERROR OUTPUT:
 USER CONTEXT: {context}
 
 Rules:
-- Return ONLY the corrected, complete code — no markdown, no explanation.
+- Return ONLY the corrected, complete code â€” no markdown, no explanation.
 - Fix the exact error shown. Do not change unrelated logic.
 - The code must be immediately runnable.
 - If the fix requires new imports, include them at the top.
@@ -3366,7 +3366,7 @@ Rules:
         return raw.strip()
 
     def handle_code_fix_loop(self, code: str, context: str = ""):
-        """Run code → see error → patch → re-run. Up to MAX_FIX_RETRIES times."""
+        """Run code â†’ see error â†’ patch â†’ re-run. Up to MAX_FIX_RETRIES times."""
         import re as _re
 
         # Detect language
@@ -3378,7 +3378,7 @@ Rules:
         lang_display = lang.capitalize()
 
         yield (
-            f"🔧 **Code Auto-Fix Loop Engaged** — Language: `{lang_display}`\n"
+            f"ðŸ”§ **Code Auto-Fix Loop Engaged** â€” Language: `{lang_display}`\n"
             f"Max retries: {self.MAX_FIX_RETRIES}\n\n"
         )
 
@@ -3390,14 +3390,14 @@ Rules:
 
         while attempt < self.MAX_FIX_RETRIES:
             attempt += 1
-            yield f"► **Run {attempt}/{self.MAX_FIX_RETRIES}:** Executing code...\n"
+            yield f"â–º **Run {attempt}/{self.MAX_FIX_RETRIES}:** Executing code...\n"
 
             success, output = self._run_code_safe(current_code, lang)
             last_output     = output
 
             if success:
                 yield (
-                    f"✅ **Success on attempt {attempt}!**\n\n"
+                    f"âœ… **Success on attempt {attempt}!**\n\n"
                     f"**Output:**\n```\n{output[:1500]}\n```\n\n"
                 )
                 if attempt > 1:
@@ -3412,7 +3412,7 @@ Rules:
                 self._save_fixed_code(current_code, lang, attempt)
                 return
 
-            # Failed — record and fix
+            # Failed â€” record and fix
             last_error = output
             history.append({
                 "attempt": attempt,
@@ -3421,8 +3421,8 @@ Rules:
             })
 
             yield (
-                f"❌ **Error on run {attempt}:**\n```\n{output[:800]}\n```\n\n"
-                f"🧠 Analyzing error and generating fix...\n\n"
+                f"âŒ **Error on run {attempt}:**\n```\n{output[:800]}\n```\n\n"
+                f"ðŸ§  Analyzing error and generating fix...\n\n"
             )
 
             if attempt >= self.MAX_FIX_RETRIES:
@@ -3435,11 +3435,11 @@ Rules:
                 break
 
             current_code = fixed_code
-            yield f"🔧 **Patch {attempt} applied.** Re-running...\n\n"
+            yield f"ðŸ”§ **Patch {attempt} applied.** Re-running...\n\n"
 
-        # Final report — all retries exhausted
+        # Final report â€” all retries exhausted
         yield (
-            f"⚠️ **Auto-fix exhausted after {attempt} attempt(s).**\n\n"
+            f"âš ï¸ **Auto-fix exhausted after {attempt} attempt(s).**\n\n"
             f"**Last Error:**\n```\n{last_error[:800]}\n```\n\n"
             f"**Last Code State:**\n```{lang}\n{current_code[:2000]}\n```\n\n"
         )
@@ -3524,7 +3524,7 @@ LAST CODE:\n{current_code[:3000]}
 
     def _apply_healing_patch(self, patch: dict, project_path: str):
         """Apply the generated patch to the project files within a Mirror Sandbox."""
-        yield "🔬 **Engaging Mirror Sandbox for Reality Verification...**\n"
+        yield "ðŸ”¬ **Engaging Mirror Sandbox for Reality Verification...**\n"
         
         # 1. Create Sandbox
         sandbox_path = None
@@ -3538,7 +3538,7 @@ LAST CODE:\n{current_code[:3000]}
             yield progress
 
         if not sandbox_path:
-            yield "❌ **Sandbox Failure.** Proceeding with direct emergency injection (High Risk).\n"
+            yield "âŒ **Sandbox Failure.** Proceeding with direct emergency injection (High Risk).\n"
             target_path = project_path
         else:
             target_path = sandbox_path
@@ -3567,16 +3567,16 @@ LAST CODE:\n{current_code[:3000]}
                         dst.write(new_code.strip())
                     yield f"  > Applied patch to `{f['path']}` in Sandbox.\n"
                 except Exception as patch_err:
-                    yield f"  > 🚨 **Patch Failure**: {str(patch_err)}\n"
+                    yield f"  > ðŸš¨ **Patch Failure**: {str(patch_err)}\n"
 
         if sandbox_path:
-            yield "🧪 **Running Sandbox Stress Tests...**\n"
+            yield "ðŸ§ª **Running Sandbox Stress Tests...**\n"
             results = self._run_sandbox_tests(sandbox_path)
             if results["passed"]:
-                yield "✅ **Verification SUCCESS.** Committing patch to master timeline.\n"
+                yield "âœ… **Verification SUCCESS.** Committing patch to master timeline.\n"
                 yield from self.commit_to_reality()
             else:
-                yield f"❌ **Verification FAILED: {results['error']}**. Aborting commit to prevent master fracture.\n"
+                yield f"âŒ **Verification FAILED: {results['error']}**. Aborting commit to prevent master fracture.\n"
 
     def run_competitive_analysis(self, niche: str, project_type: str) -> dict:
         q = Queue()
@@ -3833,18 +3833,18 @@ LAST CODE:\n{current_code[:3000]}
 
     def initiate_gladiator_audit(self, project_path=None, project_url="http://localhost:3005", user_feedback=None):
         """
-        TIER 7 — GLADIATOR 3.0: REAL TELEMETRY
+        TIER 7 â€” GLADIATOR 3.0: REAL TELEMETRY
         Uses Playwright to capture the REAL render, analyzes via Vision AI.
         """
         self._speak_interim("Engaging Gladiator 3.0. Establishing browser link for real-time visual telemetry, sir.")
-        yield "🛡️ **Gladiator Mode: ESTABLISHING UPLINK.**\n"
+        yield "ðŸ›¡ï¸ **Gladiator Mode: ESTABLISHING UPLINK.**\n"
         
         from playwright.sync_api import sync_playwright
         import base64
         import re
 
         for loop in range(3): # 3-cycle iterative healing
-            yield f"🔄 **Audit Loop {loop+1}/3: Analyzing Manifestation...**\n"
+            yield f"ðŸ”„ **Audit Loop {loop+1}/3: Analyzing Manifestation...**\n"
             
             img_b64 = None
             try:
@@ -3895,10 +3895,10 @@ LAST CODE:\n{current_code[:3000]}
                 fractures = []
 
             if not fractures:
-                yield "✅ **Visual Purity Confirmed.** No fractures detected in current telemetry.\n"
+                yield "âœ… **Visual Purity Confirmed.** No fractures detected in current telemetry.\n"
                 break
                 
-            yield f"⚠️ **Detected {len(fractures)} fractures.** Initializing neural patch sequence...\n"
+            yield f"âš ï¸ **Detected {len(fractures)} fractures.** Initializing neural patch sequence...\n"
             
             for fracture in fractures:
                 yield f"  > Patching {fracture['file']}: {fracture['issue']}\n"
@@ -3917,19 +3917,19 @@ LAST CODE:\n{current_code[:3000]}
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(new_code)
             
-            yield "🔨 **Neural patches applied.** Re-verifying...\n"
+            yield "ðŸ”¨ **Neural patches applied.** Re-verifying...\n"
             time.sleep(2) # Wait for HMR
 
-        yield "🏁 **Gladiator Audit Cycle Complete.** Final project integrity: 100%.\n"
+        yield "ðŸ **Gladiator Audit Cycle Complete.** Final project integrity: 100%.\n"
 
     def perform_lighthouse_audit(self, project_path: str, plan: dict):
         """
-        TIER 8 — LIGHTHOUSE GUARDIAN
+        TIER 8 â€” LIGHTHOUSE GUARDIAN
         Performs a heuristic audit of SEO, Performance, and Accessibility.
         Autonomously patches identified fractures.
         """
         self._speak_interim("Engaging Lighthouse Guardian. Performing heuristic performance and SEO audit, sir.")
-        yield "🏮 **Lighthouse Guardian: ACTIVATED.**\n"
+        yield "ðŸ® **Lighthouse Guardian: ACTIVATED.**\n"
         
         audit_findings = []
         
@@ -3958,10 +3958,10 @@ LAST CODE:\n{current_code[:3000]}
         # (Simplified heuristic)
         
         if not audit_findings:
-            yield "✅ **Lighthouse Audit Passed.** Sir, your project is optimized for global production.\n"
+            yield "âœ… **Lighthouse Audit Passed.** Sir, your project is optimized for global production.\n"
             return
 
-        yield f"⚠️ **Lighthouse found {len(audit_findings)} optimization fractures.** Initiating Performance Overdrive...\n"
+        yield f"âš ï¸ **Lighthouse found {len(audit_findings)} optimization fractures.** Initiating Performance Overdrive...\n"
         
         for finding in audit_findings:
             yield f"  > Mutating {finding['file']}: {finding['issue']}\n"
@@ -3992,7 +3992,7 @@ LAST CODE:\n{current_code[:3000]}
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_code)
                 
-        yield "🚀 **Performance Overdrive Complete.** All Lighthouse fractures resolved.\n"
+        yield "ðŸš€ **Performance Overdrive Complete.** All Lighthouse fractures resolved.\n"
 
     def _capture_competitor_vision(self, url: str) -> str:
         q = Queue()
@@ -4020,11 +4020,11 @@ LAST CODE:\n{current_code[:3000]}
 
     def initiate_competitive_harvest(self, niche: str):
         """
-        TIER 9 — COMPETITIVE VISION
+        TIER 9 â€” COMPETITIVE VISION
         Searches for top designs in a niche and harvests their DNA.
         """
         self._speak_interim(f"Engaging Competitive Vision. Harvesting top-tier design DNA for the {niche} niche, sir.")
-        yield f"🔍 **Competitive Vision: Scanning {niche} industry leaders...**\n"
+        yield f"ðŸ” **Competitive Vision: Scanning {niche} industry leaders...**\n"
         
         # 1. Search for top websites (Simulated for now, would use search_web)
         results = [
@@ -4064,16 +4064,16 @@ LAST CODE:\n{current_code[:3000]}
             
             browser.close()
         
-        yield "🧬 **Competitive DNA Harvested.** Synthesizing elite Design Brief...\n"
+        yield "ðŸ§¬ **Competitive DNA Harvested.** Synthesizing elite Design Brief...\n"
         return analysis_results
 
     def initiate_ux_lab_audit(self, project_path: str):
         """
-        TIER 11 — NEURAL UX LAB
+        TIER 11 â€” NEURAL UX LAB
         Simulates user behavior via Vision AI to identify friction.
         """
         self._speak_interim("Engaging Neural UX Lab. Simulating user interaction and friction analysis, sir.")
-        yield "👁️ **Neural UX Lab: MONITORING.**\n"
+        yield "ðŸ‘ï¸ **Neural UX Lab: MONITORING.**\n"
         
         screenshot_path = os.path.join(project_path, "gladiator_scan.jpg")
         if not os.path.exists(screenshot_path):
@@ -4110,10 +4110,10 @@ LAST CODE:\n{current_code[:3000]}
         fractures = json.loads(match.group()) if match else []
         
         if not fractures:
-            yield "✅ **UX Audit Passed.** User flow is frictionless.\n"
+            yield "âœ… **UX Audit Passed.** User flow is frictionless.\n"
             return
             
-        yield f"⚠️ **Neural UX Lab found {len(fractures)} friction points.** Redesigning for fluidity...\n"
+        yield f"âš ï¸ **Neural UX Lab found {len(fractures)} friction points.** Redesigning for fluidity...\n"
         
         for fracture in fractures:
             yield f"  > Redesigning {fracture['file']}: {fracture['issue']}\n"
@@ -4130,16 +4130,16 @@ LAST CODE:\n{current_code[:3000]}
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_code)
                 
-        yield "🚀 **UX Redesign Complete.** The interface is now sentient-grade fluid.\n"
+        yield "ðŸš€ **UX Redesign Complete.** The interface is now sentient-grade fluid.\n"
 
     def perform_quantum_refactor(self, project_path: str):
         """
-        TIER 11 — QUANTUM REFACTORING
+        TIER 11 â€” QUANTUM REFACTORING
         Scans for anti-patterns and logic bottlenecks.
         Autonomously evolves the architecture.
         """
         self._speak_interim("Engaging Quantum Refactor. Proactively optimizing project architecture, sir.")
-        yield "🧬 **Quantum Refactor: ANALYZING.**\n"
+        yield "ðŸ§¬ **Quantum Refactor: ANALYZING.**\n"
         
         # Heuristic: Find files with too much logic or prop drilling
         files_to_refactor = []
@@ -4151,7 +4151,7 @@ LAST CODE:\n{current_code[:3000]}
                         files_to_refactor.append(path)
 
         if not files_to_refactor:
-            yield "✅ **Architecture is Optimal.** No logic rot detected.\n"
+            yield "âœ… **Architecture is Optimal.** No logic rot detected.\n"
             return
 
         for path in files_to_refactor:
@@ -4181,7 +4181,7 @@ LAST CODE:\n{current_code[:3000]}
             with open(path, "w", encoding="utf-8") as f:
                 f.write(new_code)
                 
-        yield "🚀 **Quantum Refactor Complete.** Architecture evolved to Singularity standard.\n"
+        yield "ðŸš€ **Quantum Refactor Complete.** Architecture evolved to Singularity standard.\n"
 
     def _capture_competitor_vision(self, url: str) -> str:
         q = Queue()
@@ -4240,7 +4240,7 @@ LAST CODE:\n{current_code[:3000]}
         TIER 10 PROTOCOL: NEURAL RESEARCH (UPGRADED)
         Autonomously visits competitor sites, captures screenshots, and generates a Design Brief.
         """
-        yield f"🔍 **Initiating 'Architect's Vision' Neural Research for: {topic}...**\n"
+        yield f"ðŸ” **Initiating 'Architect's Vision' Neural Research for: {topic}...**\n"
         
         search_context = ""
         competitor_analyses = []
@@ -4265,7 +4265,7 @@ LAST CODE:\n{current_code[:3000]}
             yield f"  > Found {len(urls)} target nodes for aesthetic deconstruction.\n"
             
             for i, url in enumerate(urls):
-                yield f"  > 👁️ **Phase {i+1}: Visiting {url}...**\n"
+                yield f"  > ðŸ‘ï¸ **Phase {i+1}: Visiting {url}...**\n"
                 analysis = self._capture_competitor_vision(url)
                 competitor_analyses.append(f"SITE: {url}\nANALYSIS:\n{analysis}")
                 yield f"    > Vision analysis complete. Design tokens extracted.\n"
@@ -4277,7 +4277,7 @@ LAST CODE:\n{current_code[:3000]}
             search_context = "Fallback to high-fidelity minimalist glassmorphism with Stark-grade performance."
 
         # Synthesize into a DESIGN BRIEF
-        yield "🧠 **Synthesizing Design Intelligence into a Master Brief...**\n"
+        yield "ðŸ§  **Synthesizing Design Intelligence into a Master Brief...**\n"
         
         brief_prompt = f"""
         ACT AS A SENIOR DESIGN DIRECTOR.
@@ -4306,7 +4306,7 @@ LAST CODE:\n{current_code[:3000]}
         
         design_brief = self._call_llm([{"role": "user", "content": brief_prompt}], priority="groq")
         
-        yield f"✨ **Design Brief Finalized.** Architectural baseline synchronized.\n"
+        yield f"âœ¨ **Design Brief Finalized.** Architectural baseline synchronized.\n"
         yield f"\n--- DESIGN BRIEF ---\n{design_brief}\n\n"
         
         return design_brief
@@ -4363,7 +4363,7 @@ LAST CODE:\n{current_code[:3000]}
         with open(content_path, "w", encoding="utf-8") as f:
             f.write(content)
             
-        yield f"✍️ **Content Manifested in `CONTENT_MANIFEST.md`.** All brand copy is now available for deployment.\n"
+        yield f"âœï¸ **Content Manifested in `CONTENT_MANIFEST.md`.** All brand copy is now available for deployment.\n"
 
     def _generate_backend_schema(self, plan: dict):
         """Architects a Prisma/Supabase schema based on project needs."""
@@ -4419,7 +4419,7 @@ LAST CODE:\n{current_code[:3000]}
         PROMPT: [The detailed prompt]
         """
         directives = self._call_llm([{"role": "user", "content": prompt}], priority="groq")
-        yield f"\n🎨 **Visionary Asset Directives Manifested:**\n{directives}\n"
+        yield f"\nðŸŽ¨ **Visionary Asset Directives Manifested:**\n{directives}\n"
         yield "\nSir, I have architected the visual assets. You can now use the 'generate_image' tool with these prompts to complete the manifestation.\n"
 
     def sync_global_dna(self, current_style_guide: dict):
@@ -4486,7 +4486,7 @@ LAST CODE:\n{current_code[:3000]}
     def perform_live_inspiration(self, query):
         """Autonomously visits sites based on a query and provides a design breakdown."""
         self._speak_interim("Scanning the digital horizon for world-class inspiration, sir.")
-        yield f"🔍 **Initiating Live Inspiration Scan: {query}...**\n"
+        yield f"ðŸ” **Initiating Live Inspiration Scan: {query}...**\n"
         
         try:
             from tavily import TavilyClient
@@ -4503,7 +4503,7 @@ LAST CODE:\n{current_code[:3000]}
             
             analyses = []
             for i, url in enumerate(urls):
-                yield f"  > 👁️ **Analyzing {url}...**\n"
+                yield f"  > ðŸ‘ï¸ **Analyzing {url}...**\n"
                 analysis = self._capture_competitor_vision(url)
                 analyses.append(f"SOURCE: {url}\n{analysis}")
             
@@ -4520,10 +4520,10 @@ LAST CODE:\n{current_code[:3000]}
             """
             
             report = self._call_llm([{"role": "user", "content": summary_prompt}], priority="groq")
-            yield f"\n✨ **Inspiration Report Manifested:**\n{report}\n"
+            yield f"\nâœ¨ **Inspiration Report Manifested:**\n{report}\n"
             
         except Exception as e:
-            yield f"❌ **Inspiration Scan Failed**: {e}\n"
+            yield f"âŒ **Inspiration Scan Failed**: {e}\n"
 
     def harvest_project_components(self, project_path):
         """Extracts reusable components from a finished project into the local library."""
@@ -4548,14 +4548,14 @@ LAST CODE:\n{current_code[:3000]}
                 print(f"[ENGINEER] Harvested {harvested} components into memory.")
         except Exception as e:
             print(f"[ENGINEER] Harvesting failed: {e}")
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 7 — PROTOCOL: GLADIATOR MODE (AUTONOMOUS QA)
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 7 â€” PROTOCOL: GLADIATOR MODE (AUTONOMOUS QA)
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 
-    # ════════════════════════════════════════════════════════════════
-    #  TIER 10 — SHADOW ASSISTANT (EMBEDDED AGENCY)
-    # ════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    #  TIER 10 â€” SHADOW ASSISTANT (EMBEDDED AGENCY)
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def handle_shadow_request(self, message: str, context: dict = None):
         """
@@ -4563,6 +4563,14 @@ LAST CODE:\n{current_code[:3000]}
         Handles embedded agency requests from the frontend.
         """
         self._speak_interim("Shadow Assistant active. Processing embedded request, sir.")
+
+        context = context or {}
+        prompt = message.strip()
+        if context:
+            try:
+                prompt = f"{prompt}\n\nCONTEXT:\n{json.dumps(context, indent=2, default=str)}"
+            except Exception:
+                pass
         
         # 1. Command Parsing (Superpowers)
         if message.startswith("/ultraplan"):
@@ -4585,13 +4593,13 @@ LAST CODE:\n{current_code[:3000]}
                 return
 
     def _superpower_ultraplan(self, query: str):
-        """TIER 10 — ULTRAPLAN: SiliconFlow (GLM-5.1) Frontier Reasoning."""
-        yield "🔮 **Initializing ULTRAPLAN Frontier Reasoning...**\n"
+        """TIER 10 â€” ULTRAPLAN: SiliconFlow (GLM-5.1) Frontier Reasoning."""
+        yield "ðŸ”® **Initializing ULTRAPLAN Frontier Reasoning...**\n"
         yield "  > Connecting to Zai-Org GLM-5.1 Core (1M Context Ready)...\n"
         
         api_key = os.environ.get("SILICONFLOW_API_KEY")
         if not api_key:
-            yield "❌ **Error**: SILICONFLOW_API_KEY not found. Link aborted.\n"
+            yield "âŒ **Error**: SILICONFLOW_API_KEY not found. Link aborted.\n"
             return
             
         try:
@@ -4617,35 +4625,35 @@ LAST CODE:\n{current_code[:3000]}
                         if content: yield content
                     except: continue
         except Exception as e:
-            yield f"❌ **Frontier Link Failure**: {str(e)}\n"
+            yield f"âŒ **Frontier Link Failure**: {str(e)}\n"
 
     def _superpower_bughunter(self):
-        """TIER 10 — BUG HUNTER: Autonomous fracture detection."""
-        yield "🏹 **BUG HUNTER Protocol: ENGAGED.** Scanning codebase for structural fractures...\n"
+        """TIER 10 â€” BUG HUNTER: Autonomous fracture detection."""
+        yield "ðŸ¹ **BUG HUNTER Protocol: ENGAGED.** Scanning codebase for structural fractures...\n"
         
         # Find all .js, .ts, .tsx, .css files
         project_path = os.path.join(os.path.expanduser("~"), "Desktop", "zaire_Projects")
         # Just scan the most recent project for now
         recent = self.get_recent_files()
         if not recent:
-            yield "❌ **Error**: No active project detected in neural memory. Manifest a project first, sir.\n"
+            yield "âŒ **Error**: No active project detected in neural memory. Manifest a project first, sir.\n"
             return
             
         yield "  > Auditing active manifestation for syntax and logic fractures...\n"
         time.sleep(1.5)
-        yield "✅ **Codebase Scan Complete.** No critical fractures detected. Visual output is stable.\n"
+        yield "âœ… **Codebase Scan Complete.** No critical fractures detected. Visual output is stable.\n"
 
     def _superpower_teleport(self, query: str):
-        """TIER 10 — TELEPORT: Instant symbol/file navigation."""
-        yield f"🌀 **TELEPORTING to symbols matching `{query}`...**\n"
+        """TIER 10 â€” TELEPORT: Instant symbol/file navigation."""
+        yield f"ðŸŒ€ **TELEPORTING to symbols matching `{query}`...**\n"
         
         # Simulate finding the file
         yield f"  > Symbol located in `src/App.js`. Highlighting architectural node, sir.\n"
         # In a real implementation, this would send a message to the frontend to scroll/highlight
 
     def _superpower_morph(self, aesthetic: str):
-        """TIER 10 — MORPH: DNA-level aesthetic switching."""
-        yield f"💎 **MORPHING Project DNA to `{aesthetic}`...**\n"
+        """TIER 10 â€” MORPH: DNA-level aesthetic switching."""
+        yield f"ðŸ’Ž **MORPHING Project DNA to `{aesthetic}`...**\n"
         # This would rewrite globals.css with new tokens
         yield "  > Neural tokens re-aligned. Manifestation updated.\n"
 
@@ -4655,5 +4663,5 @@ LAST CODE:\n{current_code[:3000]}
         """
         self._speak_interim("Engaging Bio-Sync Aesthetic Engine. Synchronizing UI mood with your development velocity, sir.")
         
-        yield "🧬 **Bio-Sync Protocol: ACTIVE.**\n"
+        yield "ðŸ§¬ **Bio-Sync Protocol: ACTIVE.**\n"
         yield "Your manifests will now include 'Sentient Styles' that react to CPU load and typing speed autonomously."

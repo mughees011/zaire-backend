@@ -1,4 +1,4 @@
-﻿function normalizeProjectName(value) {
+function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -11,6 +11,13 @@ function jsString(value) {
 
 function safeDisplayText(value, fallback = '') {
   return String(value || fallback).replace(/[{}<>]/g, '').trim();
+}
+
+function normalizeBooleanLike(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const text = String(value || '').trim().toLowerCase();
+  return ['yes', 'true', '1', 'on', 'enabled', 'checked'].includes(text);
 }
 
 function inferProjectTypeLabel(projectType) {
@@ -26,12 +33,26 @@ function inferProjectTypeLabel(projectType) {
   return labels[projectType] || 'Custom Project';
 }
 
+function buildWorkflowPhases() {
+  return [
+    { phase: 'UNDERSTAND', purpose: 'Capture the brief and constraints before code is written.' },
+    { phase: 'ARCHITECT', purpose: 'Translate the brief into scope, stack, pages, and risks.' },
+    { phase: 'SCAFFOLD', purpose: 'Create the project shell, routes, and base files.' },
+    { phase: 'BUILD', purpose: 'Implement the product UI and core logic.' },
+    { phase: 'REVIEW', purpose: 'Check the generated work against the approved architecture.' },
+    { phase: 'TEST', purpose: 'Run QA checks and identify broken or risky surfaces.' },
+    { phase: 'FIX', purpose: 'Repair failing files, routes, or environment assumptions.' },
+    { phase: 'PACKAGE', purpose: 'Assemble the app for handoff or deployment.' },
+    { phase: 'DEPLOY', purpose: 'Verify deployment readiness and required environment values.' }
+  ];
+}
+
 function buildEngineerPlan(intake = {}) {
   const projectTypeLabel = inferProjectTypeLabel(intake.projectType);
-  const isFullStack = intake.scope === 'full-stack';
-  const needsAuth = intake.auth === 'yes';
-  const needsDatabase = intake.database === 'yes';
-  const needsPayments = intake.payments === 'yes';
+  const needsAuth = normalizeBooleanLike(intake.auth);
+  const needsDatabase = normalizeBooleanLike(intake.database);
+  const needsPayments = normalizeBooleanLike(intake.payments);
+  const isFullStack = String(intake.scope || '').toLowerCase() === 'full-stack' || needsAuth || needsDatabase || needsPayments;
   const normalizedName = normalizeProjectName(intake.projectName);
   const appName = safeDisplayText(intake.projectName, normalizedName);
   const frontendStack = ['Next.js 14 App Router', 'TypeScript', 'Tailwind CSS'];
@@ -113,6 +134,14 @@ function buildEngineerPlan(intake = {}) {
     envVars,
     risks,
     assumptions,
+    workflowPhases: buildWorkflowPhases(),
+    buildChecklist: [
+      'Confirm the intake answers before generating the scaffold.',
+      'Approve the architecture only after the plan matches the business goal.',
+      'Create the shell and API routes before visual polish.',
+      'Run review, QA, and repair passes before package/deploy.',
+      'Verify required environment variables before shipping.'
+    ],
     projectTypeLabel,
     normalizedName,
     appName,
@@ -389,7 +418,7 @@ dist
   };
 
   const envExample = plan.envVars.map((item) => `${item}=`).join('\n');
-  const readme = `# ${plan.appName}\n\n## What this is\n${plan.summary}\n\n## Stack\n${plan.stack.map((item) => `- ${item}`).join('\n')}\n\n## Pages\n${plan.pages.map((item) => `- ${item}`).join('\n')}\n\n## Next steps\n- Install dependencies\n- Add environment variables\n- Review scaffolded files\n- Run lint and build before deployment\n`;
+  const readme = `# ${plan.appName}\n\n## What this is\n${plan.summary}\n\n## Workflow\n${(plan.workflowPhases || []).map((item) => `- ${item.phase}: ${item.purpose}`).join('\n')}\n\n## Stack\n${plan.stack.map((item) => `- ${item}`).join('\n')}\n\n## Pages\n${plan.pages.map((item) => `- ${item}`).join('\n')}\n\n## Next steps\n${(plan.buildChecklist || []).map((item) => `- ${item}`).join('\n')}\n`;
 
   return {
     fileTree: Object.keys(files),

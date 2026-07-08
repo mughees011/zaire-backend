@@ -100,7 +100,8 @@ function loadSecrets() {
       return parsed;
     }
     return { version: 2, slots: {} };
-  } catch {
+  } catch (error) {
+    console.error('[SYSTEM_CONFIG][SYSTEM_CONFIG_LOAD_SECRETS_FAILED] Failed to load stored secrets:', error.message);
     return { version: 2, slots: {} };
   }
 }
@@ -112,7 +113,8 @@ function saveSecrets(data) {
     }
     fs.writeFileSync(SECRETS_FILE, JSON.stringify(data, null, 2));
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[SYSTEM_CONFIG][SYSTEM_CONFIG_SAVE_SECRETS_FAILED] Failed to save stored secrets:', error.message);
     return false;
   }
 }
@@ -145,7 +147,7 @@ function encryptStoredSecret(plain) {
         key: dpapiEncrypt(plain)
       };
     } catch (err) {
-      console.warn('[SECRETS] DPAPI encryption unavailable, falling back to AES:', err.message);
+      console.warn('[SYSTEM_CONFIG][SYSTEM_CONFIG_DPAPI_ENCRYPT_FALLBACK] DPAPI encryption unavailable, falling back to AES:', err.message);
     }
   }
 
@@ -166,7 +168,8 @@ function decryptStoredSecret(entry) {
   if (typeof entry === 'string') {
     try {
       return process.platform === 'win32' ? dpapiDecrypt(entry) : (aesDecrypt(entry) || '');
-    } catch {
+    } catch (error) {
+      console.error('[SYSTEM_CONFIG][SYSTEM_CONFIG_DECRYPT_STRING_FAILED] Failed to decrypt stored secret string:', error.message);
       return aesDecrypt(entry) || '';
     }
   }
@@ -179,7 +182,8 @@ function decryptStoredSecret(entry) {
 
   try {
     return process.platform === 'win32' ? dpapiDecrypt(entry.key) : '';
-  } catch {
+  } catch (error) {
+    console.error('[SYSTEM_CONFIG][SYSTEM_CONFIG_DECRYPT_ENTRY_FAILED] Failed to decrypt stored secret entry:', error.message);
     return '';
   }
 }
