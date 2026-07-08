@@ -16,7 +16,7 @@ const r2Config = {
 };
 
 const s3Client = new S3Client(r2Config);
-const BUCKET_NAME = process.env.R2_BUCKET || 'zaire-releases';
+const BUCKET_NAME = process.env.R2_BUCKET_NAME || process.env.R2_BUCKET || 'zaire-downloads';
 
 /**
  * POST /downloads/signed-url
@@ -100,3 +100,4 @@ router.get('/releases', async (req, res) => {
 });
 
 module.exports = router;
+

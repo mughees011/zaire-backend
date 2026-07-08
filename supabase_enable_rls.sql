@@ -1,0 +1,20 @@
+﻿-- Enable RLS on ZAIRE public tables.
+-- Run this once in Supabase for the existing database.
+
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_vault ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.custom_modes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mode_components ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mode_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.weekly_briefings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_intake ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.architecture_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.qa_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.repair_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.memories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_vault_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.downloads ENABLE ROW LEVEL SECURITY;
