@@ -1155,7 +1155,9 @@ app.post('/engineer/scaffold', async (req, res) => {
       const fullIntake = {
         ...intake,
         projectType: intake.projectType || 'saas',
-        designStyle: intake.designStyle || plan.designStyle || 'Modern dark premium',
+        designStyle: preloadedDesignBrief?.visual_tokens 
+          ? `Colors: ${preloadedDesignBrief.visual_tokens.primary_color}, Fonts: ${preloadedDesignBrief.visual_tokens.typography?.display} & ${preloadedDesignBrief.visual_tokens.typography?.body}, Radius: ${preloadedDesignBrief.visual_tokens.border_radius}`
+          : (intake.designStyle || plan.designStyle || 'Modern dark premium'),
         referenceSites: intake.referenceSites || plan.referenceSites || '',
         who: intake.who || plan.who || 'professionals',
         what: intake.what || plan.summary || '',
