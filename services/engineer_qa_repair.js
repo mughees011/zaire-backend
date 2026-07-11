@@ -1,4 +1,4 @@
-const fs = require('fs-extra');
+﻿const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
 const { execFile } = require('child_process');
@@ -43,7 +43,7 @@ async function runInSandbox(workspacePath, command, args) {
  * Runs QA checks on a project by saving files to a temporary workspace
  * and executing standard checks (build, lint, etc).
  */
-async function qaProject(projectId, files) {
+async function qaProject(projectId, files, designBrief = null) {
   const tempWorkspace = path.join(__dirname, '..', 'scratch', `qa_${projectId}_${Date.now()}`);
   await fs.ensureDir(tempWorkspace);
 
@@ -175,6 +175,32 @@ async function qaProject(projectId, files) {
       passedCount += 1;
     }
 
+    // ── Design Conformance Check ─────────────────────────────────────────
+    if (designBrief && designBrief.visual_tokens && designBrief.visual_tokens.primary_color) {
+      const primaryColor = designBrief.visual_tokens.primary_color;
+      let foundColor = false;
+      const twConfig = fileIndex.get('tailwind.config.ts');
+      const globalsCss = fileIndex.get('app/globals.css');
+      
+      if (twConfig && twConfig.content.includes(primaryColor)) foundColor = true;
+      if (globalsCss && globalsCss.content.includes(primaryColor)) foundColor = true;
+      
+      if (!foundColor) {
+        checks.push({
+          name: 'Design Conformance',
+          status: 'warning',
+          message: `Generated files are missing the primary color (${primaryColor}) from the approved Design Brief.`
+        });
+        warningCount += 1;
+      } else {
+        checks.push({
+          name: 'Design Conformance',
+          status: 'passed',
+          message: `Primary color (${primaryColor}) correctly applied to styles.`
+        });
+        passedCount += 1;
+      }
+    }
     return {
       status: errorCount > 0 ? 'failed' : warningCount > 0 ? 'warning' : 'passed',
       passed_count: passedCount,
