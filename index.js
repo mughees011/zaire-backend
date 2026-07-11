@@ -1021,7 +1021,7 @@ app.post('/engineer/plan/incremental', async (req, res) => {
 // Phase 2.5: Design Intelligence Stage
 app.post('/engineer/design-brief', async (req, res) => {
   try {
-    const { projectId, intake, userId = 'local-user' } = req.body;
+    const { projectId, intake, plan: bodyPlan, userId = 'local-user' } = req.body;
     if (!projectId) {
       return res.status(400).json({ success: false, error: 'Missing projectId' });
     }
@@ -1029,8 +1029,8 @@ app.post('/engineer/design-brief', async (req, res) => {
     emitEngineerEvent(req, 'DESIGN_INTEL_STARTED', 'Running Design Intelligence analysis...', 'running');
 
     // Get architecture plan
-    let plan = {};
-    if (!String(projectId).startsWith('local-')) {
+    let plan = bodyPlan || {};
+    if (!bodyPlan && !String(projectId).startsWith('local-')) {
       const planRes = await pool.query(`SELECT plan_data FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
       if (planRes.rows.length) {
         plan = planRes.rows[0].plan_data;
