@@ -1125,7 +1125,29 @@ app.post('/engineer/scaffold', async (req, res) => {
       stack: incomingPlan.stack || incomingPlan.techStack || buildEngineerPlan(intake).stack,
       envVars: incomingPlan.envVars || incomingPlan.requiredEnvVariables || buildEngineerPlan(intake).envVars
     };
-    const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
+    // Fetch design_brief from DB BEFORE scaffold generation so tokens are baked into support files
+    const projectId = req.body?.projectId;
+    let preloadedDesignBrief = null;
+    if (projectId && !String(projectId).startsWith('local-')) {
+      try {
+        const briefPreRes = await pool.query(`SELECT * FROM design_briefs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+        if (briefPreRes.rows.length) {
+          preloadedDesignBrief = {
+            competitive_analysis: briefPreRes.rows[0].competitive_analysis,
+            visual_tokens:        briefPreRes.rows[0].visual_tokens,
+            content_plan:         briefPreRes.rows[0].content_plan,
+            motion_spec:          briefPreRes.rows[0].motion_spec,
+            page_architecture:    briefPreRes.rows[0].page_architecture,
+            image_strategy:       briefPreRes.rows[0].image_strategy,
+            conversion_checklist: briefPreRes.rows[0].conversion_checklist
+          };
+        }
+      } catch (briefPreErr) {
+        console.warn('[ENGINEER SCAFFOLD] Could not preload design brief:', briefPreErr.message);
+      }
+    }
+    // Build the scaffold with resolved design tokens baked in
+    const scaffold = buildEngineerScaffold(plan, intake, skillLevel, preloadedDesignBrief);
 
     // Phase 2.5: Native Node.js Design Intelligence
     try {
@@ -1248,7 +1270,6 @@ app.post('/engineer/scaffold', async (req, res) => {
       console.warn('[ENGINEER SCAFFOLD OUTER AI FAIL]', outerAiErr.message);
     }
 
-    const projectId = req.body?.projectId;
     if (projectId && !String(projectId).startsWith('local-')) {
       try {
         await pool.query(
@@ -1283,6 +1304,112 @@ app.post('/engineer/scaffold', async (req, res) => {
       error: 'Engineer scaffold generation failed.',
       code: 'ENGINEER_SCAFFOLD_FAILED'
     });
+  }
+});
+
+// ─── POST /engineer/design-brief/approve ────────────────────────────────────
+// Marks the design_brief as approved so the scaffold stage is allowed to proceed.
+// Mirrors the architecture approval UX — brief cannot be silently auto-approved.
+app.post('/engineer/design-brief/approve', async (req, res) => {
+  try {
+    const { projectId } = req.body;
+    if (!projectId) return res.status(400).json({ success: false, error: 'Missing projectId' });
+
+    if (!String(projectId).startsWith('local-')) {
+      await pool.query(
+        `UPDATE design_briefs SET approved = true, approved_at = NOW() WHERE project_id = $1`,
+        [projectId]
+      );
+      await pool.query(`UPDATE projects SET current_phase = 'DesignApproved', updated_at = NOW() WHERE id = $1`, [projectId]);
+    }
+
+    emitEngineerEvent(req, 'DESIGN_APPROVED', 'Design Brief approved. Ready to scaffold.', 'passed');
+    res.json({ success: true, message: 'Design Brief approved. Scaffold generation can proceed.' });
+  } catch (err) {
+    console.error('[ENGINEER DESIGN APPROVE ERR]', err);
+    res.status(500).json({ success: false, error: 'Failed to approve design brief.' });
+  }
+});
+
+// ─── POST /engineer/design-brief/edit ───────────────────────────────────────
+// Allows the user to manually patch specific top-level fields in the design_brief
+// without regenerating the whole brief (e.g., change only the primary_color).
+app.post('/engineer/design-brief/edit', async (req, res) => {
+  try {
+    const { projectId, patch } = req.body;
+    if (!projectId || !patch) return res.status(400).json({ success: false, error: 'Missing projectId or patch' });
+
+    let updated = null;
+    if (!String(projectId).startsWith('local-')) {
+      // Merge patch into existing brief fields using jsonb concatenation
+      const allowedFields = ['visual_tokens', 'content_plan', 'motion_spec', 'competitive_analysis', 'page_architecture', 'image_strategy', 'conversion_checklist'];
+      for (const field of allowedFields) {
+        if (patch[field] !== undefined) {
+          await pool.query(
+            `UPDATE design_briefs SET ${field} = $1, approved = false WHERE project_id = $2`,
+            [JSON.stringify(patch[field]), projectId]
+          );
+        }
+      }
+      const res2 = await pool.query(`SELECT * FROM design_briefs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+      updated = res2.rows[0] || null;
+    }
+
+    emitEngineerEvent(req, 'DESIGN_EDITED', 'Design Brief updated. Re-approval required before scaffold.', 'warning');
+    res.json({ success: true, message: 'Design Brief edited. Approve again before scaffolding.', brief: updated });
+  } catch (err) {
+    console.error('[ENGINEER DESIGN EDIT ERR]', err);
+    res.status(500).json({ success: false, error: 'Failed to edit design brief.' });
+  }
+});
+
+// ─── POST /engineer/design-brief/regenerate ─────────────────────────────────
+// Runs a fresh Design Intelligence pass, replacing the existing brief.
+// Useful if the intake changed or the brief quality wasn't good enough.
+app.post('/engineer/design-brief/regenerate', async (req, res) => {
+  try {
+    const { projectId, intake } = req.body;
+    if (!projectId) return res.status(400).json({ success: false, error: 'Missing projectId' });
+
+    emitEngineerEvent(req, 'DESIGN_INTEL_STARTED', 'Regenerating Design Intelligence brief...', 'running');
+
+    let plan = {};
+    if (!String(projectId).startsWith('local-')) {
+      const planRes = await pool.query(`SELECT plan_data FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+      if (planRes.rows.length) plan = planRes.rows[0].plan_data;
+    }
+
+    const fullIntake = { ...intake, projectType: intake?.projectType || 'saas', designStyle: intake?.designStyle || 'Modern dark premium', who: intake?.who || 'professionals', what: intake?.what || plan.summary || '', projectName: intake?.projectName || plan.appName || 'project' };
+
+    const referenceContext = await enrichIntakeWithReferences(fullIntake);
+    const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
+
+    const resLlm = await executeLLMCallWithFailover({
+      messages: [{ role: 'system', content: prompts.system }, { role: 'user', content: prompts.user }],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
+
+    let brief = null;
+    try {
+      const raw = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+      brief = JSON.parse(raw);
+    } catch (e) {
+      return res.status(500).json({ success: false, error: 'AI returned invalid JSON for design brief.' });
+    }
+
+    if (!String(projectId).startsWith('local-')) {
+      await pool.query(
+        `UPDATE design_briefs SET competitive_analysis=$1, visual_tokens=$2, content_plan=$3, motion_spec=$4, page_architecture=$5, image_strategy=$6, conversion_checklist=$7, approved=false, approved_at=NULL WHERE project_id=$8`,
+        [JSON.stringify(brief.competitive_analysis||{}), JSON.stringify(brief.visual_tokens||{}), JSON.stringify(brief.content_plan||[]), JSON.stringify(brief.motion_spec||{}), JSON.stringify(brief.page_architecture||{}), JSON.stringify(brief.image_strategy||{}), JSON.stringify(brief.conversion_checklist||[]), projectId]
+      );
+    }
+
+    emitEngineerEvent(req, 'DESIGN_REGENERATED', 'Design Brief regenerated. Approve before scaffolding.', 'warning');
+    res.json({ success: true, designBrief: brief });
+  } catch (err) {
+    console.error('[ENGINEER DESIGN REGEN ERR]', err);
+    res.status(500).json({ success: false, error: 'Failed to regenerate design brief.' });
   }
 });
 
