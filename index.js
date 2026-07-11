@@ -27,15 +27,29 @@ const {
 } = require('./services/socket_command_service');
 const {
   buildEngineerPlan,
-  buildEngineerScaffold
+  buildEngineerScaffold,
+  buildGenerationPrompts,
+  buildIncrementalPlan
 } = require('./services/engineer_workflow');
 const {
   qaProject,
   repairError,
+  applyAndVerifyRepair,
   exportProjectZip,
   materializeProject,
   normalizeFileList
 } = require('./services/engineer_qa_repair');
+const {
+  deployToVercel,
+  deployToNetlify
+} = require('./services/deploy_service');
+const {
+  scanForSecrets,
+  auditDependencies
+} = require('./services/security_scanner');
+const {
+  pushToGitHub
+} = require('./services/github_export_service');
 
 const PACKAGED_FRONTEND_DIR = path.join(__dirname, 'frontend');
 const LOCAL_FRONTEND_DIR = path.join(__dirname, '..', 'frontend-temp', 'build');
@@ -683,35 +697,195 @@ app.post('/engineer/health', async (req, res) => {
   res.json({ success: true, status: 'ready' });
 });
 
+// ─── Helper: detect language from file extension ──────────────────────────────
+function detectLanguage(filePath) {
+  const ext = (filePath || '').split('.').pop().toLowerCase();
+  const map = { ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    css: 'css', scss: 'css', json: 'json', md: 'markdown', prisma: 'prisma',
+    env: 'env', txt: 'text', html: 'html', svg: 'svg' };
+  return map[ext] || 'text';
+}
+
+// ─── Helper: upsert a project_files row (DELETE old + INSERT new) ─────────────
+async function upsertProjectFile(projectId, filePath, content, explanation) {
+  await pool.query(
+    `DELETE FROM project_files WHERE project_id = $1 AND path = $2`,
+    [projectId, filePath]
+  );
+  await pool.query(
+    `INSERT INTO project_files (project_id, path, content, language, explanation)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [projectId, filePath, content || '', detectLanguage(filePath), explanation ? JSON.stringify(explanation) : null]
+  );
+}
+
+// ─── Token/Cost Price Table (USD per 1M tokens) ───────────────────────────────
+// Approximate market rates (2025-07). Update as needed.
+const TOKEN_PRICE_TABLE = {
+  'openai:gpt-4o':               { input: 2.50,  output: 10.00 },
+  'openai:gpt-4o-mini':          { input: 0.15,  output: 0.60  },
+  'openai:gpt-4-turbo':          { input: 10.00, output: 30.00 },
+  'openai:gpt-3.5':              { input: 0.50,  output: 1.50  },
+  'openai:o1':                   { input: 15.00, output: 60.00 },
+  'anthropic:claude-3-5-sonnet': { input: 3.00,  output: 15.00 },
+  'anthropic:claude-3-5-haiku':  { input: 0.80,  output: 4.00  },
+  'anthropic:claude-3-opus':     { input: 15.00, output: 75.00 },
+  'groq:llama-3.3':              { input: 0.59,  output: 0.79  },
+  'groq:llama-3.1':              { input: 0.59,  output: 0.79  },
+  'groq:mixtral':                { input: 0.24,  output: 0.24  },
+  'groq:gemma2':                 { input: 0.20,  output: 0.20  },
+  'gemini:gemini-1.5-pro':       { input: 1.25,  output: 5.00  },
+  'gemini:gemini-1.5-flash':     { input: 0.075, output: 0.30  },
+  'gemini:gemini-2.0':           { input: 0.10,  output: 0.40  },
+  'openrouter:default':          { input: 1.00,  output: 2.00  },
+  'default':                     { input: 1.00,  output: 2.00  }
+};
+
+function resolveTokenPrice(provider, model) {
+  const key = `${String(provider || '').toLowerCase()}:${String(model || '').toLowerCase()}`;
+  for (const tableKey of Object.keys(TOKEN_PRICE_TABLE)) {
+    if (tableKey !== 'default' && key.startsWith(tableKey)) return TOKEN_PRICE_TABLE[tableKey];
+  }
+  return TOKEN_PRICE_TABLE['default'];
+}
+
+/**
+ * Logs an LLM call to ai_usage_log with estimated USD cost.
+ * Silently no-ops on DB failure so it never crashes a request.
+ */
+async function logAiUsage({ userId = 'local-user', projectId = null, stage, provider, model, usage }) {
+  try {
+    if (!usage) return;
+    const promptTokens     = usage.prompt_tokens     || 0;
+    const completionTokens = usage.completion_tokens || 0;
+    const totalTokens      = usage.total_tokens      || (promptTokens + completionTokens);
+    if (totalTokens === 0) return;
+    const price = resolveTokenPrice(provider, model);
+    const estimatedCost = ((promptTokens * price.input) + (completionTokens * price.output)) / 1_000_000;
+    const safeProjectId  = projectId && !String(projectId).startsWith('local-') ? projectId : null;
+    await pool.query(
+      `INSERT INTO ai_usage_log
+         (user_id, project_id, stage, provider, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [userId, safeProjectId, stage, provider, model, promptTokens, completionTokens, totalTokens, estimatedCost]
+    );
+  } catch (_) { /* never crash a request due to logging failure */ }
+}
+
+// ─── Helper: Emit Structured Engineer Pipeline Events ──────────────────────────────
+/**
+ * Emit a structured engineer pipeline event to all connected sockets.
+ *
+ * @param {import('express').Request} req
+ * @param {string} stage   - Machine-readable stage key (e.g. 'PLAN_STARTED', 'QA_CHECK')
+ * @param {string} label   - Human-readable label for the UI sidebar
+ * @param {'running'|'passed'|'failed'|'warning'|'complete'} status
+ * @param {object} [detail] - Optional extra data (file name, check result, etc.)
+ */
+function emitEngineerEvent(req, stage, label, status = 'running', detail = {}) {
+  const io = req.app.get('io');
+  if (!io) return;
+  const payload = { stage, label, status, detail, ts: Date.now() };
+  io.emit('engineer_event', payload);
+  // Backward-compat: also emit to the legacy neural_log channel
+  io.emit('neural_log', { content: `Engineer [${stage}]: ${label}` });
+  if (status === 'running') io.emit('zaire_status', 'agent_thinking');
+  if (status === 'complete' || status === 'passed') io.emit('zaire_status', 'idle');
+}
+
 app.post('/engineer/plan', async (req, res) => {
   try {
+    emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
     const intake = req.body?.intake || req.body || {};
     const plan = buildEngineerPlan(intake);
-
     const userId = req.body?.userId || 'local-user';
+    const existingProjectId = req.body?.projectId;
 
-    // Phase 5: Backend Project Memory Integration
     try {
-      const projectRes = await pool.query(
-        `INSERT INTO projects (user_id, name, type, current_phase) VALUES ($1, $2, $3, $4) RETURNING id`,
-        [userId, plan.appName || 'Untitled', plan.projectTypeLabel || 'Web App', 'Architecture']
-      );
-      const projectId = projectRes.rows[0].id;
+      let projectId;
 
+      if (existingProjectId && !existingProjectId.startsWith('local-')) {
+        // ── UPDATE existing project ──────────────────────────────────────────
+        await pool.query(
+          `UPDATE projects
+             SET name = $1, type = $2, current_phase = $3, updated_at = NOW()
+           WHERE id = $4 AND user_id = $5`,
+          [plan.appName || 'Untitled', plan.projectTypeLabel || 'Web App', 'Architecture', existingProjectId, userId]
+        );
+        // Wipe and re-insert intake
+        await pool.query(`DELETE FROM project_intake WHERE project_id = $1`, [existingProjectId]);
+        await pool.query(`DELETE FROM architecture_plans WHERE project_id = $1`, [existingProjectId]);
+        projectId = existingProjectId;
+      } else {
+        // ── CREATE new project ───────────────────────────────────────────────
+        const projectRes = await pool.query(
+          `INSERT INTO projects (user_id, name, type, scope, deployment_target, status, current_phase)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          [
+            userId,
+            plan.appName || 'Untitled',
+            plan.projectTypeLabel || 'Web App',
+            intake.scope || null,
+            intake.deploymentTarget || null,
+            'active',
+            'Architecture'
+          ]
+        );
+        projectId = projectRes.rows[0].id;
+      }
+
+      // ── Write full intake ────────────────────────────────────────────────
       await pool.query(
-        `INSERT INTO project_intake (project_id, project_name) VALUES ($1, $2)`,
-        [projectId, plan.appName]
+        `INSERT INTO project_intake
+           (project_id, project_type, project_name, what, target_user, scope,
+            auth_required, database_required, payments_required,
+            design_style, deployment_target, reference_sites, mode_preference)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [
+          projectId,
+          intake.projectType || null,
+          intake.projectName || plan.appName || null,
+          intake.what || plan.summary || null,
+          intake.who || null,
+          intake.scope || null,
+          plan.needsAuth || false,
+          plan.needsDatabase || false,
+          plan.needsPayments || false,
+          intake.designStyle || null,
+          intake.deploymentTarget || null,
+          intake.referenceSites || null,
+          intake.modePreference || null
+        ]
       );
 
+      // ── Write full architecture plan ─────────────────────────────────────
       await pool.query(
-        `INSERT INTO architecture_plans (project_id, summary, tech_stack) VALUES ($1, $2, $3)`,
-        [projectId, plan.summary, JSON.stringify(plan.techStack || plan.stack || [])]
+        `INSERT INTO architecture_plans
+           (project_id, summary, assumptions, tech_stack, pages, components,
+            api_routes, database_schema, auth_flow, payment_flow, env_vars, deployment_plan, risks)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [
+          projectId,
+          plan.summary || null,
+          JSON.stringify(plan.assumptions || []),
+          JSON.stringify(plan.stack || []),
+          JSON.stringify(plan.pages || []),
+          JSON.stringify(plan.components || []),
+          JSON.stringify(plan.apiRoutes || []),
+          JSON.stringify(plan.databaseSchema || []),
+          plan.authFlow || null,
+          plan.paymentFlow || null,
+          JSON.stringify(plan.envVars || []),
+          JSON.stringify(plan.deploymentPlan || []),
+          JSON.stringify(plan.risks || [])
+        ]
       );
 
-      // Return projectId to frontend for future requests
+      emitEngineerEvent(req, 'PLAN_COMPLETE', 'Architecture plan finalized.', 'complete', { projectId });
+
       res.json({
         success: true,
-        projectId: projectId,
+        projectId,
         plan: {
           summary: plan.summary,
           stack: plan.stack,
@@ -736,7 +910,7 @@ app.post('/engineer/plan', async (req, res) => {
       });
       return;
     } catch(dbErr) {
-      console.warn('[ENGINEER PLAN] DB Warning (Project might be local only):', dbErr.message);
+      console.warn('[ENGINEER PLAN] DB Warning (project is local-only):', dbErr.message);
     }
 
     // DB offline fallback — generate a local UUID so downstream /engineer/scaffold, /engineer/qa, /engineer/repair work
@@ -777,8 +951,73 @@ app.post('/engineer/plan', async (req, res) => {
   }
 });
 
+
+app.post('/engineer/plan/incremental', async (req, res) => {
+  try {
+    const { projectId, featureRequest, userId = 'local-user' } = req.body;
+    if (!projectId || !featureRequest) {
+      return res.status(400).json({ success: false, error: 'Missing projectId or featureRequest', code: 'ENGINEER_INCREMENTAL_MISSING_PARAMS' });
+    }
+
+    emitEngineerEvent(req, 'PLAN_INCREMENTAL_STARTED', 'Analyzing existing architecture for feature addition...', 'running');
+
+    let existingPlan = {};
+    if (!String(projectId).startsWith('local-')) {
+      const planRes = await pool.query(`SELECT plan_data FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+      if (!planRes.rows.length) {
+        return res.status(404).json({ success: false, error: 'Original architecture plan not found', code: 'ENGINEER_INCREMENTAL_NO_PLAN' });
+      }
+      existingPlan = planRes.rows[0].plan_data;
+    }
+
+    const prompts = buildIncrementalPlan(existingPlan, featureRequest);
+    
+    const resLlm = await executeLLMCallWithFailover({
+      messages: [
+        {role: "system", content: prompts.system},
+        {role: "user", content: prompts.user}
+      ],
+      temperature: 0.2,
+      max_tokens: 4000
+    });
+
+    let changeset = null;
+    try {
+      const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+      changeset = JSON.parse(content);
+    } catch (parseErr) {
+      console.error('[ENGINEER INCREMENTAL PARSE ERR]', parseErr);
+      return res.status(500).json({ success: false, error: 'Failed to parse incremental plan from AI.', code: 'ENGINEER_INCREMENTAL_PARSE_FAILED' });
+    }
+    
+    if (resLlm && resLlm.usage) {
+      await logAiUsage({
+        userId,
+        projectId,
+        stage: 'incremental_plan',
+        provider: resLlm.provider || 'openai',
+        model: resLlm.model || 'gpt-4o',
+        usage: resLlm.usage
+      });
+    }
+
+    emitEngineerEvent(req, 'PLAN_INCREMENTAL_COMPLETE', 'Incremental plan generated.', 'complete', { changeset });
+
+    res.json({
+      success: true,
+      projectId,
+      changeset,
+      featureRequest
+    });
+
+  } catch (error) {
+    console.error('[ENGINEER INCREMENTAL ERR]', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Failed to generate incremental plan.', code: 'ENGINEER_INCREMENTAL_FAILED' });
+  }
+});
 app.post('/engineer/scaffold', async (req, res) => {
   try {
+    emitEngineerEvent(req, 'SCAFFOLD_STARTED', 'Initializing workspace scaffold...', 'running');
     const intake = req.body?.intake || {};
     const skillLevel = req.body?.skillLevel || 'PROFESSIONAL';
     const incomingPlan = req.body?.plan || buildEngineerPlan(intake);
@@ -806,86 +1045,126 @@ app.post('/engineer/scaffold', async (req, res) => {
       };
       const payload = JSON.stringify({ plan, intake: fullIntake });
 
-      const aiScaffold = await new Promise((resolve, reject) => {
-        const { spawn } = require('child_process');
-        // Try python3 first (Linux/Mac), fall back to python (Windows)
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        const child = spawn(pythonCmd, ['engineer.py', payload], {
-          cwd: __dirname  // Ensure it runs from the backend/ directory
-        });
-        let stdoutData = '';
-        let stderrData = '';
-
-        child.stdout.on('data', (data) => { stdoutData += data.toString(); });
-        child.stderr.on('data', (data) => { stderrData += data.toString(); });
-
-        // 5-minute timeout — multi-step pipeline takes time
-        const timeout = setTimeout(() => {
-          child.kill();
-          reject(new Error('Python orchestrator timed out after 300s'));
-        }, 300000);
-
-        child.on('close', (code) => {
-          clearTimeout(timeout);
-          if (code !== 0 && !stdoutData) {
-            reject(new Error(`Python exited ${code}: ${stderrData.slice(-500)}`));
-            return;
-          }
-          try {
-            // Find the true JSON payload, ignoring stdout failover warnings
-            const lastBrace = stdoutData.lastIndexOf('\n{');
-            let jsonStr = '';
-            if (lastBrace !== -1) {
-              jsonStr = stdoutData.substring(lastBrace).trim();
-            } else {
-              const firstBrace = stdoutData.indexOf('{');
-              if (firstBrace === -1) throw new Error('No JSON found in output');
-              jsonStr = stdoutData.substring(firstBrace).trim();
+      try {
+        const intelResult = await new Promise((resolve) => {
+          const { spawn } = require('child_process');
+          const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+          const child = spawn(pythonCmd, ['design_intelligence_api.py', payload], { cwd: __dirname });
+          let stdoutData = '';
+          child.stdout.on('data', (data) => { stdoutData += data.toString(); });
+          child.on('close', (code) => {
+            if (code !== 0) resolve(null);
+            else {
+              try {
+                const jsonStr = stdoutData.substring(stdoutData.indexOf('{')).trim();
+                resolve(JSON.parse(jsonStr));
+              } catch (e) { resolve(null); }
             }
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.error) {
-              console.warn('[ENGINEER PY ERROR]', parsed.error);
-              // Don't reject — fall back to base scaffold gracefully
-              resolve(null);
-            } else {
-              resolve(parsed);
-            }
-          } catch (e) {
-            reject(new Error(`JSON Parse Error: ${e.message}`));
-          }
+          });
         });
-      });
 
-      if (aiScaffold && aiScaffold.files) {
-        console.log(`[ENGINEER SCAFFOLD] Python orchestrator succeeded — Profile: ${aiScaffold.profile}, DNA: ${aiScaffold.dna}`);
-        for (const [key, val] of Object.entries(aiScaffold.files)) {
-          if (val.content && !val.content.includes('[SYSTEM ERROR]')) {
-            if (!scaffold.files[key]) scaffold.files[key] = {};
-            scaffold.files[key].content = val.content;
-            // Preserve rich explanations generated by the Python orchestrator
-            scaffold.files[key].explanation = val.explanation || {
-              what: `AI Generated ${key} — ZAIRE Design Intelligence Core v5.0`,
-              why: `Generated using ${aiScaffold.dna || 'DNA'} aesthetic profile for ${aiScaffold.profile || 'project type'}.`,
-              edit: 'You can modify this file directly in the editor.',
-              protect: 'Keep design system tokens in sync with globals.css.'
-            };
+        if (intelResult && intelResult.brief) {
+          console.log(`[ENGINEER SCAFFOLD] Node orchestrator retrieved DNA: ${intelResult.dna_key}`);
+          const prompts = buildGenerationPrompts(intelResult.brief, plan, fullIntake, intelResult.profile, intelResult.dna_key);
+          const executeLlm = async (promptPair, label) => {
+             const res = await executeLLMCallWithFailover({
+               messages: [
+                 {role: "system", content: promptPair.system},
+                 {role: "user", content: typeof promptPair.user === 'function' ? promptPair.user(promptPair.context) : promptPair.user}
+               ],
+               temperature: 0.4,
+               max_tokens: 6000
+             });
+             emitEngineerEvent(req, 'SCAFFOLD_FILE', `Generated ${label}`, 'running', { file: label });
+             
+             // Log usage
+             if (res && res.usage) {
+               await logAiUsage({
+                 userId: req.body?.userId || 'local-user',
+                 projectId: req.body?.projectId,
+                 stage: 'scaffold',
+                 provider: res.provider || 'openai', // Fallback if provider isn't passed back
+                 model: res.model || 'gpt-4o',
+                 usage: res.usage
+               });
+             }
+             
+             return res?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+          };
+
+          const [globalsCss, twConfig, layoutTsx, pageTsx] = await Promise.all([
+            executeLlm(prompts.globalsCss, 'globals.css'),
+            executeLlm(prompts.tailwindConfig, 'tailwind.config.ts'),
+            executeLlm(prompts.layoutTsx, 'layout.tsx'),
+            executeLlm(prompts.pageTsx, 'page.tsx')
+          ]);
+
+          emitEngineerEvent(req, 'SCAFFOLD_REVIEW', 'Scaffold complete. Running AI self-review...', 'running');
+          let finalPageTsx = pageTsx;
+          if (pageTsx && pageTsx.length > 200) {
+            const reviewedPageRes = await executeLLMCallWithFailover({
+              messages: [
+                {role: "system", content: prompts.selfReview.system},
+                {role: "user", content: typeof prompts.selfReview.user === 'function' ? prompts.selfReview.user({ layout: layoutTsx, page: pageTsx }) : prompts.selfReview.user}
+              ],
+              temperature: 0.2,
+              max_tokens: 6000
+            });
+            
+            if (reviewedPageRes && reviewedPageRes.usage) {
+               await logAiUsage({
+                 userId: req.body?.userId || 'local-user',
+                 projectId: req.body?.projectId,
+                 stage: 'scaffold_review',
+                 provider: reviewedPageRes.provider || 'openai',
+                 model: reviewedPageRes.model || 'gpt-4o',
+                 usage: reviewedPageRes.usage
+               });
+            }
+            
+            const reviewedPage = reviewedPageRes?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+            if (reviewedPage && reviewedPage.length > 200) {
+              finalPageTsx = reviewedPage;
+            }
+          }
+          
+          emitEngineerEvent(req, 'SCAFFOLD_FILE', 'QA pass completed on app/page.tsx', 'passed', { file: 'page.tsx' });
+
+          const fileMap = {
+            'app/globals.css': { content: globalsCss, explanation: { what: 'AI Generated globals.css — ZAIRE Design Intelligence', why: 'Defines CSS custom properties and resets.', edit: 'Modify variables here.', protect: 'Keep in sync with tailwind config.' } },
+            'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts — ZAIRE Design Intelligence', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Do not remove standard plugins.' } },
+            'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present.' } },
+            'app/page.tsx': { content: finalPageTsx, explanation: { what: 'AI Generated page.tsx', why: 'Complete landing page using DNA design system.', edit: 'Modify copy and replace images.', protect: 'Ensure all sections are complete.' } }
+          };
+
+          for (const [key, val] of Object.entries(fileMap)) {
+            if (val.content && !val.content.includes('[SYSTEM ERROR]')) {
+              if (!scaffold.files[key]) scaffold.files[key] = {};
+              scaffold.files[key].content = val.content;
+              scaffold.files[key].explanation = val.explanation;
+            }
           }
         }
+      } catch (aiErr) {
+        console.warn('[ENGINEER SCAFFOLD AI FAIL]', aiErr.message);
       }
-    } catch (aiErr) {
-      console.warn('[ENGINEER SCAFFOLD AI FAIL]', aiErr.message);
+    } catch (outerAiErr) {
+      console.warn('[ENGINEER SCAFFOLD OUTER AI FAIL]', outerAiErr.message);
     }
 
     const projectId = req.body?.projectId;
-    if (projectId) {
+    if (projectId && !String(projectId).startsWith('local-')) {
       try {
-        await pool.query(`UPDATE projects SET current_phase = 'Scaffold' WHERE id = $1`, [projectId]);
+        await pool.query(
+          `UPDATE projects SET current_phase = 'Scaffold', updated_at = NOW() WHERE id = $1`,
+          [projectId]
+        );
+        // DELETE + INSERT to prevent duplicate rows on re-scaffold
+        await pool.query(`DELETE FROM project_files WHERE project_id = $1`, [projectId]);
         for (const [filePath, fileRecord] of Object.entries(scaffold.files || {})) {
-           await pool.query(
-             `INSERT INTO project_files (project_id, path, content, explanation) VALUES ($1, $2, $3, $4)`,
-             [projectId, filePath, fileRecord?.content || '', fileRecord?.explanation || null]
-           );
+          await upsertProjectFile(projectId, filePath, fileRecord?.content, fileRecord?.explanation);
         }
+        console.log(`[ENGINEER SCAFFOLD DB] Persisted ${Object.keys(scaffold.files || {}).length} files for project ${projectId}`);
       } catch(dbErr) {
         console.warn('[ENGINEER SCAFFOLD DB]', dbErr.message);
       }
@@ -913,11 +1192,19 @@ app.post('/engineer/scaffold', async (req, res) => {
 
 app.post('/engineer/qa', async (req, res) => {
   try {
+    emitEngineerEvent(req, 'QA_STARTED', 'Spinning up QA pipeline...', 'running', { sandbox_mode: 'pending' });
     const { projectId, files } = req.body;
     if (!projectId || !files) {
       return res.status(400).json({ success: false, error: 'Missing projectId or files', code: 'ENGINEER_QA_MISSING_PARAMS' });
     }
     const qaResult = await qaProject(projectId, files);
+    const qaStatus = qaResult.error_count > 0 ? 'failed' : qaResult.warning_count > 0 ? 'warning' : 'passed';
+    emitEngineerEvent(req, 'QA_COMPLETE', `QA complete — ${qaResult.passed_count} passed, ${qaResult.error_count} errors, ${qaResult.warning_count} warnings`, qaStatus, {
+      passed_count: qaResult.passed_count,
+      error_count: qaResult.error_count,
+      warning_count: qaResult.warning_count,
+      sandbox_mode: qaResult.sandbox_mode
+    });
 
     try {
       await pool.query(
@@ -938,22 +1225,69 @@ app.post('/engineer/qa', async (req, res) => {
 
 app.post('/engineer/repair', async (req, res) => {
   try {
+    emitEngineerEvent(req, 'REPAIR_STARTED', 'Analyzing QA failures...', 'running');
     const { projectId, errorText, files } = req.body;
     if (!projectId || !errorText || !files) {
       return res.status(400).json({ success: false, error: 'Missing parameters', code: 'ENGINEER_REPAIR_MISSING_PARAMS' });
     }
     const repairResult = await repairError(projectId, errorText, files);
 
-    try {
-      await pool.query(
-        `INSERT INTO repair_requests (project_id, raw_error, category, likely_file, proposed_patch) VALUES ($1, $2, $3, $4, $5)`,
-        [projectId, errorText, repairResult.category, repairResult.likelyFile, JSON.stringify(repairResult.proposedPatch)]
-      );
-    } catch(dbErr) {
-      console.warn('[ENGINEER REPAIR DB]', dbErr.message);
+    // Apply the patch in the sandbox and re-run QA pipeline automatically
+    emitEngineerEvent(req, 'REPAIR_RETEST', 'Applying patch and re-running QA...', 'running');
+    const verifyResult = await applyAndVerifyRepair(projectId, files, repairResult.actualDiff);
+
+    const repairStatus = verifyResult.fixed ? 'passed' : 'failed';
+    emitEngineerEvent(req, 'REPAIR_COMPLETE', verifyResult.fixed ? 'Repair verified — retest passed.' : 'Repair applied — retest did not fully pass.', repairStatus, {
+      fixed: verifyResult.fixed,
+      retestStatus: verifyResult.qaResult?.status
+    });
+
+    if (projectId && !String(projectId).startsWith('local-')) {
+      try {
+        // Log the repair request
+        await pool.query(
+          `INSERT INTO repair_requests
+             (project_id, raw_error, category, likely_file, simple_cause, proposed_patch,
+              actual_diff, pre_patch_snapshot, retest_status, applied, applied_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $10 THEN NOW() ELSE NULL END)`,
+          [
+            projectId,
+            errorText,
+            repairResult.category || null,
+            repairResult.likelyFile || null,
+            repairResult.simpleCause || null,
+            JSON.stringify(repairResult.proposedPatch || {}),
+            repairResult.actualDiff || null,
+            JSON.stringify(verifyResult.snapshot || {}),
+            verifyResult.qaResult?.status || 'unknown',
+            verifyResult.fixed || false
+          ]
+        );
+
+        // If the repair verified successfully, sync patched files back to project_files
+        if (verifyResult.fixed && verifyResult.patchedFiles) {
+          const patchedMap = typeof verifyResult.patchedFiles === 'object' ? verifyResult.patchedFiles : {};
+          for (const [filePath, content] of Object.entries(patchedMap)) {
+            await upsertProjectFile(projectId, filePath, content, null);
+          }
+          await pool.query(
+            `UPDATE projects SET current_phase = 'Fixed', updated_at = NOW() WHERE id = $1`,
+            [projectId]
+          );
+          console.log(`[ENGINEER REPAIR DB] Synced ${Object.keys(patchedMap).length} patched files for project ${projectId}`);
+        }
+      } catch(dbErr) {
+        console.warn('[ENGINEER REPAIR DB]', dbErr.message);
+      }
     }
 
-    res.json({ success: true, patch: repairResult });
+    res.json({
+      success: true,
+      patch: repairResult,
+      verified: verifyResult.fixed,
+      retestStatus: verifyResult.qaResult?.status,
+      patchedFiles: verifyResult.patchedFiles
+    });
   } catch (error) {
     console.error('[ENGINEER REPAIR ERR]', error);
     res.status(500).json({ success: false, error: 'Repair execution failed.', code: 'ENGINEER_REPAIR_FAILED' });
@@ -990,12 +1324,80 @@ app.post('/engineer/materialize', async (req, res) => {
     }
 
     const fileRecords = Array.from(fileMap.values());
-
     const projectName = plan.normalizedName || intake.projectName || req.body?.projectName || 'zaire-generated-project';
     const result = await materializeProject(projectName, fileRecords);
 
+    // ── Persist to DB so the user can resume this project later ──────────
+    const userId = req.body?.userId || 'local-user';
+    let materializedProjectId = req.body?.projectId;
+    try {
+      if (!materializedProjectId || String(materializedProjectId).startsWith('local-')) {
+        const projectRes = await pool.query(
+          `INSERT INTO projects (user_id, name, type, scope, deployment_target, status, current_phase)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+          [
+            userId, plan.appName || projectName, plan.projectTypeLabel || 'Web App',
+            intake.scope || null, intake.deploymentTarget || null,
+            'active', 'Materialized'
+          ]
+        );
+        materializedProjectId = projectRes.rows[0].id;
+
+        // Full intake
+        await pool.query(
+          `INSERT INTO project_intake
+             (project_id, project_type, project_name, what, target_user, scope,
+              auth_required, database_required, payments_required,
+              design_style, deployment_target, reference_sites)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [
+            materializedProjectId, intake.projectType || null,
+            intake.projectName || plan.appName || null, intake.what || plan.summary || null,
+            intake.who || null, intake.scope || null,
+            plan.needsAuth || false, plan.needsDatabase || false, plan.needsPayments || false,
+            intake.designStyle || null, intake.deploymentTarget || null, intake.referenceSites || null
+          ]
+        );
+
+        // Full architecture plan
+        await pool.query(
+          `INSERT INTO architecture_plans
+             (project_id, summary, assumptions, tech_stack, pages, components,
+              api_routes, database_schema, auth_flow, payment_flow, env_vars, deployment_plan, risks)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [
+            materializedProjectId, plan.summary || null,
+            JSON.stringify(plan.assumptions || []), JSON.stringify(plan.stack || []),
+            JSON.stringify(plan.pages || []), JSON.stringify(plan.components || []),
+            JSON.stringify(plan.apiRoutes || []), JSON.stringify(plan.databaseSchema || []),
+            plan.authFlow || null, plan.paymentFlow || null,
+            JSON.stringify(plan.envVars || []), JSON.stringify(plan.deploymentPlan || []),
+            JSON.stringify(plan.risks || [])
+          ]
+        );
+      } else {
+        // Existing project — just update phase
+        await pool.query(
+          `UPDATE projects SET current_phase = 'Materialized', updated_at = NOW() WHERE id = $1`,
+          [materializedProjectId]
+        );
+        await pool.query(`DELETE FROM project_files WHERE project_id = $1`, [materializedProjectId]);
+      }
+
+      // Persist all generated files
+      for (const file of fileRecords) {
+        if (file.path) {
+          await upsertProjectFile(materializedProjectId, file.path, file.content, file.explanation || null);
+        }
+      }
+      console.log(`[ENGINEER MATERIALIZE DB] Persisted ${fileRecords.length} files to project ${materializedProjectId}`);
+    } catch (dbErr) {
+      console.warn('[ENGINEER MATERIALIZE DB]', dbErr.message);
+    }
+
     res.json({
       success: true,
+      projectId: materializedProjectId,
       projectName,
       outputDir: result.outputDir,
       fileCount: result.fileCount,
@@ -1011,9 +1413,199 @@ app.post('/engineer/materialize', async (req, res) => {
     });
   }
 });
-app.post('/engineer/export', async (req, res) => {
+// ─── GET /engineer/projects — list all projects for a user ────────────────────
+app.get('/engineer/projects', async (req, res) => {
+  const userId = req.query.userId || 'local-user';
   try {
-    const { projectId, files } = req.body;
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.type, p.scope, p.deployment_target, p.status,
+              p.current_phase, p.created_at, p.updated_at,
+              pi.project_type, pi.what, pi.target_user, pi.design_style,
+              (SELECT COUNT(*) FROM project_files pf WHERE pf.project_id = p.id) AS file_count,
+              (SELECT COUNT(*) FROM qa_runs qr WHERE qr.project_id = p.id)     AS qa_run_count
+         FROM projects p
+         LEFT JOIN project_intake pi ON pi.project_id = p.id
+        WHERE p.user_id = $1
+        ORDER BY p.updated_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, projects: result.rows });
+  } catch (err) {
+    console.error('[ENGINEER PROJECTS LIST ERR]', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load projects.', code: 'ENGINEER_PROJECTS_LOAD_FAILED' });
+  }
+});
+
+// ─── GET /engineer/projects/:id — full project restore payload ────────────────
+app.get('/engineer/projects/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Project metadata
+    const projectResult = await pool.query(
+      `SELECT * FROM projects WHERE id = $1`, [id]
+    );
+    if (!projectResult.rows.length) {
+      return res.status(404).json({ success: false, error: 'Project not found.', code: 'ENGINEER_PROJECT_NOT_FOUND' });
+    }
+    const project = projectResult.rows[0];
+
+    // Intake
+    const intakeResult = await pool.query(
+      `SELECT * FROM project_intake WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [id]
+    );
+
+    // Architecture plan
+    const planResult = await pool.query(
+      `SELECT * FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [id]
+    );
+
+    // Files
+    const filesResult = await pool.query(
+      `SELECT path, content, language, explanation, updated_at
+         FROM project_files
+        WHERE project_id = $1
+        ORDER BY path ASC`,
+      [id]
+    );
+
+    // Latest QA run
+    const qaResult = await pool.query(
+      `SELECT * FROM qa_runs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [id]
+    );
+
+    // Latest repair requests
+    const repairResult = await pool.query(
+      `SELECT * FROM repair_requests WHERE project_id = $1 ORDER BY created_at DESC LIMIT 5`, [id]
+    );
+
+    // Reconstruct files as { path: { content, language, explanation } }
+    const filesMap = {};
+    for (const row of filesResult.rows) {
+      filesMap[row.path] = {
+        content: row.content,
+        language: row.language,
+        explanation: row.explanation,
+        updatedAt: row.updated_at
+      };
+    }
+
+    res.json({
+      success: true,
+      project,
+      intake: intakeResult.rows[0] || null,
+      plan: planResult.rows[0] || null,
+      files: filesMap,
+      fileCount: filesResult.rows.length,
+      lastQaRun: qaResult.rows[0] || null,
+      recentRepairs: repairResult.rows
+    });
+  } catch (err) {
+    console.error('[ENGINEER PROJECT RESTORE ERR]', err.message);
+    res.status(500).json({ success: false, error: 'Failed to restore project.', code: 'ENGINEER_PROJECT_RESTORE_FAILED' });
+  }
+});
+
+
+// ─── GET /engineer/projects/:id/usage ───────────────────────────────────────
+// Returns token and estimated cost breakdown from ai_usage_log for a project.
+app.get('/engineer/projects/:id/usage', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Totals
+    const totalsRes = await pool.query(
+      `SELECT
+         SUM(prompt_tokens)      AS total_prompt_tokens,
+         SUM(completion_tokens)  AS total_completion_tokens,
+         SUM(total_tokens)       AS total_tokens,
+         SUM(estimated_cost_usd) AS total_cost_usd,
+         COUNT(*)                AS call_count
+       FROM ai_usage_log WHERE project_id = $1`,
+      [id]
+    );
+
+    // Per-stage breakdown
+    const stageRes = await pool.query(
+      `SELECT stage, provider, model,
+         SUM(total_tokens)       AS tokens,
+         SUM(estimated_cost_usd) AS cost_usd,
+         COUNT(*)                AS calls
+       FROM ai_usage_log WHERE project_id = $1
+       GROUP BY stage, provider, model
+       ORDER BY cost_usd DESC`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      projectId: id,
+      totals: totalsRes.rows[0] || {},
+      breakdown: stageRes.rows
+    });
+  } catch (err) {
+    console.error('[ENGINEER USAGE ERR]', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load usage data.', code: 'ENGINEER_USAGE_LOAD_FAILED' });
+  }
+});
+
+app.post('/engineer/deploy', async (req, res) => {
+  try {
+    const { projectId, provider, token } = req.body;
+    if (!projectId || !provider || !token) {
+      return res.status(400).json({ success: false, error: 'Missing projectId, provider, or token', code: 'ENGINEER_DEPLOY_MISSING_PARAMS' });
+    }
+
+    if (provider !== 'vercel' && provider !== 'netlify') {
+      return res.status(400).json({ success: false, error: 'Provider must be vercel or netlify', code: 'ENGINEER_DEPLOY_INVALID_PROVIDER' });
+    }
+
+    const projectRes = await pool.query(`SELECT name FROM projects WHERE id = $1`, [projectId]);
+    if (!projectRes.rows.length) {
+      return res.status(404).json({ success: false, error: 'Project not found', code: 'ENGINEER_PROJECT_NOT_FOUND' });
+    }
+    const projectName = projectRes.rows[0].name;
+
+    const filesRes = await pool.query(`SELECT path, content FROM project_files WHERE project_id = $1`, [projectId]);
+    let files = filesRes.rows;
+    if (!files.length) {
+      return res.status(400).json({ success: false, error: 'No files to deploy', code: 'ENGINEER_DEPLOY_NO_FILES' });
+    }
+
+    // Security Scan: Redact any sensitive tokens before deploying
+    const secretScan = scanForSecrets(files);
+    if (secretScan.foundSecrets) {
+      console.warn(`[ENGINEER DEPLOY] Redacted secrets for project ${projectId}`);
+    }
+    files = secretScan.files;
+
+    let deployResult;
+    if (provider === 'vercel') {
+      deployResult = await deployToVercel(projectName, files, token);
+    } else {
+      deployResult = await deployToNetlify(projectName, files, token);
+    }
+
+    await pool.query(
+      `UPDATE projects SET current_phase = 'Deployed', deployment_target = $1, updated_at = NOW() WHERE id = $2`,
+      [provider, projectId]
+    );
+
+    res.json({
+      success: true,
+      url: deployResult.url,
+      id: deployResult.id,
+      readyState: deployResult.readyState
+    });
+
+  } catch (error) {
+    console.error('[ENGINEER DEPLOY ERR]', error.message, error.stack);
+    res.status(500).json({ success: false, error: error.message || 'Deployment failed.', code: 'ENGINEER_DEPLOY_FAILED' });
+  }
+});
+
+app.post('/engineer/export', async (req, res) => {
+
+  try {
+    let { projectId, files } = req.body;
     console.log(`[ENGINEER EXPORT] projectId=${projectId}, filesCount=${Array.isArray(files) ? files.length : typeof files}`);
     if (!projectId) {
       return res.status(400).json({ success: false, error: 'Missing projectId', code: 'ENGINEER_EXPORT_MISSING_PROJECT_ID' });
@@ -1021,6 +1613,26 @@ app.post('/engineer/export', async (req, res) => {
     if (!files || (Array.isArray(files) && files.length === 0)) {
       return res.status(400).json({ success: false, error: 'No files to export', code: 'ENGINEER_EXPORT_NO_FILES' });
     }
+
+    // Security Scan: Redact sensitive tokens
+    const secretScan = scanForSecrets(files);
+    if (secretScan.foundSecrets) {
+      console.warn(`[ENGINEER EXPORT] Redacted secrets for project ${projectId}`);
+    }
+    files = secretScan.files;
+
+    // Dependency Audit
+    const packageJsonFile = files.find(f => f.path === 'package.json' || f.path === '/package.json');
+    if (packageJsonFile) {
+      const auditReport = await auditDependencies(packageJsonFile.content, projectId);
+      if (auditReport) {
+        files.push({
+          path: 'SECURITY_REPORT.md',
+          content: auditReport
+        });
+      }
+    }
+
     await exportProjectZip(projectId, files, res);
   } catch (error) {
     console.error('[ENGINEER EXPORT ERR]', error.message, error.stack);
@@ -1029,7 +1641,104 @@ app.post('/engineer/export', async (req, res) => {
     }
   }
 });
-// ─── ZAIRE Sovereign Licensing & Activation API Endpoints ──────────────────
+
+// ─── POST /engineer/github-export ─────────────────────────────────────────
+// Creates a new GitHub repo and pushes all project files directly via the
+// GitHub Contents API (no git binary required on the server).
+app.post('/engineer/github-export', async (req, res) => {
+  try {
+    const { projectId, githubToken, isPrivate = true } = req.body;
+    if (!projectId || !githubToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing projectId or githubToken',
+        code: 'ENGINEER_GITHUB_MISSING_PARAMS'
+      });
+    }
+
+    emitEngineerEvent(req, 'GITHUB_EXPORT_STARTED', 'Preparing project for GitHub export...', 'running');
+
+    // ── Resolve project name and files ──────────────────────────────────
+    let projectName = 'zaire-project';
+    let files = [];
+
+    if (!String(projectId).startsWith('local-')) {
+      // Load from DB
+      const projectRes = await pool.query(`SELECT name FROM projects WHERE id = $1`, [projectId]);
+      if (!projectRes.rows.length) {
+        return res.status(404).json({ success: false, error: 'Project not found', code: 'ENGINEER_PROJECT_NOT_FOUND' });
+      }
+      projectName = projectRes.rows[0].name || projectName;
+
+      const filesRes = await pool.query(
+        `SELECT path, content FROM project_files WHERE project_id = $1`, [projectId]
+      );
+      files = filesRes.rows;
+    }
+
+    // Also accept files passed directly in the request body (local / offline mode)
+    if (req.body.files && Array.isArray(req.body.files) && req.body.files.length > 0) {
+      files = req.body.files;
+      if (req.body.projectName) projectName = req.body.projectName;
+    }
+
+    if (!files.length) {
+      return res.status(400).json({ success: false, error: 'No files to export', code: 'ENGINEER_GITHUB_NO_FILES' });
+    }
+
+    // ── Security scan before push ──────────────────────────────────────
+    const secretScan = scanForSecrets(files);
+    if (secretScan.foundSecrets) {
+      console.warn(`[GITHUB EXPORT] Redacted ${secretScan.log.length} secret(s) before push for project ${projectId}`);
+    }
+    files = secretScan.files;
+
+    emitEngineerEvent(req, 'GITHUB_EXPORT_PUSHING', 'Pushing files to GitHub...', 'running', { fileCount: files.length });
+
+    // ── Push to GitHub ──────────────────────────────────────────────
+    const result = await pushToGitHub(projectName, files, githubToken, isPrivate);
+
+    // ── Update project record ──────────────────────────────────────────
+    if (!String(projectId).startsWith('local-')) {
+      try {
+        await pool.query(
+          `UPDATE projects SET current_phase = 'GitHub Exported', updated_at = NOW() WHERE id = $1`,
+          [projectId]
+        );
+      } catch (dbErr) {
+        console.warn('[GITHUB EXPORT DB]', dbErr.message);
+      }
+    }
+
+    emitEngineerEvent(req, 'GITHUB_EXPORT_COMPLETE', `Repository created: ${result.repoUrl}`, 'complete', {
+      repoUrl: result.repoUrl,
+      cloneUrl: result.cloneUrl,
+      filesUploaded: result.filesUploaded,
+      secretsRedacted: secretScan.foundSecrets
+    });
+
+    res.json({
+      success: true,
+      repoUrl: result.repoUrl,
+      cloneUrl: result.cloneUrl,
+      owner: result.owner,
+      repoName: result.repoName,
+      filesUploaded: result.filesUploaded,
+      secretsRedacted: secretScan.foundSecrets,
+      secretsLog: secretScan.log
+    });
+
+  } catch (error) {
+    console.error('[GITHUB EXPORT ERR]', error.message, error.stack);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'GitHub export failed.',
+      code: 'ENGINEER_GITHUB_EXPORT_FAILED'
+    });
+  }
+});
+
+// ─── ZAIRE Sovereign Licensing & Activation API Endpoints ───────────────────
 app.post(['/api/license/validate', '/license/validate', '/api/license/activate', '/license/activate', '/api/devices/register', '/devices/register'], async (req, res) => {
   const { license_key, machine_id, machine_name, os_version } = req.body;
 
@@ -1235,6 +1944,8 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
+
+app.set('io', io);
 
 // ─── Google OAuth Setup ──────────────────────────────────────────────────────
 const CREDENTIALS_PATH = path.join(__dirname, 'client_secret.json');

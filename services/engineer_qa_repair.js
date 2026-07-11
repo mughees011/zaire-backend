@@ -1,6 +1,43 @@
-﻿const fs = require('fs-extra');
+const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
+const { execFile } = require('child_process');
+const util = require('util');
+const Diff = require('diff');
+
+const execFileAsync = util.promisify(execFile);
+
+/**
+ * Returns true if Docker is available on the host.
+ */
+async function isSandboxAvailable() {
+  try {
+    await execFileAsync('docker', ['info'], { timeout: 5000 });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function runInSandbox(workspacePath, command, args) {
+  try {
+    const dockerArgs = [
+      'run', '--rm',
+      '-v', `${workspacePath}:/app`,
+      '-w', '/app',
+      'node:20-alpine',
+      command, ...args
+    ];
+    const { stdout, stderr } = await execFileAsync('docker', dockerArgs, { timeout: 60000 });
+    return { exitCode: 0, stdout, stderr };
+  } catch (error) {
+    return { 
+      exitCode: error.code !== undefined ? error.code : 1, 
+      stdout: error.stdout || '', 
+      stderr: error.stderr || error.message || ''
+    };
+  }
+}
 
 /**
  * Runs QA checks on a project by saving files to a temporary workspace
@@ -32,12 +69,26 @@ async function qaProject(projectId, files) {
     let warningCount = 0;
     let errorCount = 0;
 
+    // ── Docker availability pre-check ─────────────────────────────────────────
+    const sandboxAvailable = await isSandboxAvailable();
+    const sandboxMode = sandboxAvailable ? 'docker' : 'none';
+    if (!sandboxAvailable) {
+      checks.push({
+        name: 'Sandbox Availability',
+        status: 'warning',
+        message: 'Docker is not available on this host. Structural checks only — live build execution skipped.'
+      });
+      warningCount += 1;
+    }
+
     checks.push({
       name: 'Project Inventory',
       status: normalizedFiles.length > 0 ? 'passed' : 'failed',
       message: `${normalizedFiles.length} files prepared for QA`
     });
     if (normalizedFiles.length > 0) passedCount += 1; else errorCount += 1;
+
+    let buildReady = projectSignals.missingCriticalFiles.length === 0;
 
     if (packageJson) {
       checks.push({
@@ -46,48 +97,66 @@ async function qaProject(projectId, files) {
         message: `package.json found with ${projectSignals.scriptCount} scripts and ${projectSignals.dependencyCount} declared dependencies`
       });
       passedCount += 1;
+
+      if (sandboxAvailable) {
+        // ── Real isolated execution via Docker ──────────────────────────────
+        const installResult = await runInSandbox(tempWorkspace, 'npm', ['install', '--ignore-scripts']);
+        checks.push({
+          name: 'Package Install',
+          status: installResult.exitCode === 0 ? 'passed' : 'failed',
+          message: installResult.exitCode === 0 ? 'Dependencies installed successfully (Docker sandbox)' : 'Failed to install dependencies',
+          details: installResult.stderr || installResult.stdout
+        });
+        if (installResult.exitCode === 0) passedCount += 1; else { errorCount += 1; buildReady = false; }
+
+        if (packageJson.scripts && packageJson.scripts.lint) {
+          const lintResult = await runInSandbox(tempWorkspace, 'npm', ['run', 'lint']);
+          checks.push({
+            name: 'Linting',
+            status: lintResult.exitCode === 0 ? 'passed' : 'failed',
+            message: lintResult.exitCode === 0 ? 'Linting passed' : 'Linting errors found',
+            details: lintResult.stdout || lintResult.stderr
+          });
+          if (lintResult.exitCode === 0) passedCount += 1; else { errorCount += 1; buildReady = false; }
+        }
+
+        if (packageJson.devDependencies && packageJson.devDependencies.typescript) {
+          const tscResult = await runInSandbox(tempWorkspace, 'npx', ['tsc', '--noEmit']);
+          checks.push({
+            name: 'TypeScript Compilation',
+            status: tscResult.exitCode === 0 ? 'passed' : 'failed',
+            message: tscResult.exitCode === 0 ? 'TypeScript compilation passed' : 'TypeScript errors found',
+            details: tscResult.stdout || tscResult.stderr
+          });
+          if (tscResult.exitCode === 0) passedCount += 1; else { errorCount += 1; buildReady = false; }
+        }
+
+        if (packageJson.scripts && packageJson.scripts.build) {
+          const buildResult = await runInSandbox(tempWorkspace, 'npm', ['run', 'build']);
+          checks.push({
+            name: 'Build',
+            status: buildResult.exitCode === 0 ? 'passed' : 'failed',
+            message: buildResult.exitCode === 0 ? 'Build successful' : 'Build failed',
+            details: buildResult.stdout || buildResult.stderr
+          });
+          if (buildResult.exitCode === 0) passedCount += 1; else { errorCount += 1; buildReady = false; }
+        }
+      } else {
+        // ── Structural checks only (no Docker) ─────────────────────────────
+        checks.push({
+          name: 'Package Install',
+          status: 'warning',
+          message: 'Skipped — Docker sandbox unavailable. Run npm install locally to verify dependencies.'
+        });
+        warningCount += 1;
+      }
     } else {
       checks.push({
         name: 'Dependency Check',
         status: 'warning',
-        message: 'No package.json found, so dependency and script checks are limited'
+        message: 'No package.json found, skipping isolated execution'
       });
       warningCount += 1;
-    }
-
-    if (projectSignals.missingCriticalFiles.length > 0) {
-      checks.push({
-        name: 'Build Surface Check',
-        status: 'warning',
-        message: `Missing critical files: ${projectSignals.missingCriticalFiles.join(', ')}`
-      });
-      warningCount += 1;
-    } else if (projectSignals.hasRecognizedAppSurface || projectSignals.hasRecognizedBackendSurface) {
-      checks.push({
-        name: 'Build Surface Check',
-        status: 'passed',
-        message: `Recognized ${projectSignals.projectType} surface is present`
-      });
-      passedCount += 1;
-    }
-
-    if (projectSignals.envReferences.length > 0) {
-      const hasEnvExample = normalizedFiles.some((file) => ['.env.example', '.env.sample'].includes(normalizeLookupPath(file.path)));
-      checks.push({
-        name: 'Environment Check',
-        status: hasEnvExample ? 'passed' : 'warning',
-        message: hasEnvExample
-          ? `Environment template found for ${projectSignals.envReferences.length} env references`
-          : `Detected env references (${projectSignals.envReferences.slice(0, 5).join(', ')}) but no .env.example template`
-      });
-      if (hasEnvExample) passedCount += 1; else warningCount += 1;
-    } else {
-      checks.push({
-        name: 'Environment Check',
-        status: 'passed',
-        message: 'No runtime environment references detected'
-      });
-      passedCount += 1;
     }
 
     if (projectSignals.placeholderFiles.length > 0) {
@@ -106,15 +175,14 @@ async function qaProject(projectId, files) {
       passedCount += 1;
     }
 
-    const buildReady = errorCount === 0 && projectSignals.missingCriticalFiles.length === 0;
-
     return {
       status: errorCount > 0 ? 'failed' : warningCount > 0 ? 'warning' : 'passed',
       passed_count: passedCount,
       warning_count: warningCount,
       error_count: errorCount,
       checks,
-      build_ready: buildReady,
+      build_ready: buildReady && errorCount === 0,
+      sandbox_mode: sandboxMode,
       project_type: projectSignals.projectType,
       detected_framework: projectSignals.detectedFramework,
       file_count: normalizedFiles.length,
@@ -131,6 +199,7 @@ async function qaProject(projectId, files) {
       passed_count: 0,
       warning_count: 0,
       error_count: 1,
+      sandbox_mode: 'error',
       checks: [{
         name: 'System Check',
         status: 'failed',
@@ -161,11 +230,25 @@ async function repairError(projectId, errorText, files) {
   const confidence = matchedFile ? 0.85 : 0.55;
   const errorCode = mapRepairCategoryToCode(category);
 
+  // Generate a unified diff (original vs. original as a placeholder —
+  // the actual content fix is expected to come from the LLM caller,
+  // which should then call applyAndVerifyRepair with the real patch text).
+  const originalContent = matchedFile?.content ? String(matchedFile.content) : '';
+  const actualDiff = matchedFile ? Diff.createTwoFilesPatch(
+    matchedFile.path,
+    matchedFile.path,
+    originalContent,
+    originalContent,
+    'Original',
+    'Repaired'
+  ) : '';
+
   const patch = {
     file: likelyFile,
     description: simpleCause,
     action: matchedFile ? 'review' : 'inspect',
-    newContent: matchedFile?.content ? String(matchedFile.content) : '',
+    newContent: originalContent,
+    actualDiff,
     evidence,
     confidence,
     code: errorCode
@@ -178,7 +261,44 @@ async function repairError(projectId, errorText, files) {
     simpleCause,
     confidence,
     evidence,
-    proposedPatch: patch
+    proposedPatch: patch,
+    actualDiff
+  };
+}
+
+/**
+ * Applies a diff to the files, keeps a snapshot, and reruns the QA loop to verify.
+ */
+async function applyAndVerifyRepair(projectId, files, diffText) {
+  const normalizedFiles = normalizeFileList(files);
+  const snapshot = JSON.parse(JSON.stringify(normalizedFiles));
+  
+  // Apply patch if diff is provided and valid
+  if (diffText && diffText.trim().length > 0) {
+    const patches = Diff.parsePatch(diffText);
+    for (const patch of patches) {
+      const targetPath = normalizeLookupPath(patch.oldFileName || patch.newFileName);
+      const fileToPatch = normalizedFiles.find(f => normalizeLookupPath(f.path) === targetPath);
+      
+      if (fileToPatch && fileToPatch.content) {
+        const patched = Diff.applyPatch(fileToPatch.content, patch);
+        if (patched !== false) {
+          fileToPatch.content = patched;
+        } else {
+          console.warn(`[ENGINEER_QA_REPAIR] Failed to apply patch cleanly to ${targetPath}`);
+        }
+      }
+    }
+  }
+
+  // Re-run QA with patched files
+  const qaResult = await qaProject(projectId, normalizedFiles);
+  
+  return {
+    fixed: qaResult.status === 'passed',
+    qaResult,
+    snapshot,
+    patchedFiles: normalizedFiles
   };
 }
 
@@ -271,6 +391,8 @@ function detectProjectSignals(files, packageJson) {
       missingCriticalFiles.push('tailwind.config.ts');
     }
   }
+  // Check for backend entry file when backend dependencies are present
+  const hasBackendDependencies = dependencyBlock.includes('express') || dependencyBlock.includes('fastify') || dependencyBlock.includes('hono');
   if (hasBackendDependencies && !hasBackendEntry) {
     missingCriticalFiles.push('backend entry file');
   }
@@ -534,9 +656,12 @@ function exportProjectZip(projectId, files, res) {
 module.exports = {
   qaProject,
   repairError,
+  applyAndVerifyRepair,
   exportProjectZip,
   materializeProject,
-  normalizeFileList
+  normalizeFileList,
+  runInSandbox,
+  isSandboxAvailable
 };
 
 

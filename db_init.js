@@ -1,4 +1,4 @@
-﻿const pool = require('./db');
+const pool = require('./db');
 
 async function initDatabase() {
   if (!process.env.DATABASE_URL) {
@@ -258,6 +258,9 @@ async function initDatabase() {
         likely_file     TEXT,
         simple_cause    TEXT,
         proposed_patch  JSONB,
+        actual_diff     TEXT,
+        pre_patch_snapshot JSONB,
+        retest_status   TEXT,
         approved        BOOLEAN DEFAULT false,
         applied         BOOLEAN DEFAULT false,
         created_at      TIMESTAMP DEFAULT NOW(),
@@ -265,6 +268,14 @@ async function initDatabase() {
         applied_at      TIMESTAMP
       );
     `);
+    
+    try {
+      await pool.query(`ALTER TABLE repair_requests ADD COLUMN IF NOT EXISTS actual_diff TEXT`);
+      await pool.query(`ALTER TABLE repair_requests ADD COLUMN IF NOT EXISTS pre_patch_snapshot JSONB`);
+      await pool.query(`ALTER TABLE repair_requests ADD COLUMN IF NOT EXISTS retest_status TEXT`);
+    } catch(e) {
+      console.warn('[DATABASE] repair_requests columns already exist or skipped');
+    }
     await enableRls('repair_requests');
     console.log('[DATABASE] ✓ repair_requests table checked.');
 
@@ -321,11 +332,32 @@ async function initDatabase() {
     await enableRls('downloads');
     console.log('[DATABASE] ✓ downloads table checked.');
 
+    // 18. Create ai_usage_log table for per-project, per-provider token accounting
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_usage_log (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id             TEXT NOT NULL,
+        project_id          UUID REFERENCES projects(id) ON DELETE CASCADE,
+        stage               TEXT,
+        provider            TEXT,
+        model               TEXT,
+        prompt_tokens       INTEGER DEFAULT 0,
+        completion_tokens   INTEGER DEFAULT 0,
+        total_tokens        INTEGER DEFAULT 0,
+        estimated_cost_usd  NUMERIC(12, 8) DEFAULT 0,
+        created_at          TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_usage_log_project_id ON ai_usage_log(project_id);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_usage_log_user_id ON ai_usage_log(user_id);`);
+    await enableRls('ai_usage_log');
+    console.log('[DATABASE] ✓ ai_usage_log table checked.');
+
     console.log('[DATABASE] Database schema migration completed successfully.');
   } catch (err) {
     console.warn('[DATABASE] Migration skipped or failed:', err.message || 'Unknown database error');
   }
 }
 
-module.exports = { initDatabase };
 
+module.exports = { initDatabase };
