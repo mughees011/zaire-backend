@@ -31,6 +31,7 @@ const {
   buildGenerationPrompts,
   buildIncrementalPlan
 } = require('./services/engineer_workflow');
+const { buildDesignBriefPrompt, enrichIntakeWithReferences } = require('./services/design_intelligence');
 const {
   qaProject,
   repairError,
@@ -1015,6 +1016,103 @@ app.post('/engineer/plan/incremental', async (req, res) => {
     res.status(500).json({ success: false, error: error.message || 'Failed to generate incremental plan.', code: 'ENGINEER_INCREMENTAL_FAILED' });
   }
 });
+
+// ─── POST /engineer/design-brief ───────────────────────────────────────────────
+// Phase 2.5: Design Intelligence Stage
+app.post('/engineer/design-brief', async (req, res) => {
+  try {
+    const { projectId, intake, userId = 'local-user' } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ success: false, error: 'Missing projectId' });
+    }
+
+    emitEngineerEvent(req, 'DESIGN_INTEL_STARTED', 'Running Design Intelligence analysis...', 'running');
+
+    // Get architecture plan
+    let plan = {};
+    if (!String(projectId).startsWith('local-')) {
+      const planRes = await pool.query(`SELECT plan_data FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+      if (planRes.rows.length) {
+        plan = planRes.rows[0].plan_data;
+      }
+    }
+
+    const fullIntake = {
+      ...intake,
+      projectType: intake?.projectType || 'saas',
+      designStyle: intake?.designStyle || plan.designStyle || 'Modern dark premium',
+      referenceSites: intake?.referenceSites || plan.referenceSites || '',
+      who: intake?.who || plan.who || 'professionals',
+      what: intake?.what || plan.summary || '',
+      projectName: intake?.projectName || plan.appName || 'project',
+      deploymentTarget: intake?.deploymentTarget || plan.deploymentTarget || 'Vercel'
+    };
+
+    emitEngineerEvent(req, 'DESIGN_INTEL_FETCH', 'Analyzing reference sites...', 'running');
+    const referenceContext = await enrichIntakeWithReferences(fullIntake);
+    const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
+
+    const resLlm = await executeLLMCallWithFailover({
+      messages: [
+        {role: "system", content: prompts.system},
+        {role: "user", content: prompts.user}
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
+
+    let brief = null;
+    try {
+      const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+      brief = JSON.parse(content);
+    } catch (parseErr) {
+      console.error('[ENGINEER DESIGN PARSE ERR]', parseErr);
+      return res.status(500).json({ success: false, error: 'Failed to parse design brief from AI.' });
+    }
+
+    if (resLlm && resLlm.usage) {
+      await logAiUsage({
+        userId,
+        projectId,
+        stage: 'design_brief',
+        provider: resLlm.provider || 'openai',
+        model: resLlm.model || 'gpt-4o',
+        usage: resLlm.usage
+      });
+    }
+
+    // Save to DB
+    if (!String(projectId).startsWith('local-')) {
+      await pool.query(
+        `INSERT INTO design_briefs
+           (project_id, competitive_analysis, visual_tokens, content_plan, motion_spec, conversion_checklist, approved)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          projectId,
+          JSON.stringify(brief.competitive_analysis || {}),
+          JSON.stringify(brief.visual_tokens || {}),
+          JSON.stringify(brief.content_plan || []),
+          JSON.stringify(brief.motion_spec || {}),
+          JSON.stringify(brief.conversion_checklist || []),
+          false // Requires explicit approval
+        ]
+      );
+      await pool.query(`UPDATE projects SET current_phase = 'Design' WHERE id = $1`, [projectId]);
+    }
+
+    emitEngineerEvent(req, 'DESIGN_INTEL_COMPLETE', 'Design brief generated.', 'complete');
+
+    res.json({
+      success: true,
+      projectId,
+      brief
+    });
+
+  } catch (error) {
+    console.error('[ENGINEER DESIGN INTEL ERR]', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Failed to generate design brief.' });
+  }
+});
 app.post('/engineer/scaffold', async (req, res) => {
   try {
     emitEngineerEvent(req, 'SCAFFOLD_STARTED', 'Initializing workspace scaffold...', 'running');
@@ -1029,10 +1127,9 @@ app.post('/engineer/scaffold', async (req, res) => {
     };
     const scaffold = buildEngineerScaffold(plan, intake, skillLevel);
 
-    // AI Injection: Multi-step Python Design Intelligence Orchestrator
+    // Phase 2.5: Native Node.js Design Intelligence
     try {
-      console.log(`[ENGINEER SCAFFOLD] Spawning ZAIRE Design Orchestrator for: ${plan.appName} | DNA-driven multi-step pipeline`);
-      // Pass FULL intake so the Python orchestrator knows designStyle, referenceSites, who, etc.
+      console.log(`[ENGINEER SCAFFOLD] Reading Design Brief for: ${plan.appName}`);
       const fullIntake = {
         ...intake,
         projectType: intake.projectType || 'saas',
@@ -1043,29 +1140,32 @@ app.post('/engineer/scaffold', async (req, res) => {
         projectName: intake.projectName || plan.appName || 'project',
         deploymentTarget: intake.deploymentTarget || plan.deploymentTarget || 'Vercel'
       };
-      const payload = JSON.stringify({ plan, intake: fullIntake });
+      
+      const projectId = req.body?.projectId;
+      let designBrief = null;
+      if (projectId && !String(projectId).startsWith('local-')) {
+        const briefRes = await pool.query(`SELECT * FROM design_briefs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+        if (briefRes.rows.length) {
+           designBrief = {
+             competitive_analysis: briefRes.rows[0].competitive_analysis,
+             visual_tokens: briefRes.rows[0].visual_tokens,
+             content_plan: briefRes.rows[0].content_plan,
+             motion_spec: briefRes.rows[0].motion_spec,
+             conversion_checklist: briefRes.rows[0].conversion_checklist
+           };
+        }
+      }
 
-      try {
-        const intelResult = await new Promise((resolve) => {
-          const { spawn } = require('child_process');
-          const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-          const child = spawn(pythonCmd, ['design_intelligence_api.py', payload], { cwd: __dirname });
-          let stdoutData = '';
-          child.stdout.on('data', (data) => { stdoutData += data.toString(); });
-          child.on('close', (code) => {
-            if (code !== 0) resolve(null);
-            else {
-              try {
-                const jsonStr = stdoutData.substring(stdoutData.indexOf('{')).trim();
-                resolve(JSON.parse(jsonStr));
-              } catch (e) { resolve(null); }
-            }
-          });
-        });
+      if (!designBrief) {
+         console.warn('[ENGINEER SCAFFOLD] No design brief found in DB. Falling back to simple default.');
+         designBrief = { 
+           visual_tokens: { primary_color: "#18181b", typography: { display: "Inter", body: "Inter" } }, 
+           content_plan: [] 
+         };
+      }
 
-        if (intelResult && intelResult.brief) {
-          console.log(`[ENGINEER SCAFFOLD] Node orchestrator retrieved DNA: ${intelResult.dna_key}`);
-          const prompts = buildGenerationPrompts(intelResult.brief, plan, fullIntake, intelResult.profile, intelResult.dna_key);
+      const briefText = "DESIGN BRIEF:\n" + JSON.stringify(designBrief, null, 2);
+      const prompts = buildGenerationPrompts(briefText, plan, fullIntake, 'Standard', 'DNA_01');
           const executeLlm = async (promptPair, label) => {
              const res = await executeLLMCallWithFailover({
                messages: [
@@ -1144,10 +1244,6 @@ app.post('/engineer/scaffold', async (req, res) => {
               scaffold.files[key].explanation = val.explanation;
             }
           }
-        }
-      } catch (aiErr) {
-        console.warn('[ENGINEER SCAFFOLD AI FAIL]', aiErr.message);
-      }
     } catch (outerAiErr) {
       console.warn('[ENGINEER SCAFFOLD OUTER AI FAIL]', outerAiErr.message);
     }
@@ -1197,7 +1293,18 @@ app.post('/engineer/qa', async (req, res) => {
     if (!projectId || !files) {
       return res.status(400).json({ success: false, error: 'Missing projectId or files', code: 'ENGINEER_QA_MISSING_PARAMS' });
     }
-    const qaResult = await qaProject(projectId, files);
+    
+    let designBrief = null;
+    if (!String(projectId).startsWith('local-')) {
+      const briefRes = await pool.query(`SELECT * FROM design_briefs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
+      if (briefRes.rows.length) {
+         designBrief = {
+           visual_tokens: briefRes.rows[0].visual_tokens
+         };
+      }
+    }
+
+    const qaResult = await qaProject(projectId, files, designBrief);
     const qaStatus = qaResult.error_count > 0 ? 'failed' : qaResult.warning_count > 0 ? 'warning' : 'passed';
     emitEngineerEvent(req, 'QA_COMPLETE', `QA complete — ${qaResult.passed_count} passed, ${qaResult.error_count} errors, ${qaResult.warning_count} warnings`, qaStatus, {
       passed_count: qaResult.passed_count,

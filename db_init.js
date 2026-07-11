@@ -1,4 +1,4 @@
-const pool = require('./db');
+﻿const pool = require('./db');
 
 async function initDatabase() {
   if (!process.env.DATABASE_URL) {
@@ -192,6 +192,25 @@ async function initDatabase() {
     console.log('[DATABASE] ✓ project_intake table checked.');
 
     // 11. Create architecture_plans table
+      // ─── Design Briefs (Phase 2.5) ──────────────────────────
+      await client.query(`
+      CREATE TABLE IF NOT EXISTS design_briefs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+        competitive_analysis JSONB,
+        visual_tokens JSONB,
+        content_plan JSONB,
+        motion_spec JSONB,
+        page_architecture JSONB,
+        image_strategy JSONB,
+        conversion_checklist JSONB,
+        approved BOOLEAN DEFAULT false,
+        approved_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      `);
+      console.log('[DATABASE] Table "design_briefs" verified.');
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS architecture_plans (
         id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
