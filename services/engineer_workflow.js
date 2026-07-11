@@ -1,3 +1,5 @@
+const { buildEngineerSupportFiles } = require('./engineer_scaffold_support');
+
 function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
     .toLowerCase()
@@ -235,6 +237,8 @@ body {
     }
   };
 
+  Object.assign(files, buildEngineerSupportFiles(plan, intake, skillLevel));
+
   if (plan.needsAuth) {
     files['middleware.ts'] = {
       content: `import { clerkMiddleware } from "@clerk/nextjs/server";\n\nexport default clerkMiddleware();\n\nexport const config = {\n  matcher: ["/((?!_next|.*\\\\..*).*)"]\n};\n`,
@@ -429,8 +433,133 @@ dist
   };
 }
 
+function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
+  const BASE_SYSTEM = `You are ZAIRE — an elite senior UI/UX engineer and world-class designer.
+You produce premium, human-crafted website code that no other AI can replicate.
+Your output is always pure code — NEVER markdown fences, NEVER explanatory text before or after the code.
+Every file you generate must feel like it was crafted by a senior designer at a world-class studio.
+You strictly follow the Design Brief and DNA Profile provided. You NEVER default to generic output.`;
+
+  return {
+    globalsCss: {
+      system: BASE_SYSTEM + `
+You are generating globals.css.
+Rules:
+- Output ONLY raw CSS. No markdown, no explanation text.
+- Define all CSS custom properties (variables) based on the exact palette and typography from the brief.
+- Include: CSS reset, body styles, custom scrollbar, ::selection, .container utility, Google Fonts @import.
+- Use real Google Fonts that match the DNA typography.
+- The result must feel like a premium design system, not a generic reset.`,
+      user: `${brief}\n\nGenerate globals.css now. Output ONLY the CSS code, starting with @import or :root.`
+    },
+    tailwindConfig: {
+      system: BASE_SYSTEM + `
+You are generating tailwind.config.ts.
+Rules:
+- Output ONLY valid TypeScript. No markdown, no explanation.
+- Use \`type { Config } from 'tailwindcss'\`.
+- Extend theme with: custom colors (from the DNA palette), custom fontFamily (from DNA typography), custom keyframes and animation (fadeUp, fadeIn, gradient-shift), custom screens (xs: 375px).
+- Do not use placeholder values — all colors must be real hex values from the design brief.
+- Use \`require('@tailwindcss/typography')\` and \`require('@tailwindcss/forms')\` in plugins array.`,
+      user: `${brief}\n\nGenerate tailwind.config.ts now. Output ONLY the TypeScript code.`
+    },
+    layoutTsx: {
+      system: BASE_SYSTEM + `
+You are generating app/layout.tsx for Next.js 14 App Router.
+Rules:
+- Output ONLY valid TypeScript JSX. No markdown, no explanation.
+- Import the Google Fonts that match the DNA (use 'next/font/google').
+- Include complete OpenGraph and Twitter card metadata.
+- The body tag must apply the font variable classes.
+- Include a <link rel="preconnect"> to fonts.googleapis.com.
+- Include './globals.css' import.
+- The layout must use \`suppressHydrationWarning\` on the html tag.`,
+      user: `${brief}\n\nApp Name: ${plan.appName || intake.projectName || 'Project'}\nDescription: ${intake.what || plan.summary || ''}\nDeployment URL: https://${(plan.appName || intake.projectName || 'project').toLowerCase().replace(/ /g, '-')}.vercel.app\n\nGenerate app/layout.tsx now. Output ONLY the code starting with imports.`
+    },
+    pageTsx: {
+      system: BASE_SYSTEM + `
+You are generating app/page.tsx — the full landing page of the website.
+This is the most important file. It must be STUNNING and feel like a world-class design studio built it.
+
+CRITICAL RULES:
+- Output ONLY valid TSX code. No markdown fences. No text before or after. Start with 'use client'; or imports.
+- Use Tailwind CSS classes exclusively for styling. Inline styles only for CSS variables.
+- Write ALL copy contextually — based on the app name, description, and target user. NEVER lorem ipsum.
+- Include a complete, functional Navbar with logo and navigation links.
+- Include ALL sections in this order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
+- Every section must be fully implemented — no placeholder comments like "// add content here".
+- Use real data — fake but believable testimonials, feature descriptions, pricing tiers (if SaaS).
+- Apply all DNA rules: spacing, border-radius, animation easing, hover states.
+- Every button must have hover and focus states.
+- Images: use placeholder images via \`https://images.unsplash.com\` with relevant search terms.
+- The page must be mobile responsive (use Tailwind responsive classes: sm:, md:, lg:).
+
+DNA AESTHETIC: ${dnaKey}
+Hero Pattern: ${profile.hero_pattern || ''}
+Layout Pattern: ${profile.layout_pattern || ''}`,
+      user: `${brief}\n\nApp Name: ${plan.appName || intake.projectName || 'Project'}\nDescription: ${intake.what || plan.summary || ''}\nTarget User: ${intake.who || 'professionals'}\n\nGenerate the complete app/page.tsx now. Output ONLY the code.`
+    },
+    selfReview: {
+      system: BASE_SYSTEM + `
+You are performing a quality review of generated code.
+Review the provided app/page.tsx against the Anti-Patterns listed in the brief.
+If you find ANY of these issues:
+  - Lorem ipsum text
+  - Equal-sized feature card grid (all cards same size)
+  - Missing hover states on buttons
+  - Hardcoded secrets
+  - No mobile responsiveness
+  - Less than 5 complete sections
+
+Fix them and return the COMPLETE corrected file.
+If no issues are found, return the file unchanged.
+Output ONLY the raw TSX code. No markdown, no explanation.`,
+      user: (pageContent) => `${brief}\n\nCURRENT app/page.tsx:\n${pageContent.substring(0, 4000)}\n\nReview and return the corrected (or unchanged) complete file.`
+    }
+  };
+}
+
+/**
+ * Builds an LLM prompt pair for generating an incremental architecture update.
+ * @param {Object} existingPlan - The current parsed architecture plan
+ * @param {string} featureRequest - The user's new feature request text
+ * @returns {{system: string, user: string}}
+ */
+function buildIncrementalPlan(existingPlan, featureRequest) {
+  const systemPrompt = `You are an expert AI software architect.
+Your task is to analyze an existing project's architecture plan and a new feature request, and produce an INCREMENTAL update to the architecture.
+
+Return ONLY a JSON object with the following structure (no markdown fences, no explanations):
+{
+  "newFiles": [
+    { "path": "app/new-feature/page.tsx", "purpose": "Description of what this does" }
+  ],
+  "modifiedFiles": [
+    { "path": "app/layout.tsx", "purpose": "Added link to new feature" }
+  ],
+  "removedFiles": [],
+  "changedComponents": [
+    { "name": "Database", "change": "Added new table for feature" }
+  ],
+  "updatedSummary": "A brief summary of how the architecture changed."
+}
+Make sure your JSON is strictly valid and parseable.`;
+
+  const userPrompt = `EXISTING ARCHITECTURE PLAN:
+${JSON.stringify(existingPlan, null, 2)}
+
+NEW FEATURE REQUEST:
+${featureRequest}
+
+Generate the JSON changeset detailing the architectural modifications required to implement this feature.`;
+
+  return { system: systemPrompt, user: userPrompt };
+}
+
 module.exports = {
   buildEngineerPlan,
-  buildEngineerScaffold
+  buildEngineerScaffold,
+  buildGenerationPrompts,
+  buildIncrementalPlan
 };
 

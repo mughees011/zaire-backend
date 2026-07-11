@@ -1,0 +1,193 @@
+const skillLevelLabel = (skillLevel) => (skillLevel === 'BEGINNER' ? 'Beginner-friendly' : 'Professional');
+
+function buildEngineerSupportFiles(plan, intake = {}, skillLevel = 'PROFESSIONAL') {
+  const planData = {
+    appName: plan.appName,
+    normalizedName: plan.normalizedName,
+    summary: plan.summary,
+    stack: plan.stack || [],
+    pages: plan.pages || [],
+    components: plan.components || [],
+    apiRoutes: plan.apiRoutes || [],
+    databaseSchema: plan.databaseSchema || [],
+    authFlow: plan.authFlow || '',
+    paymentFlow: plan.paymentFlow || '',
+    envVars: plan.envVars || [],
+    risks: plan.risks || [],
+    assumptions: plan.assumptions || [],
+    workflowPhases: plan.workflowPhases || [],
+    buildChecklist: plan.buildChecklist || [],
+    deploymentPlan: plan.deploymentPlan || []
+  };
+
+  const planJson = JSON.stringify(planData, null, 2);
+  const navLinksJson = JSON.stringify([
+    { href: '/', label: 'Home' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/architecture', label: 'Architecture' },
+    { href: '/build', label: 'Build' },
+    { href: '/qa', label: 'QA' },
+    { href: '/deploy', label: 'Deploy' }
+  ], null, 2);
+  const modeLabel = skillLevelLabel(skillLevel);
+
+  return {
+    'lib/engineer-plan.ts': {
+      content: `export const engineerPlan = ${planJson} as const;\n`,
+      explanation: {
+        what: 'A single source of truth for the generated engineer project.',
+        why: 'Pages and components can read the same plan data without duplication.',
+        edit: 'Update this only if the generated architecture changes.',
+        protect: 'Keep the object shape aligned with the generated routes and components.'
+      }
+    },
+    'components/ShellFrame.tsx': {
+      content: `import type { ReactNode } from 'react';\n\nexport function ShellFrame({ eyebrow, title, subtitle, children }: {\n  eyebrow?: string;\n  title: string;\n  subtitle?: string;\n  children: ReactNode;\n}) {\n  return (\n    <div className=\"min-h-screen bg-[#050505] text-white\">\n      <div className=\"mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-6 py-6\">\n        <header className=\"rounded-[24px] border border-white/10 bg-white/5 px-6 py-5 backdrop-blur\">\n          {eyebrow ? <p className=\"text-[11px] uppercase tracking-[0.24em] text-zinc-500\">{eyebrow}</p> : null}\n          <h1 className=\"mt-2 text-2xl font-semibold tracking-tight\">{title}</h1>\n          {subtitle ? <p className=\"mt-2 max-w-3xl text-sm leading-6 text-zinc-400\">{subtitle}</p> : null}\n        </header>\n        <div className=\"flex-1\">{children}</div>\n      </div>\n    </div>\n  );\n}\n`,
+      explanation: {
+        what: 'A reusable shell for engineer workspace screens.',
+        why: 'It keeps the generated routes visually aligned and avoids repeating layout chrome.',
+        edit: 'You can tune spacing, border treatments, and shell hierarchy here.',
+        protect: 'Keep the prop contract stable for the generated pages.'
+      }
+    },
+    'components/MetricTile.tsx': {
+      content: `export function MetricTile({ label, value, detail }: { label: string; value: string; detail: string }) {\n  return (\n    <div className=\"rounded-[18px] border border-white/10 bg-white/[0.04] p-4\">\n      <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">{label}</div>\n      <div className=\"mt-3 text-2xl font-semibold text-white\">{value}</div>\n      <div className=\"mt-2 text-sm leading-6 text-zinc-400\">{detail}</div>\n    </div>\n  );\n}\n`,
+      explanation: {
+        what: 'A compact metric card for dashboards and summary panels.',
+        why: 'Engineer Mode needs dense but readable status blocks.',
+        edit: 'Adjust typography or spacing to fit project-wide density.',
+        protect: 'Keep the label, value, and detail hierarchy intact.'
+      }
+    },
+    'components/WorkflowRibbon.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\n\nexport function WorkflowRibbon() {\n  return (\n    <div className=\"grid gap-3 md:grid-cols-3 xl:grid-cols-9\">\n      {engineerPlan.workflowPhases.map((phase, index) => (\n        <div key={phase.phase} className=\"rounded-[18px] border border-white/10 bg-white/[0.04] p-4\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Step {index + 1}</div>\n          <div className=\"mt-2 text-sm font-semibold text-white\">{phase.phase}</div>\n          <div className=\"mt-2 text-xs leading-5 text-zinc-400\">{phase.purpose}</div>\n        </div>\n      ))}\n    </div>\n  );\n}\n`,
+      explanation: {
+        what: 'A visual guide for the nine-step engineer workflow.',
+        why: 'The launch docs require visible phase tracking, not hidden automation.',
+        edit: 'You can change the card density or phase styling here.',
+        protect: 'Keep the phase order aligned with the workflow plan.'
+      }
+    },
+    'components/PlanSummary.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\n\nexport function PlanSummary() {\n  return (\n    <div className=\"grid gap-4 lg:grid-cols-2\">\n      <section className=\"rounded-[18px] border border-white/10 bg-white/[0.04] p-5\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Stack</div>\n        <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n          {engineerPlan.stack.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n      <section className=\"rounded-[18px] border border-white/10 bg-white/[0.04] p-5\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Pages</div>\n        <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n          {engineerPlan.pages.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n    </div>\n  );\n}\n`,
+      explanation: {
+        what: 'A compact summary view for the generated architecture.',
+        why: 'It gives the engineer workspace a quick reference for scope and surfaces.',
+        edit: 'You can expand this into richer plan cards as the product grows.',
+        protect: 'Keep it data-driven from the shared engineer plan.'
+      }
+    },
+    'app/(workspace)/layout.tsx': {
+      content: `import type { ReactNode } from 'react';\nimport Link from 'next/link';\nimport { ShellFrame } from '@/components/ShellFrame';\nimport { engineerPlan } from '@/lib/engineer-plan';\n\nconst navLinks = ${navLinksJson};\n\nexport default function WorkspaceLayout({ children }: { children: ReactNode }) {\n  return (\n    <ShellFrame eyebrow=\"Engineer Workspace\" title={engineerPlan.appName} subtitle={engineerPlan.summary}>\n      <div className=\"mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3\">\n        <div>\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Workspace Navigation</div>\n          <div className=\"mt-1 text-sm text-zinc-300\">${modeLabel} scaffold ready for architecture, build, QA, and deployment.</div>\n        </div>\n        <nav className=\"flex flex-wrap gap-2\">\n          {navLinks.map((item) => (\n            <Link key={item.href} href={item.href} className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-[rgba(0,212,255,0.6)] hover:text-white\">\n              {item.label}\n            </Link>\n          ))}\n        </nav>\n      </div>\n      {children}\n    </ShellFrame>\n  );\n}\n`,
+      explanation: {
+        what: 'Shared workspace chrome for all engineer subpages.',
+        why: 'It makes the generated app feel like a real product instead of a one-off page.',
+        edit: 'Add more navigation surfaces as the workspace grows.',
+        protect: 'Keep the shell and nav contract intact across workspace pages.'
+      }
+    },
+    'app/(workspace)/dashboard/page.tsx': {
+      content: `import Link from 'next/link';\nimport { engineerPlan } from '@/lib/engineer-plan';\nimport { MetricTile } from '@/components/MetricTile';\nimport { WorkflowRibbon } from '@/components/WorkflowRibbon';\n\nexport default function DashboardPage() {\n  return (\n    <main className=\"space-y-6\">\n      <section className=\"grid gap-4 lg:grid-cols-[1.35fr,0.65fr]\">\n        <div className=\"rounded-[22px] border border-white/10 bg-gradient-to-br from-white/8 to-white/[0.03] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.22em] text-zinc-500\">Execution Dashboard</div>\n          <h2 className=\"mt-3 text-3xl font-semibold tracking-tight\">{engineerPlan.appName}</h2>\n          <p className=\"mt-3 max-w-3xl text-sm leading-6 text-zinc-400\">{engineerPlan.summary}</p>\n          <div className=\"mt-5 flex flex-wrap gap-3\">\n            <Link href=\"/architecture\" className=\"rounded-full bg-[rgba(0,212,255,0.16)] px-4 py-2 text-sm font-medium text-cyan-200\">Review architecture</Link>\n            <Link href=\"/build\" className=\"rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-zinc-200\">Inspect build surface</Link>\n          </div>\n        </div>\n        <div className=\"grid gap-4\">\n          <MetricTile label=\"Pages\" value={String(engineerPlan.pages.length)} detail=\"Routes planned for launch.\" />\n          <MetricTile label=\"Components\" value={String(engineerPlan.components.length)} detail=\"Shared building blocks in the scaffold.\" />\n        </div>\n      </section>\n      <WorkflowRibbon />\n      <section className=\"grid gap-4 lg:grid-cols-2\">\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Checklist</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.buildChecklist.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Deployment</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.deploymentPlan.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'A real dashboard entry point for the generated workspace.',
+        why: 'It turns the scaffold into a navigable engineer surface with visible structure.',
+        edit: 'Add live data panels, logs, or project status cards as needed.',
+        protect: 'Keep the dashboard route connected to the shared engineer plan.'
+      }
+    },
+    'app/(workspace)/architecture/page.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\nimport { PlanSummary } from '@/components/PlanSummary';\nimport { WorkflowRibbon } from '@/components/WorkflowRibbon';\nimport { MetricTile } from '@/components/MetricTile';\n\nexport default function ArchitecturePage() {\n  return (\n    <main className=\"space-y-6\">\n      <section className=\"grid gap-4 md:grid-cols-3\">\n        <MetricTile label=\"API routes\" value={String(engineerPlan.apiRoutes.length)} detail=\"Engineer route surfaces to implement.\" />\n        <MetricTile label=\"Env vars\" value={String(engineerPlan.envVars.length)} detail=\"Runtime values required before deploy.\" />\n        <MetricTile label=\"Risks\" value={String(engineerPlan.risks.length)} detail=\"Known tradeoffs that need attention.\" />\n      </section>\n      <PlanSummary />\n      <WorkflowRibbon />\n      <section className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Assumptions</div>\n        <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n          {engineerPlan.assumptions.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'The architecture review surface for the project.',
+        why: 'Engineer Mode must show the plan before build work starts.',
+        edit: 'Add more decision detail, diagrams, or tradeoff notes here.',
+        protect: 'Keep the architecture route aligned with the approved plan data.'
+      }
+    },
+    'app/(workspace)/build/page.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\nimport { MetricTile } from '@/components/MetricTile';\n\nexport default function BuildPage() {\n  return (\n    <main className=\"space-y-6\">\n      <section className=\"grid gap-4 md:grid-cols-3\">\n        <MetricTile label=\"Components\" value={String(engineerPlan.components.length)} detail=\"Shared UI blocks available in the scaffold.\" />\n        <MetricTile label=\"Pages\" value={String(engineerPlan.pages.length)} detail=\"User-facing routes planned for launch.\" />\n        <MetricTile label=\"Checklist items\" value={String(engineerPlan.buildChecklist.length)} detail=\"Build-gating steps to finish before deploy.\" />\n      </section>\n      <section className=\"grid gap-4 lg:grid-cols-2\">\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Components</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.components.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">API routes</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.apiRoutes.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n      </section>\n      <section className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Environment variables</div>\n        <ul className=\"mt-4 grid gap-2 text-sm text-zinc-300 md:grid-cols-2\">\n          {engineerPlan.envVars.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'The build inspection surface for the generated project.',
+        why: 'It shows the actual work items that need implementation.',
+        edit: 'You can extend this page into a live build timeline or file browser.',
+        protect: 'Keep it linked to the generated stack, routes, and env requirements.'
+      }
+    },
+    'app/(workspace)/qa/page.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\n\nexport default function QaPage() {\n  return (\n    <main className=\"space-y-6\">\n      <section className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">QA checklist</div>\n        <div className=\"mt-4 grid gap-3 md:grid-cols-2\">\n          {engineerPlan.buildChecklist.map((item) => (\n            <div key={item} className=\"rounded-[18px] border border-white/10 bg-black/20 p-4 text-sm text-zinc-300\">\n              <div className=\"text-[11px] uppercase tracking-[0.18em] text-zinc-500\">Queued check</div>\n              <div className=\"mt-2\">{item}</div>\n            </div>\n          ))}\n        </div>\n      </section>\n      <section className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Known risks</div>\n        <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n          {engineerPlan.risks.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'The QA and risk review surface for the generated project.',
+        why: 'It keeps the scaffold honest about what still needs validation.',
+        edit: 'Add live test results or lint output here as the pipeline matures.',
+        protect: 'Keep the checklist tied to the approved plan and deployment rules.'
+      }
+    },
+    'app/(workspace)/deploy/page.tsx': {
+      content: `import { engineerPlan } from '@/lib/engineer-plan';\n\nexport default function DeployPage() {\n  return (\n    <main className=\"space-y-6\">\n      <section className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n        <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Deployment plan</div>\n        <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n          {engineerPlan.deploymentPlan.map((item) => <li key={item}>? {item}</li>)}\n        </ul>\n      </section>\n      <section className=\"grid gap-4 lg:grid-cols-2\">\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Env vars</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.envVars.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n        <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n          <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Checklist</div>\n          <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n            {engineerPlan.buildChecklist.map((item) => <li key={item}>? {item}</li>)}\n          </ul>\n        </div>\n      </section>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'The launch readiness surface for the project.',
+        why: 'Engineer Mode has to show what deployment still needs before shipping.',
+        edit: 'Add host-specific deploy steps or release gates as needed.',
+        protect: 'Keep the deploy checklist tied to the selected stack and platform.'
+      }
+    },
+    'app/api/engineer/plan/route.ts': {
+      content: `import { NextResponse } from 'next/server';\nimport { engineerPlan } from '@/lib/engineer-plan';\n\nexport async function GET() {\n  return NextResponse.json({ success: true, plan: engineerPlan });\n}\n`,
+      explanation: {
+        what: 'Returns the generated architecture plan.',
+        why: 'The workspace can inspect the same plan data that drives the UI.',
+        edit: 'Add authentication or persistence if the route becomes user-specific.',
+        protect: 'Keep the payload aligned with the generated plan object.'
+      }
+    },
+    'app/api/engineer/scaffold/route.ts': {
+      content: `import { NextResponse } from 'next/server';\nimport { engineerPlan } from '@/lib/engineer-plan';\n\nexport async function GET() {\n  return NextResponse.json({\n    success: true,\n    fileTree: [\n      'app/layout.tsx',\n      'app/page.tsx',\n      'app/(workspace)/layout.tsx',\n      'app/(workspace)/dashboard/page.tsx',\n      'app/(workspace)/architecture/page.tsx',\n      'app/(workspace)/build/page.tsx',\n      'app/(workspace)/qa/page.tsx',\n      'app/(workspace)/deploy/page.tsx'\n    ],\n    components: engineerPlan.components,\n    pages: engineerPlan.pages,\n    apiRoutes: engineerPlan.apiRoutes\n  });\n}\n`,
+      explanation: {
+        what: 'Describes the generated scaffold structure.',
+        why: 'QA and the UI can use it to understand the available project surface.',
+        edit: 'Expand the payload when more generated folders are added.',
+        protect: 'Keep the structure in sync with the real scaffold files.'
+      }
+    },
+    'app/api/engineer/qa/route.ts': {
+      content: `import { NextResponse } from 'next/server';\nimport { engineerPlan } from '@/lib/engineer-plan';\n\nexport async function GET() {\n  return NextResponse.json({\n    success: true,\n    checks: [\n      { name: 'Dependency check', status: 'passed' },\n      { name: 'Build check', status: 'passed' },\n      { name: 'Lint check', status: 'warning' }\n    ],\n    checklist: engineerPlan.buildChecklist\n  });\n}\n`,
+      explanation: {
+        what: 'Provides a visible QA contract for the scaffold.',
+        why: 'The engine should expose its verification rules in a concrete route.',
+        edit: 'Swap the static checks with live test output when execution is wired in.',
+        protect: 'Keep the check names stable if the UI depends on them.'
+      }
+    },
+    'app/api/engineer/repair/route.ts': {
+      content: `import { NextResponse } from 'next/server';\n\nexport async function POST() {\n  return NextResponse.json({\n    success: true,\n    status: 'repair-ready',\n    message: 'Paste a build error to classify the likely file and patch surface.'\n  });\n}\n`,
+      explanation: {
+        what: 'A visible repair entry point for error triage.',
+        why: 'The scaffold should show where repair requests are expected to land.',
+        edit: 'Connect this route to real diff generation when the backend is ready.',
+        protect: 'Keep the response format stable for the Engineer Mode UI.'
+      }
+    },
+    'app/api/engineer/export/route.ts': {
+      content: `import { NextResponse } from 'next/server';\n\nexport async function GET() {\n  return NextResponse.json({ success: true, status: 'export-ready' });\n}\n`,
+      explanation: {
+        what: 'Signals export readiness for the generated project.',
+        why: 'Engineer Mode needs a handoff surface for packaging or download flows.',
+        edit: 'Replace the static status with a real export implementation later.',
+        protect: 'Keep the route in place while the export workflow is simulated or wired in.'
+      }
+    },
+    'app/page.tsx': {
+      content: `import Link from 'next/link';\nimport { engineerPlan } from '@/lib/engineer-plan';\nimport { MetricTile } from '@/components/MetricTile';\nimport { WorkflowRibbon } from '@/components/WorkflowRibbon';\n\nexport default function Page() {\n  return (\n    <main className=\"min-h-screen bg-[#050505] text-white\">\n      <div className=\"mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-6 py-8\">\n        <section className=\"rounded-[28px] border border-white/10 bg-white/[0.04] p-6 md:p-8\">\n          <div className=\"text-[11px] uppercase tracking-[0.24em] text-zinc-500\">ZAIRE Engineer Mode</div>\n          <h1 className=\"mt-4 max-w-4xl text-4xl font-semibold tracking-tight md:text-6xl\">{engineerPlan.appName}</h1>\n          <p className=\"mt-4 max-w-3xl text-base leading-7 text-zinc-400\">{engineerPlan.summary}</p>\n          <div className=\"mt-6 flex flex-wrap gap-3\">\n            <Link href=\"/dashboard\" className=\"rounded-full bg-[rgba(0,212,255,0.16)] px-5 py-2.5 text-sm font-medium text-cyan-200 transition hover:bg-[rgba(0,212,255,0.24)]\">Open dashboard</Link>\n            <Link href=\"/architecture\" className=\"rounded-full border border-white/10 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-[rgba(0,212,255,0.55)] hover:text-white\">Review architecture</Link>\n          </div>\n        </section>\n\n        <section className=\"grid gap-4 md:grid-cols-2 xl:grid-cols-4\">\n          <MetricTile label=\"Workflow phases\" value={String(engineerPlan.workflowPhases.length)} detail=\"The full build, review, and deploy path.\" />\n          <MetricTile label=\"Pages\" value={String(engineerPlan.pages.length)} detail=\"Launch routes defined by the plan.\" />\n          <MetricTile label=\"Components\" value={String(engineerPlan.components.length)} detail=\"Reusable UI blocks in the scaffold.\" />\n          <MetricTile label=\"Env vars\" value={String(engineerPlan.envVars.length)} detail=\"Deployment inputs to wire before launch.\" />\n        </section>\n\n        <WorkflowRibbon />\n\n        <section className=\"grid gap-4 lg:grid-cols-2\">\n          <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n            <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Checklist</div>\n            <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n              {engineerPlan.buildChecklist.map((item) => <li key={item}>? {item}</li>)}\n            </ul>\n          </div>\n          <div className=\"rounded-[22px] border border-white/10 bg-white/[0.04] p-6\">\n            <div className=\"text-[11px] uppercase tracking-[0.2em] text-zinc-500\">Risk notes</div>\n            <ul className=\"mt-4 space-y-2 text-sm text-zinc-300\">\n              {engineerPlan.risks.map((item) => <li key={item}>? {item}</li>)}\n            </ul>\n          </div>\n        </section>\n      </div>\n    </main>\n  );\n}\n`,
+      explanation: {
+        what: 'A real landing surface for the generated engineer project.',
+        why: 'The root page should show that the scaffold has an actual product structure.',
+        edit: 'You can expand the hero, sections, and navigation as the project matures.',
+        protect: 'Keep the links and plan-driven metrics intact so the scaffold stays coherent.'
+      }
+    }
+  };
+}
+
+module.exports = {
+  buildEngineerSupportFiles
+};
