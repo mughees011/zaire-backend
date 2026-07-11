@@ -111,6 +111,18 @@ You must produce a JSON object exactly matching this schema:
     "allowed_effects": ["string"],
     "forbidden_effects": ["string"]
   },
+  "page_architecture": {
+    "pages": [
+      { "name": "string", "job": "string", "is_section_of": "string or null", "priority": "number" }
+    ]
+  },
+  "image_strategy": {
+    "hero_role": "string",
+    "product_role": "string",
+    "human_role": "string",
+    "abstract_role": "string",
+    "forbidden_imagery": ["string"]
+  },
   "conversion_checklist": ["string"]
 }
 
