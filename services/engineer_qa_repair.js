@@ -56,7 +56,9 @@ async function qaProject(projectId, files, designBrief = null) {
     for (const file of normalizedFiles) {
       if (!file.path || file.content === undefined || file.content === null) continue;
       const safeRelativePath = assertSafeRelativePath(file.path);
-      const fullPath = path.resolve(tempWorkspace, safeRelativePath);
+      // Split on '/' so path.join receives individual segments — avoids Windows treating
+      // the whole POSIX string as a single flat folder name (e.g. "api\\engineer" bug).
+      const fullPath = path.join(tempWorkspace, ...safeRelativePath.split('/'));
       if (!isInsideDirectory(fullPath, path.resolve(tempWorkspace))) {
         throw new Error(`QA file escaped workspace: ${file.path}`);
       }
@@ -618,7 +620,9 @@ async function materializeProject(projectName, files) {
   for (const file of normalizedFiles) {
     if (!file.path || file.content === undefined || file.content === null) continue;
     const safeRelativePath = assertSafeRelativePath(file.path);
-    const fullPath = path.resolve(outputDir, safeRelativePath);
+    // Split on '/' so path.join receives individual segments — avoids Windows treating
+    // the whole POSIX string as a single flat folder name (e.g. "api\\engineer" bug).
+    const fullPath = path.join(outputDir, ...safeRelativePath.split('/'));
     if (!isInsideDirectory(fullPath, resolvedOutputDir)) {
       throw new Error(`Generated file escaped project folder: ${file.path}`);
     }
