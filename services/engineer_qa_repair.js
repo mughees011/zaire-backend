@@ -1,4 +1,4 @@
-﻿const fs = require('fs-extra');
+const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
 const { execFile } = require('child_process');
@@ -591,8 +591,8 @@ function isInsideDirectory(childPath, parentPath) {
 }
 
 function assertSafeRelativePath(filePath) {
-  const normalized = path.normalize(String(filePath || '')).replace(/^([/\\])+/, '');
-  if (!normalized || normalized.startsWith('..') || path.isAbsolute(normalized)) {
+  const normalized = path.posix.normalize(String(filePath || '').replace(/\\/g, '/')).replace(/^\/+/, '');
+  if (!normalized || normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
     throw new Error(`Unsafe generated file path: ${filePath}`);
   }
   return normalized;

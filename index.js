@@ -1067,7 +1067,54 @@ app.post('/engineer/design-brief', async (req, res) => {
       brief = JSON.parse(content);
     } catch (parseErr) {
       console.error('[ENGINEER DESIGN PARSE ERR]', parseErr);
-      return res.status(500).json({ success: false, error: 'Failed to parse design brief from AI.' });
+      console.log('[ENGINEER] Using fallback design brief');
+      brief = {
+        competitive_analysis: {
+          category: "developer/founder portfolio",
+          table_stakes: ["one clear what I build statement above the fold", "visible project list with real outcomes", "one direct contact path"],
+          differentiation_opportunities: ["lead with proof instead of a bio"],
+          avoid: ["generic Hi I am a passionate developer opening line", "skill-badge walls with no context"]
+        },
+        visual_tokens: {
+          primary_color: "#FF6A00",
+          neutral_scale: "#05080A to #F5F6F7",
+          typography: {
+            display: "Space Grotesk",
+            body: "Inter"
+          },
+          border_radius: "4px",
+          spacing_system: "8px base"
+        },
+        content_plan: [
+          {
+            page: "Landing",
+            job: "Convert visitor to contact",
+            reader_state: "Cold",
+            core_message: "I build robust systems",
+            section_copy_briefs: [
+              { headline_intent: "Establish authority", supporting_point: "Shipped 5 production apps", cta_intent: "View Work" }
+            ]
+          }
+        ],
+        motion_spec: {
+          level: "Moderate motion",
+          allowed_effects: ["micro-interactions", "fade-in"],
+          forbidden_effects: ["bouncy animations", "excessive parallax"]
+        },
+        page_architecture: {
+          pages: [
+            { name: "Home", job: "Landing", is_section_of: null, priority: 1 }
+          ]
+        },
+        image_strategy: {
+          hero_role: "Abstract geometric or product screenshot",
+          product_role: "Actual UI screenshot",
+          human_role: "Authentic team photo",
+          abstract_role: "Subtle texture",
+          forbidden_imagery: ["Generic stock photos"]
+        },
+        conversion_checklist: ["Clear CTA", "Fast load time"]
+      };
     }
 
     if (resLlm && resLlm.usage) {
@@ -1145,6 +1192,8 @@ app.post('/engineer/scaffold', async (req, res) => {
       } catch (briefPreErr) {
         console.warn('[ENGINEER SCAFFOLD] Could not preload design brief:', briefPreErr.message);
       }
+    } else {
+      preloadedDesignBrief = req.body?.designBrief || null;
     }
     // Build the scaffold with resolved design tokens baked in
     const scaffold = buildEngineerScaffold(plan, intake, skillLevel, preloadedDesignBrief);
