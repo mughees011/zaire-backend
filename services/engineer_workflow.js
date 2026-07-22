@@ -160,6 +160,279 @@ function buildEngineerPlan(intake = {}) {
   };
 }
 
+function buildPageContent(plan, intake, appTitle, productDescription, bg, text, primary, displayFont, bodyFont, isLight) {
+  const pt = (intake.projectType || plan.projectTypeLabel || 'custom').toLowerCase();
+  const name = safeDisplayText(intake.projectName || plan.appName, 'Project');
+  const who = safeDisplayText(intake.who, 'users');
+  const what = safeDisplayText(intake.what || plan.summary, '');
+  const textMuted = isLight ? '#6b7280' : '#9ca3af';
+  const border = isLight ? '#e5e7eb' : '#27272a';
+  const surface = isLight ? '#f3f4f6' : '#111111';
+  const primaryHover = isLight ? '#4f46e5' : '#c4b5fd';
+
+  if (pt === 'portfolio') {
+    return `'use client';
+import { useState, useEffect } from 'react';
+
+const projects = [
+  { title: 'Project One', desc: 'A full-stack web application built with modern technologies.', tags: ['React', 'Node.js', 'PostgreSQL'], link: '#' },
+  { title: 'Project Two', desc: 'A sleek mobile-first design system and component library.', tags: ['TypeScript', 'Tailwind', 'Figma'], link: '#' },
+  { title: 'Project Three', desc: 'An AI-powered tool that automates complex workflows.', tags: ['Python', 'OpenAI', 'FastAPI'], link: '#' },
+  { title: 'Project Four', desc: 'An e-commerce platform with real-time inventory and payments.', tags: ['Next.js', 'Stripe', 'Prisma'], link: '#' },
+  { title: 'Project Five', desc: 'A data visualization dashboard for analytics teams.', tags: ['D3.js', 'React', 'REST API'], link: '#' },
+  { title: 'Project Six', desc: 'A real-time collaboration tool with live cursors and comments.', tags: ['WebSockets', 'Redis', 'React'], link: '#' },
+];
+
+const skills = [
+  { name: 'Frontend', items: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'Framer Motion'] },
+  { name: 'Backend', items: ['Node.js', 'Python', 'PostgreSQL', 'Redis', 'REST & GraphQL'] },
+  { name: 'Design', items: ['Figma', 'UI/UX Design', 'Design Systems', 'Prototyping', 'Responsive Design'] },
+  { name: 'DevOps', items: ['Docker', 'Vercel', 'AWS', 'CI/CD', 'Git'] },
+];
+
+export default function Page() {
+  const [scrolled, setScrolled] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('All');
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', handler);
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
+  return (
+    <main style={{ background: '${bg}', color: '${text}', fontFamily: "'${bodyFont}', system-ui, sans-serif", minHeight: '100vh' }}>
+      {/* NAVBAR */}
+      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled ? '${isLight ? 'rgba(250,250,250,0.85)' : 'rgba(10,10,10,0.85)'}' : 'transparent', backdropFilter: scrolled ? 'blur(12px)' : 'none', borderBottom: scrolled ? '1px solid ${border}' : '1px solid transparent', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s ease' }}>
+        <a href="#" style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.5rem', fontWeight: 700, color: '${primary}', textDecoration: 'none', letterSpacing: '-0.02em' }}>${name}</a>
+        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+          {['About', 'Projects', 'Skills', 'Contact'].map(link => (
+            <a key={link} href={\`#\${link.toLowerCase()}\`} style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.875rem', letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '${primary)'} onMouseLeave={e => (e.currentTarget.style.color = '${textMuted}')}>
+              {link}
+            </a>
+          ))}
+          <a href="#contact" style={{ background: '${primary}', color: '#fff', padding: '8px 20px', borderRadius: '999px', fontSize: '0.875rem', textDecoration: 'none', fontWeight: 500, transition: 'opacity 0.2s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')} onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+            Hire Me
+          </a>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <section style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', padding: '120px 32px 80px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '800px' }}>
+          <p style={{ color: '${primary}', fontSize: '0.875rem', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '24px', fontWeight: 500 }}>Hello, World</p>
+          <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(3rem, 7vw, 6rem)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.03em', marginBottom: '24px' }}>
+            ${what ? what.split(' ').slice(0, 6).join(' ') : `I design and build things for the web`}
+          </h1>
+          <p style={{ fontSize: '1.125rem', lineHeight: 1.75, color: '${textMuted}', maxWidth: '560px', marginBottom: '40px' }}>
+            ${productDescription || `Creative developer crafting premium digital experiences. Available for freelance work.`}
+          </p>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <a href="#projects" style={{ background: '${primary}', color: '#fff', padding: '14px 32px', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '0.9375rem', transition: 'transform 0.2s, opacity 0.2s' }} onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}>
+              View My Work
+            </a>
+            <a href="#contact" style={{ border: '1px solid ${border}', color: '${text}', padding: '14px 32px', borderRadius: '999px', textDecoration: 'none', fontWeight: 500, fontSize: '0.9375rem', transition: 'border-color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.borderColor = '${primary}')} onMouseLeave={e => (e.currentTarget.style.borderColor = '${border}')}>
+              Get In Touch
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ABOUT */}
+      <section id="about" style={{ padding: '100px 32px', maxWidth: '1200px', margin: '0 auto', borderTop: '1px solid ${border}' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', alignItems: 'center' }}>
+          <div>
+            <p style={{ color: '${primary}', fontSize: '0.75rem', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 600 }}>About Me</p>
+            <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: '24px' }}>
+              Crafting Digital Experiences
+            </h2>
+            <p style={{ color: '${textMuted}', lineHeight: 1.8, marginBottom: '16px' }}>
+              I'm a developer and designer who believes great software should be both powerful and beautiful. I specialize in building fast, accessible, and visually stunning web applications.
+            </p>
+            <p style={{ color: '${textMuted}', lineHeight: 1.8, marginBottom: '32px' }}>
+              With a keen eye for design and a passion for clean code, I bridge the gap between design and engineering to create seamless digital products.
+            </p>
+            <div style={{ display: 'flex', gap: '40px' }}>
+              {[['5+', 'Years Experience'], ['40+', 'Projects Done'], ['20+', 'Happy Clients']].map(([val, label]) => (
+                <div key={label}>
+                  <div style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '2.5rem', fontWeight: 700, color: '${primary}', lineHeight: 1 }}>{val}</div>
+                  <div style={{ color: '${textMuted}', fontSize: '0.875rem', marginTop: '4px' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ background: '${surface}', borderRadius: '24px', aspectRatio: '4/5', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=80&auto=format&fit=crop" alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+      </section>
+
+      {/* PROJECTS */}
+      <section id="projects" style={{ padding: '100px 32px', maxWidth: '1200px', margin: '0 auto', borderTop: '1px solid ${border}' }}>
+        <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+          <p style={{ color: '${primary}', fontSize: '0.75rem', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 600 }}>Selected Work</p>
+          <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.02em' }}>Projects That Define Me</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
+          {projects.map((project, i) => (
+            <a key={i} href={project.link} style={{ background: '${surface}', borderRadius: '20px', overflow: 'hidden', textDecoration: 'none', color: 'inherit', display: 'block', border: '1px solid ${border}', transition: 'transform 0.25s, box-shadow 0.25s' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 20px 60px rgba(0,0,0,0.12)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
+              <div style={{ background: \`linear-gradient(135deg, ${primary}20, ${primary}05)\`, aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src={\`https://images.unsplash.com/photo-\${1488590988604 + i * 100}-c29b15e1f84c?w=600&q=80&auto=format&fit=crop\`} alt={project.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
+              </div>
+              <div style={{ padding: '24px' }}>
+                <h3 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 600, marginBottom: '8px' }}>{project.title}</h3>
+                <p style={{ color: '${textMuted}', fontSize: '0.875rem', lineHeight: 1.7, marginBottom: '16px' }}>{project.desc}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {project.tags.map(tag => (
+                    <span key={tag} style={{ background: '${primary}18', color: '${primary}', padding: '4px 12px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 500 }}>{tag}</span>
+                  ))}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* SKILLS */}
+      <section id="skills" style={{ padding: '100px 32px', maxWidth: '1200px', margin: '0 auto', borderTop: '1px solid ${border}' }}>
+        <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+          <p style={{ color: '${primary}', fontSize: '0.75rem', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 600 }}>Expertise</p>
+          <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.02em' }}>Skills & Technologies</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '24px' }}>
+          {skills.map((cat) => (
+            <div key={cat.name} style={{ background: '${surface}', borderRadius: '20px', padding: '32px', border: '1px solid ${border}' }}>
+              <h3 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 600, color: '${primary}', marginBottom: '20px' }}>{cat.name}</h3>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {cat.items.map(item => (
+                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '${textMuted}', fontSize: '0.9375rem' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '${primary}', flexShrink: 0 }}></span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CONTACT */}
+      <section id="contact" style={{ padding: '100px 32px', maxWidth: '1200px', margin: '0 auto', borderTop: '1px solid ${border}' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ color: '${primary}', fontSize: '0.75rem', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 600 }}>Contact</p>
+          <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '20px' }}>Let's Work Together</h2>
+          <p style={{ color: '${textMuted}', fontSize: '1.0625rem', lineHeight: 1.75, marginBottom: '48px' }}>Have a project in mind? I'd love to hear about it. Send me a message and I'll get back to you as soon as possible.</p>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={e => e.preventDefault()}>
+            <input type="text" placeholder="Your Name" style={{ background: '${surface}', border: '1px solid ${border}', borderRadius: '12px', padding: '16px 20px', color: '${text}', fontSize: '1rem', outline: 'none', width: '100%' }} />
+            <input type="email" placeholder="Your Email" style={{ background: '${surface}', border: '1px solid ${border}', borderRadius: '12px', padding: '16px 20px', color: '${text}', fontSize: '1rem', outline: 'none', width: '100%' }} />
+            <textarea placeholder="Tell me about your project..." rows={5} style={{ background: '${surface}', border: '1px solid ${border}', borderRadius: '12px', padding: '16px 20px', color: '${text}', fontSize: '1rem', outline: 'none', resize: 'vertical', width: '100%', fontFamily: 'inherit' }} />
+            <button type="submit" style={{ background: '${primary}', color: '#fff', border: 'none', borderRadius: '999px', padding: '16px 40px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.2s, transform 0.2s', alignSelf: 'center' }} onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              Send Message
+            </button>
+          </form>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ borderTop: '1px solid ${border}', padding: '40px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto' }}>
+        <span style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 700, color: '${primary}' }}>${name}</span>
+        <p style={{ color: '${textMuted}', fontSize: '0.875rem' }}>© {new Date().getFullYear()} ${name}. All rights reserved.</p>
+        <div style={{ display: 'flex', gap: '24px' }}>
+          {['GitHub', 'LinkedIn', 'Twitter'].map(s => (
+            <a key={s} href="#" style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.875rem', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '${primary}')} onMouseLeave={e => (e.currentTarget.style.color = '${textMuted}')}>{s}</a>
+          ))}
+        </div>
+      </footer>
+    </main>
+  );
+}
+`;
+  }
+
+  // Generic/SaaS fallback — also complete
+  return `'use client';
+import { useState, useEffect } from 'react';
+
+const features = [
+  { icon: '⚡', title: 'Lightning Fast', desc: 'Built for performance with Next.js App Router and modern infrastructure.' },
+  { icon: '🎨', title: 'Beautiful Design', desc: 'Pixel-perfect UI with a premium look and feel from the ground up.' },
+  { icon: '🔒', title: 'Secure by Default', desc: 'Security best practices baked in, so you can focus on building.' },
+  { icon: '📱', title: 'Mobile First', desc: 'Fully responsive across all devices and screen sizes.' },
+  { icon: '🔧', title: 'Easy to Customize', desc: 'Clean, well-organized code that is easy to understand and extend.' },
+  { icon: '🚀', title: 'Deploy Instantly', desc: 'One-click deployment to Vercel. Go from idea to live in minutes.' },
+];
+
+export default function Page() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', handler);
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
+  return (
+    <main style={{ background: '${bg}', color: '${text}', fontFamily: "'${bodyFont}', system-ui, sans-serif", minHeight: '100vh' }}>
+      {/* NAVBAR */}
+      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled ? '${isLight ? 'rgba(250,250,250,0.9)' : 'rgba(5,5,5,0.9)'}' : 'transparent', backdropFilter: scrolled ? 'blur(16px)' : 'none', borderBottom: scrolled ? '1px solid ${border}' : '1px solid transparent', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s ease' }}>
+        <span style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.375rem', fontWeight: 700, color: '${primary}' }}>${name}</span>
+        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+          {['Features', 'About', 'Contact'].map(link => (
+            <a key={link} href={\`#\${link.toLowerCase()}\`} style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.875rem', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '${primary}')} onMouseLeave={e => (e.currentTarget.style.color = '${textMuted}')}>
+              {link}
+            </a>
+          ))}
+          <a href="#contact" style={{ background: '${primary}', color: '#fff', padding: '10px 24px', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>Get Started</a>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <section style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '120px 32px 80px' }}>
+        <div style={{ display: 'inline-block', background: '${primary}18', color: '${primary}', padding: '6px 20px', borderRadius: '999px', fontSize: '0.8125rem', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '32px' }}>
+          Now Available
+        </div>
+        <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2.5rem, 6vw, 5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '820px', marginBottom: '24px' }}>
+          ${appTitle}
+        </h1>
+        <p style={{ color: '${textMuted}', fontSize: '1.125rem', lineHeight: 1.75, maxWidth: '560px', marginBottom: '48px' }}>
+          ${productDescription}
+        </p>
+        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+          <a href="#contact" style={{ background: '${primary}', color: '#fff', padding: '16px 40px', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '1rem', transition: 'transform 0.2s, opacity 0.2s' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.opacity = '0.9'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.opacity = '1'; }}>
+            Get Started Free
+          </a>
+          <a href="#features" style={{ border: '1px solid ${border}', color: '${text}', padding: '16px 40px', borderRadius: '999px', textDecoration: 'none', fontWeight: 500, fontSize: '1rem', transition: 'border-color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.borderColor = '${primary}')} onMouseLeave={e => (e.currentTarget.style.borderColor = '${border}')}>
+            Learn More
+          </a>
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section id="features" style={{ padding: '100px 32px', maxWidth: '1200px', margin: '0 auto', borderTop: '1px solid ${border}' }}>
+        <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+          <p style={{ color: '${primary}', fontSize: '0.75rem', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 600 }}>Features</p>
+          <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.02em' }}>Everything You Need</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+          {features.map((f, i) => (
+            <div key={i} style={{ background: '${surface}', border: '1px solid ${border}', borderRadius: '20px', padding: '32px', transition: 'transform 0.25s, box-shadow 0.25s' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
+              <div style={{ fontSize: '2rem', marginBottom: '16px' }}>{f.icon}</div>
+              <h3 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 600, marginBottom: '10px' }}>{f.title}</h3>
+              <p style={{ color: '${textMuted}', fontSize: '0.9375rem', lineHeight: 1.7 }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer style={{ borderTop: '1px solid ${border}', padding: '40px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto' }}>
+        <span style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 700, color: '${primary}' }}>${name}</span>
+        <p style={{ color: '${textMuted}', fontSize: '0.875rem' }}>© {new Date().getFullYear()} ${name}. All rights reserved.</p>
+      </footer>
+    </main>
+  );
+}
+`;
+}
+
 function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', designBrief = null) {
   let heroHeadline = plan.appName || plan.normalizedName || 'Project';
   let heroSubtext = intake.what || plan.summary || 'Built with precision.';
@@ -255,14 +528,14 @@ h1, h2, h3 { font-family: var(--font-display); }
       }
     },
     'app/page.tsx': {
-      content: `export default function Page() {\n  return (\n    <main className="min-h-screen bg-black text-white">\n      <section className="mx-auto max-w-6xl px-6 py-24">\n        <h1 className="text-5xl font-semibold tracking-tight">${appTitle}</h1>\n        <p className="mt-4 max-w-2xl text-zinc-400">\n          ${productDescription}\n        </p>\n      </section>\n    </main>\n  );\n}\n`,
+      content: buildPageContent(plan, intake, appTitle, productDescription, resolvedBg, resolvedText, resolvedPrimary, resolvedDisplay, resolvedBody, isLightTheme),
       explanation: {
-        what: 'This is the launch page for the product experience.',
-        why: 'Every project needs a reliable entry route that expresses value immediately.',
-        edit: 'Hero copy, section order, and call-to-action text are safe to change.',
-        protect: 'Keep the exported page contract and core layout shell intact.'
+        what: 'The complete landing page for the generated project.',
+        why: 'Every project needs a fully built page that expresses its value immediately.',
+        edit: 'Customize copy, images, and section order as needed.',
+        protect: 'Keep the exported default function and core sections intact.'
       }
-    }
+    },
   };
 
   // Pass the approved designBrief through so support files use resolved tokens
