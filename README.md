@@ -315,9 +315,9 @@ See the LICENSE file for more information.
 
 **Mughees Siddiqui**
 
-GitHub: https://github.com/yourusername
+GitHub: https://github.com/mughees011
 
-LinkedIn: https://linkedin.com/in/yourusername
+LinkedIn: https://linkedin.com/in/mughees-siddiqui/
 
 ---
 
