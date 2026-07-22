@@ -584,10 +584,33 @@ Generate the JSON changeset detailing the architectural modifications required t
   return { system: systemPrompt, user: userPrompt };
 }
 
+function buildArchitecturePrompts(intake) {
+  const systemPrompt = `You are an expert AI software architect.
+Your task is to generate a dynamic architecture plan for a new project based on the user's intake answers.
+Return ONLY a JSON object with the following structure (no markdown fences, no explanations):
+{
+  "pages": ["List of page routes or descriptions", "e.g. Landing / value proposition", "e.g. User Dashboard"],
+  "components": ["List of React component names to build", "e.g. HeroSection", "e.g. PricingCard"],
+  "apiRoutes": ["List of backend routes", "e.g. POST /api/signup"],
+  "databaseSchema": ["List of tables and columns", "e.g. users(id, email)"],
+  "risks": ["List of architectural risks"],
+  "assumptions": ["List of assumptions made"]
+}
+Ensure your output is strictly valid and parseable JSON.`;
+
+  const userPrompt = `PROJECT INTAKE:
+${JSON.stringify(intake, null, 2)}
+
+Generate the JSON architecture plan tailored to this specific project requirements.`;
+
+  return { system: systemPrompt, user: userPrompt };
+}
+
 module.exports = {
   buildEngineerPlan,
   buildEngineerScaffold,
   buildGenerationPrompts,
-  buildIncrementalPlan
+  buildIncrementalPlan,
+  buildArchitecturePrompts
 };
 
