@@ -402,8 +402,10 @@ if (FRONTEND_DIR) {
 
 app.get('/health', (req, res) => {
   res.json({
-    status: 'online',
-    uptime: process.uptime()
+    status: 'ok',
+    // add this line:
+    buildMarker: 'FIX-CHECK-001',
+    timestamp: new Date().toISOString()
   });
 });
 
