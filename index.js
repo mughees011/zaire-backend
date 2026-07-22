@@ -29,7 +29,8 @@ const {
   buildEngineerPlan,
   buildEngineerScaffold,
   buildGenerationPrompts,
-  buildIncrementalPlan
+  buildIncrementalPlan,
+  buildArchitecturePrompts
 } = require('./services/engineer_workflow');
 const { buildDesignBriefPrompt, enrichIntakeWithReferences } = require('./services/design_intelligence');
 const {
@@ -800,7 +801,26 @@ app.post('/engineer/plan', async (req, res) => {
   try {
     emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
     const intake = req.body?.intake || req.body || {};
-    const plan = buildEngineerPlan(intake);
+    let plan = buildEngineerPlan(intake);
+    
+    try {
+      const prompts = buildArchitecturePrompts(intake);
+      const llmRes = await executeLLMCallWithFailover({
+        messages: [
+          {role: "system", content: prompts.system},
+          {role: "user", content: prompts.user}
+        ],
+        temperature: 0.3,
+        max_tokens: 4000
+      });
+      if (llmRes?.choices?.[0]?.message?.content) {
+        const content = llmRes.choices[0].message.content.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+        const dynamicPlan = JSON.parse(content);
+        plan = { ...plan, ...dynamicPlan };
+      }
+    } catch (llmErr) {
+      console.warn('[ENGINEER PLAN] LLM failed to generate dynamic plan, using fallback', llmErr.message);
+    }
     const userId = req.body?.userId || 'local-user';
     const existingProjectId = req.body?.projectId;
 
