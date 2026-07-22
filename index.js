@@ -1251,16 +1251,93 @@ app.post('/engineer/scaffold', async (req, res) => {
         }
       }
 
+      // Build a rich fallback design brief from the intake if none exists in DB
       if (!designBrief) {
-         console.warn('[ENGINEER SCAFFOLD] No design brief found in DB. Falling back to simple default.');
-         designBrief = { 
-           visual_tokens: { primary_color: "#18181b", typography: { display: "Inter", body: "Inter" } }, 
-           content_plan: [] 
-         };
+        const designStyle = fullIntake.designStyle || 'modern premium';
+        const isLight = /light|clean|minimal|white/i.test(designStyle);
+        const isItalic = /italic|serif|editorial/i.test(designStyle);
+        const isPremium = /premium|luxury|elite|high.end/i.test(designStyle);
+        const projectType = fullIntake.projectType || 'custom';
+
+        // Choose colors based on design style keywords
+        let primaryColor = '#6366f1'; // default indigo
+        let bgColor = '#0a0a0a';
+        let textColor = '#ffffff';
+        let surfaceColor = '#111111';
+        if (isLight) { primaryColor = '#6366f1'; bgColor = '#fafafa'; textColor = '#0f0f0f'; surfaceColor = '#f4f4f5'; }
+        if (isPremium && isLight) { primaryColor = '#8b5cf6'; bgColor = '#fefefe'; textColor = '#09090b'; surfaceColor = '#f5f3ff'; }
+        if (projectType === 'portfolio') { primaryColor = '#a78bfa'; bgColor = '#fafafa'; textColor = '#18181b'; surfaceColor = '#f4f4f5'; }
+
+        // Choose fonts based on design style
+        let displayFont = 'Playfair Display';
+        let bodyFont = 'Inter';
+        if (isItalic || /editorial|luxury/i.test(designStyle)) { displayFont = 'Playfair Display'; bodyFont = 'Lato'; }
+        if (/modern|clean|minimal/i.test(designStyle)) { displayFont = 'Plus Jakarta Sans'; bodyFont = 'Inter'; }
+        if (projectType === 'portfolio') { displayFont = 'Cormorant Garamond'; bodyFont = 'DM Sans'; }
+
+        const what = fullIntake.what || plan.summary || '';
+        const who = fullIntake.who || 'users';
+        const appName = plan.appName || fullIntake.projectName || 'Project';
+
+        designBrief = {
+          visual_tokens: {
+            primary_color: primaryColor,
+            background_color: bgColor,
+            text_color: textColor,
+            surface_color: surfaceColor,
+            border_radius: isPremium ? '16px' : '8px',
+            typography: { display: displayFont, body: bodyFont }
+          },
+          content_plan: [{
+            core_message: what,
+            target_audience: who,
+            section_copy_briefs: [{
+              section: 'Hero',
+              headline_intent: `${appName} — ${what.split('.')[0] || appName}`,
+              body_intent: `Built for ${who}.`
+            }]
+          }],
+          page_architecture: [
+            { section: 'Hero', purpose: 'Grab attention and communicate value immediately' },
+            { section: 'About', purpose: 'Introduce the person or product' },
+            { section: projectType === 'portfolio' ? 'Projects' : 'Features', purpose: 'Showcase work or capabilities' },
+            { section: 'Contact', purpose: 'Invite connection or conversion' }
+          ],
+          motion_spec: { easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)', duration: '0.5s' },
+          conversion_checklist: ['Clear value proposition', 'Mobile responsive', 'Fast load time']
+        };
+        console.log(`[ENGINEER SCAFFOLD] Built intake-derived design brief for ${projectType} — ${isLight ? 'light' : 'dark'} theme, fonts: ${displayFont}/${bodyFont}`);
       }
 
-      const briefText = "DESIGN BRIEF:\n" + JSON.stringify(designBrief, null, 2);
-      const prompts = buildGenerationPrompts(briefText, plan, fullIntake, 'Standard', 'DNA_01');
+      // Determine the layout profile from the project type
+      const projectType = fullIntake.projectType || 'custom';
+      const layoutProfiles = {
+        portfolio: {
+          sections_order: ['Navbar', 'Hero', 'About', 'Projects', 'Skills', 'Contact', 'Footer'],
+          hero_pattern: 'Large editorial headline, personal photo or abstract art, scroll CTA',
+          layout_pattern: 'Asymmetric hero, masonry project grid, minimal clean footer'
+        },
+        saas: {
+          sections_order: ['Navbar', 'Hero', 'Features', 'Social Proof', 'Pricing', 'FAQ', 'Footer'],
+          hero_pattern: 'Bold headline + subtext + CTA buttons + product screenshot/mockup',
+          layout_pattern: 'Centered hero, 3-col feature grid, pricing cards, accordion FAQ'
+        },
+        dashboard: {
+          sections_order: ['Navbar', 'Hero', 'Features', 'Testimonials', 'CTA', 'Footer'],
+          hero_pattern: 'Product-led hero with dashboard screenshot',
+          layout_pattern: 'Split hero, metrics row, feature bento grid'
+        },
+        agent: {
+          sections_order: ['Navbar', 'Hero', 'How It Works', 'Features', 'Pricing', 'Footer'],
+          hero_pattern: 'AI-focused headline, animated gradient, demo CTA',
+          layout_pattern: 'Full-width hero, step-by-step flow, feature cards'
+        }
+      };
+      const profile = layoutProfiles[projectType] || layoutProfiles.saas;
+      const dnaKey = (fullIntake.designStyle || 'modern premium').toLowerCase();
+
+      const briefText = 'DESIGN BRIEF:\n' + JSON.stringify(designBrief, null, 2);
+      const prompts = buildGenerationPrompts(briefText, plan, fullIntake, profile, dnaKey);
           const executeLlm = async (promptPair, label) => {
              const res = await executeLLMCallWithFailover({
                messages: [
