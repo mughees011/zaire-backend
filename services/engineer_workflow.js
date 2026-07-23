@@ -206,7 +206,7 @@ export default function Page() {
         <a href="#" style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.5rem', fontWeight: 700, color: '${primary}', textDecoration: 'none', letterSpacing: '-0.02em' }}>${name}</a>
         <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
           {['About', 'Projects', 'Skills', 'Contact'].map(link => (
-            <a key={link} href={\`#\${link.toLowerCase()}\`} style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.875rem', letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '${primary)'} onMouseLeave={e => (e.currentTarget.style.color = '${textMuted}')}>
+            <a key={link} href={\`#\${link.toLowerCase()}\`} style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.875rem', letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = '${primary}')} onMouseLeave={e => (e.currentTarget.style.color = '${textMuted}')}>
               {link}
             </a>
           ))}
