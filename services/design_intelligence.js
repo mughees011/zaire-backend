@@ -109,12 +109,14 @@ You must produce a JSON object exactly matching this schema:
   "motion_spec": {
     "level": "string (minimal, expressive, moderate)",
     "allowed_effects": ["string"],
-    "forbidden_effects": ["string"]
+    "forbidden_effects": ["string"],
+    "rationale": "string (Why this motion level suits the project)"
   },
   "page_architecture": {
     "pages": [
       { "name": "string", "job": "string", "is_section_of": "string or null", "priority": "number" }
-    ]
+    ],
+    "rationale": "string (Why this structure is optimal for user flow)"
   },
   "image_strategy": {
     "hero_role": "string",
@@ -123,7 +125,11 @@ You must produce a JSON object exactly matching this schema:
     "abstract_role": "string",
     "forbidden_imagery": ["string"]
   },
-  "conversion_checklist": ["string"]
+  "conversion_checklist": ["string"],
+  "design_rationale": "string (Deep explanation of color/typography choices and their psychological impact)",
+  "reference_extractions": [
+    { "feature": "string", "adaptation": "string (How we will adapt it to be better)" }
+  ]
 }
 
 Rules:
@@ -168,6 +174,16 @@ function buildDesignNarrative(brief, fullIntake) {
     `Motion level: ${motion.level || 'moderate'} — effects chosen to match category norms, not decoration for its own sake.`,
     `Primary accent (${tokens.primary_color || 'unresolved'}) is scoped to this project only — not shared with any other ZAIRE-generated project.`
   ];
+
+  if (brief.design_rationale) assumptions.push(`Design Rationale: ${brief.design_rationale}`);
+  if (motion.rationale) assumptions.push(`Motion Rationale: ${motion.rationale}`);
+  if (brief.page_architecture?.rationale) assumptions.push(`Structural Rationale: ${brief.page_architecture.rationale}`);
+
+  if (brief.reference_extractions && brief.reference_extractions.length > 0) {
+    brief.reference_extractions.forEach(ref => {
+      assumptions.push(`Adapted Feature: ${ref.feature} -> ${ref.adaptation}`);
+    });
+  }
 
   const agentConsensus = {
     designAgent: `Resolved ${tokens.primary_color || 'a primary accent'} single-accent system, ` +
