@@ -150,7 +150,41 @@ Analyze this project and the competitive context, then output the concrete desig
   return { system, user };
 }
 
+function buildDesignNarrative(brief, fullIntake) {
+  const tokens = brief.visual_tokens || {};
+  const typography = tokens.typography || {};
+  const competitive = brief.competitive_analysis || {};
+  const contentPlan = Array.isArray(brief.content_plan) ? brief.content_plan : [];
+  const primaryContent = contentPlan[0] || {};
+  const motion = brief.motion_spec || {};
+
+  const referenceNote = fullIntake?.referenceSites
+    ? `Reference sites: ${fullIntake.referenceSites}.`
+    : 'Reference sites: category defaults (none provided in intake).';
+
+  const assumptions = [
+    `Target category: ${competitive.category || 'general product'}.`,
+    referenceNote,
+    `Motion level: ${motion.level || 'moderate'} — effects chosen to match category norms, not decoration for its own sake.`,
+    `Primary accent (${tokens.primary_color || 'unresolved'}) is scoped to this project only — not shared with any other ZAIRE-generated project.`
+  ];
+
+  const agentConsensus = {
+    designAgent: `Resolved ${tokens.primary_color || 'a primary accent'} single-accent system, ` +
+      `${tokens.border_radius || 'default'} radius, ` +
+      `${typography.display || 'a display font'} / ${typography.body || 'a body font'} pairing.`,
+    contentAgent: primaryContent.core_message
+      ? `Core message: "${primaryContent.core_message}". Structured for a ${primaryContent.reader_state || 'cold'} reader on the ${primaryContent.page || 'landing'} page.`
+      : 'Rejected literal reuse of intake text as page copy. Drafted an outcome-led core message instead of a raw product description.',
+    competitiveAgent: `${competitive.category || 'General'} — ` +
+      `${(competitive.differentiation_opportunities || [])[0] || 'differentiation strategy pending more reference data'}.`
+  };
+
+  return { assumptions, agentConsensus };
+}
+
 module.exports = {
   buildDesignBriefPrompt,
-  enrichIntakeWithReferences
+  enrichIntakeWithReferences,
+  buildDesignNarrative
 };

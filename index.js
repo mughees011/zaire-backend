@@ -32,7 +32,7 @@ const {
   buildIncrementalPlan,
   buildArchitecturePrompts
 } = require('./services/engineer_workflow');
-const { buildDesignBriefPrompt, enrichIntakeWithReferences } = require('./services/design_intelligence');
+const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
 const {
   qaProject,
   repairError,
@@ -1087,6 +1087,9 @@ app.post('/engineer/design-brief', async (req, res) => {
     try {
       const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
       brief = JSON.parse(content);
+      const narrative = buildDesignNarrative(brief, fullIntake);
+      brief.assumptions = narrative.assumptions;
+      brief.agent_consensus = narrative.agentConsensus;
     } catch (parseErr) {
       console.error('[ENGINEER DESIGN PARSE ERR]', parseErr);
       console.log('[ENGINEER] Using fallback design brief');
@@ -1137,6 +1140,9 @@ app.post('/engineer/design-brief', async (req, res) => {
         },
         conversion_checklist: ["Clear CTA", "Fast load time"]
       };
+      const fallbackNarrative = buildDesignNarrative(brief, fullIntake);
+      brief.assumptions = fallbackNarrative.assumptions;
+      brief.agent_consensus = fallbackNarrative.agentConsensus;
     }
 
     if (resLlm && resLlm.usage) {
