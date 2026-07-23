@@ -178,9 +178,9 @@ function buildPageContent(plan, intake, appTitle, productDescription, bg, text, 
     const motion = designBrief.motion_spec || {};
     const useFramer = motion.level && motion.level !== 'minimal';
 
-    let imports = "'use client';\\nimport { useState, useEffect } from 'react';\\n";
+    let imports = "'use client';\nimport { useState, useEffect } from 'react';\n";
     if (useFramer) {
-      imports += "import { motion } from 'framer-motion';\\n";
+      imports += "import { motion } from 'framer-motion';\n";
     }
 
     const rd = designBrief.design_rationale || 'Resolved based on target audience.';
@@ -194,15 +194,25 @@ function buildPageContent(plan, intake, appTitle, productDescription, bg, text, 
     const heroWrapperStart = useFramer ? "<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}>" : "<div>";
     const heroWrapperEnd = useFramer ? "</motion.div>" : "</div>";
 
+    // Hero subtext must never equal the headline — that's a silent content bug,
+    // not a valid fallback. If core_message and productDescription collided,
+    // derive a distinct line from the target audience instead of repeating.
+    const heroHeadlineText = cp.core_message || appTitle;
+    const heroSubtextText = cp.reader_state === 'warm'
+      ? "Welcome back. Let's get to work."
+      : (productDescription && productDescription !== heroHeadlineText
+          ? productDescription
+          : `Built for ${who}.`);
+
     jsxSections += `
       {/* DYNAMIC HERO */}
       <section style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '120px 32px 80px' }}>
         ${heroWrapperStart}
           <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2.5rem, 6vw, 5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '820px', marginBottom: '24px' }}>
-            ${cp.core_message || appTitle}
+            ${heroHeadlineText}
           </h1>
           <p style={{ color: '${textMuted}', fontSize: '1.125rem', lineHeight: 1.75, maxWidth: '560px', margin: '0 auto 48px' }}>
-            ${cp.reader_state === 'warm' ? "Welcome back. Let's get to work." : productDescription}
+            ${heroSubtextText}
           </p>
           <a href="#primary-cta" style={{ background: '${primary}', color: '#fff', padding: '16px 40px', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '1rem' }}>
             Explore Now
@@ -544,6 +554,99 @@ export default function Page() {
 `;
 }
 
+/**
+ * Guards against a design brief resolving an accent color that's nearly
+ * invisible against the page background (e.g. #F7F7F7 primary on a #fafafa
+ * light theme — exactly what produced unreadable nav/footer/CTA text).
+ * Uses relative luminance distance as a cheap proxy for contrast.
+ */
+function hexToLuminance(hex) {
+  const clean = (hex || '').replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null;
+  const r = parseInt(clean.substr(0, 2), 16) / 255;
+  const g = parseInt(clean.substr(2, 2), 16) / 255;
+  const b = parseInt(clean.substr(4, 2), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function ensureReadablePrimary(candidateHex, bgHex, isLightTheme) {
+  const candidateLum = hexToLuminance(candidateHex);
+  const bgLum = hexToLuminance(bgHex);
+  const safeFallback = isLightTheme ? '#4f46e5' : '#a78bfa'; // indigo / lavender, both readable on their theme
+  if (candidateLum === null || bgLum === null) return candidateHex || safeFallback;
+  // Luminance difference under ~0.3 reads as low/no contrast for UI text at these sizes.
+  if (Math.abs(candidateLum - bgLum) < 0.3) return safeFallback;
+  return candidateHex;
+}
+
+/**
+ * THE core fix for "only 1 page gets built": buildEngineerScaffold previously
+ * only ever wrote app/page.tsx, no matter how many pages plan.pages listed.
+ * This generates one route file per planned page (skipping the landing page,
+ * which app/page.tsx already covers), so an 11-page architecture plan actually
+ * produces 11 routes instead of silently collapsing to 1.
+ */
+function slugifyPageName(name) {
+  return (name || 'page')
+    .toLowerCase()
+    .replace(/[\/].*$/, '') // drop "Product Details" style suffixes after slashes if any
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'page';
+}
+
+function isLandingPage(pageName) {
+  return /landing|value proposition|^home$/i.test(pageName || '');
+}
+
+function buildAdditionalPageFiles(plan, intake, tokens, designBrief) {
+  const { bg, text, primary, displayFont, bodyFont, isLight } = tokens;
+  const textMuted = isLight ? '#6b7280' : '#9ca3af';
+  const border = isLight ? '#e5e7eb' : '#27272a';
+  const pages = plan.pages || [];
+  const files = {};
+
+  pages.forEach((pageName) => {
+    if (isLandingPage(pageName)) return; // app/page.tsx already covers this
+    const slug = slugifyPageName(pageName);
+    if (!slug || slug === 'page') return;
+
+    // Try to find a matching component name for slightly richer stub copy —
+    // best-effort only; falls back to a clean generic section if no match.
+    const relatedComponent = (plan.components || []).find((c) =>
+      c.toLowerCase().includes(slug.split('-')[0])
+    );
+
+    files[`app/${slug}/page.tsx`] = {
+      content: `export default function ${slug.replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/^[a-z]/, (c) => c.toUpperCase())}Page() {
+  return (
+    <main style={{ background: '${bg}', color: '${text}', fontFamily: "'${bodyFont}', system-ui, sans-serif", minHeight: '100vh', padding: '120px 32px 80px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3.5rem)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '16px' }}>
+          ${pageName}
+        </h1>
+        <p style={{ color: '${textMuted}', fontSize: '1.05rem', maxWidth: '640px', marginBottom: '40px' }}>
+          ${relatedComponent ? `Built around the ${relatedComponent} component defined in the architecture plan.` : 'Generated stub for this route — expand with the real layout for this page.'}
+        </p>
+        <div style={{ border: '1px dashed ${border}', borderRadius: '12px', padding: '48px', textAlign: 'center', color: '${textMuted}' }}>
+          TODO: implement ${pageName} content (see lib/engineer-plan.ts for the approved component list for this route)
+        </div>
+      </div>
+    </main>
+  );
+}
+`,
+      explanation: {
+        what: `Route stub for "${pageName}", one of the pages defined in the architecture plan.`,
+        why: 'Every page listed in the approved plan needs a real route file — a plan with 11 pages that only ships 1 route is an incomplete build.',
+        edit: 'Replace the TODO block with the real section content for this page.',
+        protect: 'Keep the default export and the route folder name in sync with any internal links to this page.'
+      }
+    };
+  });
+
+  return files;
+}
+
 function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', designBrief = null) {
   let heroHeadline = plan.appName || plan.normalizedName || 'Project';
   let heroSubtext = intake.what || plan.summary || 'Built with precision.';
@@ -554,7 +657,7 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', d
   const isLightTheme = /light|clean|minimal|white/i.test(designStyleStr) || (plan.projectType === 'portfolio');
   const resolvedBg = vt.background_color || (isLightTheme ? '#fafafa' : '#050505');
   const resolvedText = vt.text_color || (isLightTheme ? '#18181b' : '#ffffff');
-  const resolvedPrimary = vt.primary_color || (isLightTheme ? '#6366f1' : '#a78bfa');
+  const resolvedPrimary = ensureReadablePrimary(vt.primary_color, resolvedBg, isLightTheme);
   const resolvedDisplay = vt.typography?.display || (isLightTheme ? 'Cormorant Garamond' : 'Inter');
   const resolvedBody = vt.typography?.body || 'DM Sans';
 
@@ -648,6 +751,13 @@ h1, h2, h3 { font-family: var(--font-display); }
       }
     },
   };
+
+  // Every other page in plan.pages gets its own route file now — previously
+  // this scaffold only ever produced app/page.tsx regardless of plan size.
+  Object.assign(files, buildAdditionalPageFiles(plan, intake, {
+    bg: resolvedBg, text: resolvedText, primary: resolvedPrimary,
+    displayFont: resolvedDisplay, bodyFont: resolvedBody, isLight: isLightTheme
+  }, designBrief));
 
   // Pass the approved designBrief through so support files use resolved tokens
   Object.assign(files, buildEngineerSupportFiles(plan, intake, skillLevel, designBrief));
