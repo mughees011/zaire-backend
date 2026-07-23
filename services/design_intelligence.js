@@ -15,6 +15,8 @@ This brief will be strictly followed by the scaffolding engine. DO NOT output co
 
 /**
  * Fetches HTML from a given URL and extracts basic text to keep it lightweight.
+ * Kept for backwards compatibility — prefer analyzeReferenceVisuals() below,
+ * which extracts actual design signal instead of just body copy.
  */
 async function fetchReferenceHtml(url) {
   return new Promise((resolve) => {
@@ -47,20 +49,117 @@ async function fetchReferenceHtml(url) {
 }
 
 /**
+ * Fetches raw HTML (unstripped) so visual signal extraction has something to work with.
+ */
+async function fetchRawHtml(url) {
+  return new Promise((resolve) => {
+    try {
+      const client = url.startsWith('https') ? https : http;
+      client.get(url, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return resolve(fetchRawHtml(res.headers.location.startsWith('http') ? res.headers.location : new URL(res.headers.location, url).href));
+        }
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => resolve(data));
+      }).on('error', () => resolve(''));
+    } catch (e) {
+      resolve('');
+    }
+  });
+}
+
+/**
+ * Extracts real design signal from a reference site's raw HTML: colors, fonts,
+ * layout system, and motion libraries. This is a static-HTML pass — it will miss
+ * anything a site injects client-side via JS. For higher accuracy, swap this for
+ * a Playwright-rendered pass; this version has no extra dependencies and works today.
+ */
+function extractVisualSignals(rawHtml, url) {
+  if (!rawHtml) return null;
+
+  // Colors: hex + rgba from <style> blocks and inline style attributes
+  const styleBlocks = (rawHtml.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join(' ');
+  const inlineStyles = (rawHtml.match(/style="[^"]*"/gi) || []).join(' ');
+  const colorSource = styleBlocks + inlineStyles;
+  const hexColors = [...new Set((colorSource.match(/#[0-9a-fA-F]{3,8}\b/g) || []))].slice(0, 15);
+  const rgbaColors = [...new Set((colorSource.match(/rgba?\([^)]+\)/g) || []))].slice(0, 10);
+
+  // Fonts: Google Fonts links + font-family declarations
+  const googleFontLinks = [...new Set((rawHtml.match(/fonts\.googleapis\.com\/css2?\?family=([^"&']+)/gi) || [])
+    .map(m => decodeURIComponent(m.split('family=')[1] || '').replace(/\+/g, ' ')))];
+  const fontFamilies = [...new Set((colorSource.match(/font-family:\s*([^;"']+)/gi) || [])
+    .map(m => m.replace(/font-family:\s*/i, '').trim()))].slice(0, 8);
+
+  // Layout signals
+  const usesGrid = /class="[^"]*\bgrid\b/i.test(rawHtml) || /display:\s*grid/i.test(colorSource);
+  const usesFlex = /class="[^"]*\bflex\b/i.test(rawHtml) || /display:\s*flex/i.test(colorSource);
+  const stickyNav = /class="[^"]*(sticky|fixed)[^"]*"[^>]*>[\s\S]{0,200}<nav|<nav[^>]*class="[^"]*(sticky|fixed)/i.test(rawHtml);
+  const sectionCount = (rawHtml.match(/<section[\s>]/gi) || []).length;
+
+  // Motion libraries actually in use
+  const motionLibs = ['framer-motion', 'gsap', 'aos', 'lottie', 'three.js', 'lenis']
+    .filter(lib => rawHtml.toLowerCase().includes(lib));
+  const hasCssTransitions = /transition\s*:|@keyframes|animate-/i.test(rawHtml);
+
+  // Component patterns worth naming for the adopt/adapt/reject decision downstream
+  const hasPricingTable = /class="[^"]*pric/i.test(rawHtml);
+  const hasTestimonials = /class="[^"]*(testimonial|review)/i.test(rawHtml);
+  const ctaButtonCount = (rawHtml.match(/class="[^"]*(btn|button|cta)[^"]*"/gi) || []).length;
+
+  return {
+    url,
+    colors: { hex: hexColors, rgba: rgbaColors },
+    typography: { google_fonts: googleFontLinks, css_font_families: fontFamilies },
+    layout: { uses_grid: usesGrid, uses_flex: usesFlex, sticky_nav: stickyNav, section_count: sectionCount },
+    motion: { libraries_detected: motionLibs, has_css_transitions: hasCssTransitions },
+    components: { has_pricing_table: hasPricingTable, has_testimonials: hasTestimonials, cta_button_count: ctaButtonCount },
+    _extraction_method: 'static-html-regex (no JS-rendered content captured)'
+  };
+}
+
+/**
+ * Full analysis: fetches a reference URL once and returns both the visual
+ * signal object AND the stripped-text summary, so callers get design signal
+ * instead of only body copy.
+ */
+async function analyzeReferenceVisuals(url) {
+  const rawHtml = await fetchRawHtml(url);
+  if (!rawHtml) return null;
+  return extractVisualSignals(rawHtml, url);
+}
+
+/**
  * Extracts URLs from intake referenceSites and fetches them.
+ * Now returns real design signal (colors/fonts/layout/motion) per site, plus a
+ * short text excerpt — not just stripped body copy. This is what the design
+ * brief prompt below actually reasons over.
  */
 async function enrichIntakeWithReferences(intake) {
   const sitesStr = intake.referenceSites || '';
-  // Basic regex to find URLs
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urlRegex = /(https?:\/\/[^\s,]+)/g;
   const urls = sitesStr.match(urlRegex) || [];
-  
+
   if (urls.length === 0) return '';
 
   const topUrls = urls.slice(0, 2); // Limit to 2 to save time/tokens
-  const results = await Promise.all(topUrls.map(async url => {
-    const text = await fetchReferenceHtml(url);
-    return `--- Reference URL: ${url} ---\n${text}\n`;
+  const results = await Promise.all(topUrls.map(async (url) => {
+    const [visuals, text] = await Promise.all([
+      analyzeReferenceVisuals(url),
+      fetchReferenceHtml(url)
+    ]);
+
+    if (!visuals) return `--- Reference URL: ${url} ---\n[Failed to fetch or analyze]\n`;
+
+    return `--- Reference URL: ${url} ---
+DETECTED COLORS: ${[...visuals.colors.hex, ...visuals.colors.rgba].join(', ') || 'none found in static HTML'}
+DETECTED FONTS: ${[...visuals.typography.google_fonts, ...visuals.typography.css_font_families].join(', ') || 'none found in static HTML'}
+LAYOUT: ${visuals.layout.uses_grid ? 'CSS Grid' : ''}${visuals.layout.uses_flex ? ' Flexbox' : ''}${visuals.layout.sticky_nav ? ', sticky nav' : ''}, ${visuals.layout.section_count} sections
+MOTION: ${visuals.motion.libraries_detected.join(', ') || (visuals.motion.has_css_transitions ? 'CSS transitions only' : 'none detected')}
+COMPONENTS: ${visuals.components.has_pricing_table ? 'pricing table, ' : ''}${visuals.components.has_testimonials ? 'testimonials, ' : ''}${visuals.components.cta_button_count} CTA buttons
+BODY TEXT EXCERPT: ${text.substring(0, 800)}
+(extraction method: ${visuals._extraction_method})
+`;
   }));
 
   return results.join('\n');
@@ -136,7 +235,10 @@ Rules:
 1. "visual_tokens": Must be concrete decisions (e.g., specific colors, fonts like Inter/Playfair), not adjectives.
 2. "content_plan": Headlines must describe an outcome for the user, not just describe the product. No generic "Click Here" CTAs.
 3. "motion_spec": Follow category logic. B2B = minimal, Agency = expressive, Consumer = moderate. Every effect must have a purpose.
-4. Output strictly valid JSON. No markdown wrappers.`;
+4. "reference_extractions": When LIVE COMPETITIVE CONTEXT includes DETECTED COLORS/FONTS/LAYOUT/MOTION for a reference site,
+   you MUST make an explicit ADOPT / ADOPT_WITH_CHANGE / REJECT call for each notable pattern found — never silently
+   copy a detected hex color or font wholesale. State the specific change and why for anything adapted.
+5. Output strictly valid JSON. No markdown wrappers.`;
 
   const user = `PROJECT INTAKE:
 Name: ${intake.projectName || plan.appName || 'Untitled'}
@@ -202,5 +304,7 @@ function buildDesignNarrative(brief, fullIntake) {
 module.exports = {
   buildDesignBriefPrompt,
   enrichIntakeWithReferences,
-  buildDesignNarrative
+  buildDesignNarrative,
+  analyzeReferenceVisuals,
+  extractVisualSignals
 };

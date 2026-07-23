@@ -1,4 +1,5 @@
 const { buildEngineerSupportFiles } = require('./engineer_scaffold_support');
+const { selectDnaKey, buildDnaSystemBlock, buildProfileObject } = require('./design_dna');
 
 function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
@@ -848,7 +849,14 @@ dist
 function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
   let heroHeadline = plan.appName || intake.projectName || 'Project';
   let heroSubtext = intake.what || plan.summary || '';
-  
+
+  // Previously: profile/dnaKey were function parameters that nothing ever supplied,
+  // so every generation prompt below referenced an undefined DNA. Self-derive here
+  // so this function works correctly even if a caller still doesn't pass them.
+  if (!dnaKey) dnaKey = selectDnaKey(intake);
+  if (!profile) profile = buildProfileObject(dnaKey);
+  const dnaBlock = buildDnaSystemBlock(dnaKey);
+
   try {
     const briefObj = JSON.parse(brief.replace('DESIGN BRIEF:\n', ''));
     if (briefObj?.content_plan?.[0]) {
@@ -864,7 +872,8 @@ function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
 You produce premium, human-crafted website code that no other AI can replicate.
 Your output is always pure code — NEVER markdown fences, NEVER explanatory text before or after the code.
 Every file you generate must feel like it was crafted by a senior designer at a world-class studio.
-You strictly follow the Design Brief and DNA Profile provided. You NEVER default to generic output.`;
+You strictly follow the Design Brief and DNA Profile provided. You NEVER default to generic output.
+${dnaBlock}`;
 
   return {
     globalsCss: {
@@ -1011,4 +1020,3 @@ module.exports = {
   buildIncrementalPlan,
   buildArchitecturePrompts
 };
-
