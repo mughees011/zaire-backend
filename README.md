@@ -1,332 +1,189 @@
-<div align="center">
+# ZAIRE — Backend API
 
-# ZAIRE API
+> The neural core powering the ZAIRE AI assistant platform. Built on Node.js + Express, with a Python sidecar for agent execution and Engineer Mode's autonomous scaffolding pipeline.
 
-**The intelligent backend powering the ZAIRE AI platform.**
-
-A scalable Node.js API responsible for AI orchestration, authentication, memory, conversations, tool execution, and real-time communication.
-
-![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=node.js)
-![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express)
-![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase)
-![Socket.io](https://img.shields.io/badge/Socket.IO-Realtime-010101?style=for-the-badge&logo=socket.io)
-![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge)
-
-[Frontend Repository](https://github.com/yourusername/zaire-web) • [Report Bug](../../issues) • [Request Feature](../../issues)
-
-</div>
+[![Node.js](https://img.shields.io/badge/Node.js-24.x-brightgreen)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/Express-5.x-black)](https://expressjs.com)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 
 ---
 
-# Overview
+## What is ZAIRE?
 
-ZAIRE API is the backend service that powers the ZAIRE AI platform.
+ZAIRE is a premium AI-powered HUD (Heads-Up Display) and developer assistant platform. This repository is the **backend** — the API and orchestration layer. The companion frontend (desktop app UI) lives in a separate repository.
 
-It handles authentication, AI requests, conversation management, memory persistence, real-time communication, and database operations through a modular and scalable architecture.
+The backend handles:
 
-The API is designed with extensibility in mind, making it easy to integrate new AI models, tools, and services over time.
+- **Chat & LLM routing** — Multi-provider AI (OpenAI, Groq, OpenRouter) with automatic failover and streaming responses
+- **Engineer Mode** — Full pipeline from intake to architecture plan, design intelligence, scaffold generation, QA, repair, and export
+- **Memory System** — Persistent context, task lists, and session management
+- **License & Auth** — Clerk-based authentication and LemonSqueezy license enforcement
+- **Security** — Helmet, rate limiting, secret scanning, and path traversal protection
+- **Agent Daemon** — Python sidecar for computer-use and specialist agent features
 
 ---
 
-# Features
+## Tech Stack
 
-## AI Engine
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js 24.x |
+| Framework | Express 5.x |
+| Database | PostgreSQL (via `pg`) |
+| Auth | Clerk (`@clerk/clerk-sdk-node`) |
+| AI Providers | OpenAI, Groq, OpenRouter |
+| Storage | AWS S3 (`@aws-sdk/client-s3`) |
+| Payments | LemonSqueezy |
+| Realtime | Socket.IO |
+| Python Sidecar | FastAPI + asyncio |
 
-- AI request processing
-- Streaming responses
-- Context-aware conversations
-- Multi-model support
-- Prompt management
+---
 
-## Authentication
+## Getting Started
 
-- Secure authentication
-- User sessions
-- Protected API routes
-- Token validation
+### Prerequisites
 
-## Memory
+- Node.js ≥ 20
+- Python ≥ 3.10
+- A PostgreSQL database
+- A Clerk account
+- At least one LLM API key (OpenAI, Groq, or OpenRouter)
 
-- Persistent chat history
-- Context retrieval
-- User memory management
+### 1. Clone & Install
 
-## Database
+```bash
+git clone https://github.com/mughees011/zaire-backend.git
+cd zaire-backend
+npm install
+pip install -r requirements.txt
+```
 
-- Supabase integration
-- User management
-- Conversation storage
-- Message persistence
+### 2. Environment Variables
 
-## Real-Time Communication
+Create a `.env` file in the repository root:
 
-- Socket.IO support
-- Live message streaming
-- Connection management
+```env
+# Server
+PORT=5000
+NODE_ENV=development
+
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/zaire
+
+# Auth
+CLERK_SECRET_KEY=sk_...
+CLERK_PUBLISHABLE_KEY=pk_...
+
+# AI Providers (at least one required)
+OPENAI_API_KEY=sk-...
+GROQ_API_KEY=gsk_...
+OPENROUTER_API_KEY=sk-or-...
+
+# Storage (optional)
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=...
+AWS_REGION=us-east-1
+
+# Payments (optional)
+LEMON_SQUEEZY_API_KEY=...
+LEMON_SQUEEZY_STORE_ID=...
+
+# Google (optional — Drive/Calendar features)
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback
+```
+
+Never commit your real `.env` file — see [SECURITY.md](SECURITY.md).
+
+### 3. Run Locally
+
+```bash
+# Start the Node.js backend
+npm start
+
+# In a separate terminal — start the Python agent sidecar
+python agent_daemon.py
+```
+
+The server runs at `http://localhost:5000` by default.
+
+---
+
+## Project Structure
+
+```
+backend/
+├── index.js                          # Main Express app and route definitions
+├── agent_daemon.py                   # Python FastAPI sidecar (specialist agents)
+├── services/
+│   ├── engineer_workflow.js          # Engineer Mode scaffold generation and prompts
+│   ├── engineer_scaffold_support.js  # API route and support file builders
+│   ├── engineer_qa_repair.js         # QA, repair, export, and materialize logic
+│   ├── design_intelligence.js        # Design Brief LLM prompts and narrative generation
+│   └── ...
+├── middleware/
+│   └── license_enforcement.js        # License gate middleware
+├── memory/
+│   ├── chats/                        # Persisted chat sessions
+│   └── tasks.json                    # Task memory
+├── generated_projects/               # Materialized Engineer Mode project outputs
+└── requirements.txt                  # Python dependencies
+```
+
+---
+
+## Key API Routes
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/chat` | Main chat endpoint with streaming responses |
+| `POST` | `/engineer/plan` | Generate an architecture plan from intake |
+| `POST` | `/engineer/design-brief` | Generate a Design Intelligence brief |
+| `POST` | `/engineer/design-brief/regenerate` | Regenerate the Design Intelligence brief |
+| `POST` | `/engineer/scaffold` | Generate the full project scaffold |
+| `POST` | `/engineer/qa` | Run QA checks against generated files |
+| `POST` | `/engineer/repair` | AI-assisted repair for a reported error |
+| `POST` | `/engineer/export` | Export the project as a ZIP |
+| `POST` | `/engineer/materialize` | Write the project to disk and persist it |
+| `GET`  | `/engineer/projects` | List all Engineer Mode projects for a user |
+| `POST` | `/api/license/validate` | Validate a license key |
+
+---
+
+## Deployment
+
+The backend is deployed on [Render](https://render.com).
+
+```bash
+# Build command
+npm install
+
+# Start command
+node index.js
+```
+
+Set every environment variable listed above in your Render dashboard before deploying — the app will not start correctly without a valid database connection and at least one AI provider key.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, code style, and the pull request process.
 
 ## Security
 
-- Environment-based configuration
-- CORS protection
-- Request validation
-- Error handling
-- Secure API endpoints
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
----
+## Code of Conduct
 
-# Tech Stack
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-| Category | Technology |
-|----------|------------|
-| Runtime | Node.js |
-| Framework | Express.js |
-| Database | Supabase |
-| Authentication | Clerk |
-| Realtime | Socket.IO |
-| AI | Groq API |
-| Language | JavaScript |
-| Deployment | Railway |
+## Changelog
 
----
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
-# Project Structure
+## License
 
-```text
-zaire-api
-│
-├── config/
-├── controllers/
-├── middleware/
-├── models/
-├── routes/
-├── services/
-├── sockets/
-├── utils/
-├── database/
-├── public/
-├── server.js
-├── package.json
-└── README.md
-```
-
----
-
-# Getting Started
-
-## Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/zaire-api.git
-
-cd zaire-api
-```
-
----
-
-## Install Dependencies
-
-```bash
-npm install
-```
-
----
-
-## Environment Variables
-
-Create a `.env` file.
-
-```env
-PORT=5000
-
-NODE_ENV=development
-
-JWT_SECRET=
-
-GROQ_API_KEY=
-
-SUPABASE_URL=
-
-SUPABASE_ANON_KEY=
-
-SUPABASE_SERVICE_ROLE_KEY=
-
-CLERK_SECRET_KEY=
-
-CLIENT_URL=http://localhost:3000
-```
-
----
-
-## Start Development Server
-
-```bash
-npm run dev
-```
-
-Production
-
-```bash
-npm start
-```
-
----
-
-# API Architecture
-
-```
-Client
-   │
-   ▼
-Express Server
-   │
-   ├──────── Authentication
-   │
-   ├──────── AI Services
-   │
-   ├──────── Memory System
-   │
-   ├──────── Socket.IO
-   │
-   └──────── Database
-                │
-                ▼
-           Supabase
-```
-
----
-
-# Main Responsibilities
-
-- Authentication
-- AI Request Processing
-- Conversation Management
-- Memory Persistence
-- Database Operations
-- File Handling
-- Real-Time Messaging
-- Tool Execution
-- User Management
-
----
-
-# Example Endpoints
-
-| Method | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/chat` | Send a message to ZAIRE |
-| GET | `/api/chat/history` | Retrieve chat history |
-| GET | `/api/user` | Get current user |
-| POST | `/api/auth/login` | User authentication |
-| GET | `/api/health` | Health check |
-
-> Update these routes to match your actual API before publishing.
-
----
-
-# Deployment
-
-ZAIRE API is deployment-ready and works well with platforms such as:
-
-- Railway
-- Render
-- DigitalOcean
-- VPS
-- Docker
-
----
-
-# Roadmap
-
-## v0.1
-
-- AI Chat
-- Authentication
-- Database
-- Memory
-
-## v0.2
-
-- Tool Calling
-- Streaming Responses
-- Better Context Handling
-
-## Future
-
-- Multi-Agent Architecture
-- Vision Support
-- Voice Support
-- Plugin System
-- Workflow Automation
-- External Integrations
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-1. Fork the repository.
-2. Create a feature branch.
-
-```bash
-git checkout -b feature/new-feature
-```
-
-3. Commit your changes.
-
-```bash
-git commit -m "Add new feature"
-```
-
-4. Push to GitHub.
-
-```bash
-git push origin feature/new-feature
-```
-
-5. Open a Pull Request.
-
----
-
-# Security
-
-If you discover a security vulnerability, please report it privately instead of opening a public issue.
-
----
-
-# License
-
-Licensed under the Apache License 2.0.
-
-See the LICENSE file for more information.
-
----
-
-# Related Repositories
-
-| Repository | Description |
-|------------|-------------|
-| ZAIRE Web | Frontend application |
-| ZAIRE API | Backend services |
-
----
-
-# Author
-
-**Mughees Siddiqui**
-
-GitHub: https://github.com/mughees011
-
-LinkedIn: https://linkedin.com/in/mughees-siddiqui/
-
----
-
-<div align="center">
-
-## ZAIRE
-
-**Building the future of intelligent AI experiences.**
-
-If you found this project useful, consider giving it a ⭐ on GitHub.
-
-</div>
+MIT — see [LICENSE](LICENSE).

@@ -1,26 +1,21 @@
-========================================================================
-ZAIRE SOVEREIGN INTELLIGENCE SOFTWARE LICENSE AGREEMENT
-========================================================================
+MIT License
 
-Copyright (c) 2026 ZAIRE Sovereign Sphere. All rights reserved.
+Copyright (c) 2026 Mughees Siddiqui
 
-1. PROPRIETARY AND LICENSE GRANT:
-Subject to the terms and subscription activations of this Agreement,
-ZAIRE grants you a limited, non-exclusive, non-transferable, and
-hardware-locked license to run the ZAIRE intelligence client.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-2. MULTI-DEVICE LOCKING & HARDWARE LIMITS:
-This license is dynamically bound to the unique hardware signature of
-your computer via cryptographic fingerprinting. Standard, monthly,
-and annual tiers limit concurrent active machine nodes. Sharing,
-duplicating, or spoofing license credentials terminates access.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-3. DATA & INTELLECTUAL VALUE:
-All neural specialist modes, visual components, computer use systems,
-and custom specialist engines are the exclusive intellectual assets of
-the ZAIRE Sovereign Sphere. Reverse engineering, decompiling, or core 
-cloning is strictly prohibited.
-
-========================================================================
-Thank you for participating in the Sovereign intelligence future.
-========================================================================
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
