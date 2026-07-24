@@ -1,5 +1,5 @@
 
-const { analyzeScreen } = require('./vision_service');
+const { analyzeScreen } = require('../specialists/vision_service');
 const fetch = require('node-fetch');
 
 const BACKEND_URL = 'http://127.0.0.1:3001/engineer/echo_detect';

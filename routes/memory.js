@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllMemories, forgetMemory, searchMemories } = require('../memory_service');
+const { getAllMemories, forgetMemory, searchMemories } = require('../memory/memory_service');
 const { buildMemoryDashboard, clearMemoryDomain } = require('../services/memory_dashboard_service');
 
 const router = express.Router();

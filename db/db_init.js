@@ -1,4 +1,4 @@
-﻿const pool = require('./db/db');
+const pool = require('./db');
 
 async function initDatabase() {
   if (!process.env.DATABASE_URL) {
