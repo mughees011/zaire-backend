@@ -593,6 +593,88 @@ function slugifyPageName(name) {
 
 
 
+/**
+ * Maps a human font name like "Playfair Display" to a valid next/font/google export
+ * identifier like "Playfair_Display" (spaces → underscores, PascalCase preserved).
+ */
+function fontToNextImportName(fontName) {
+  if (!fontName) return 'Inter';
+  // next/font/google uses underscores for spaces, preserves casing
+  return fontName.trim().replace(/ /g, '_');
+}
+
+/**
+ * Builds a token-driven app/layout.tsx fallback that correctly imports Google Fonts
+ * using next/font/google (with PascalCase export names) and applies them to the body.
+ * This is used as a safe fallback if the AI layout generation fails.
+ */
+function buildLayoutContent(plan, metadataTitle, metadataDescription, resolvedDisplay, resolvedBody, resolvedBg, resolvedText) {
+  const displayImport = fontToNextImportName(resolvedDisplay);
+  const bodyImport = fontToNextImportName(resolvedBody);
+
+  // If both fonts are the same, only import once
+  const singleFont = displayImport === bodyImport;
+
+  const fontImports = singleFont
+    ? `import { ${displayImport} } from 'next/font/google';`
+    : `import { ${displayImport}, ${bodyImport} } from 'next/font/google';`;
+
+  const fontSetup = singleFont
+    ? `const primaryFont = ${displayImport}({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-primary',
+  display: 'swap',
+});`
+    : `const displayFont = ${displayImport}({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const bodyFont = ${bodyImport}({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  variable: '--font-body',
+  display: 'swap',
+});`;
+
+  const fontClassApply = singleFont
+    ? `\${primaryFont.variable}`
+    : `\${displayFont.variable} \${bodyFont.variable}`;
+
+  return `import type { ReactNode } from 'react';
+${fontImports}
+import './globals.css';
+
+${fontSetup}
+
+export const metadata = {
+  title: ${metadataTitle},
+  description: ${metadataDescription},
+  openGraph: {
+    title: ${metadataTitle},
+    description: ${metadataDescription},
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: ${metadataTitle},
+    description: ${metadataDescription},
+  },
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className={\`${fontClassApply} antialiased\`}>{children}</body>
+    </html>
+  );
+}
+`;
+}
+
 function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', designBrief = null) {
   let heroHeadline = plan.appName || plan.normalizedName || 'Project';
   let heroSubtext = intake.what || plan.summary || 'Built with precision.';
@@ -622,29 +704,14 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', d
   const metadataTitle = jsString(appTitle);
   const metadataDescription = jsString(plan.summary || productDescription);
   const files = {
-    'app/layout.tsx': {
-      content: `import type { ReactNode } from 'react';
-import './globals.css';
-
-export const metadata = {
-  title: ${metadataTitle},
-  description: ${metadataDescription}
-};
-
-export default function RootLayout({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}
-`,
+    'app/layout.tsx': {\n      content: buildLayoutContent(plan, metadataTitle, metadataDescription, resolvedDisplay, resolvedBody, resolvedBg, resolvedText),
       explanation: {
         what: 'This is the root layout required by the Next.js App Router.',
         why: 'Without it, the generated app cannot run as a real Next project.',
         edit: 'Metadata, providers, and global wrappers can be added here.',
         protect: 'Keep the html/body structure and children render intact.'
       }
+
     },
     'app/globals.css': {
       content: `@import url('https://fonts.googleapis.com/css2?family=${resolvedDisplay.replace(/ /g, '+')}:ital,wght@0,400;0,600;0,700;1,400;1,600&family=${resolvedBody.replace(/ /g, '+')}:wght@300;400;500;600&display=swap');
@@ -705,12 +772,37 @@ h1, h2, h3 { font-family: var(--font-display); }
 
   if (plan.needsAuth) {
     files['middleware.ts'] = {
-      content: `import { clerkMiddleware } from "@clerk/nextjs/server";\n\nexport default clerkMiddleware();\n\nexport const config = {\n  matcher: ["/((?!_next|.*\\\\..*).*)"]\n};\n`,
+      content: `import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+
+// Define which routes should be protected. Public routes are excluded.
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/webhooks(.*)',
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  // Only protect non-public routes
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
+
+export const config = {
+  matcher: [
+    // Skip Next.js internals and all static files
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
+  ],
+};
+`,
       explanation: {
-        what: 'This secures application routes with auth middleware.',
+        what: 'This secures application routes with Clerk auth middleware.',
         why: 'Protected screens should not render before session checks succeed.',
-        edit: 'You can refine which routes are protected.',
-        protect: 'Do not remove the middleware export unless you remove auth completely.'
+        edit: 'Add more public routes to isPublicRoute matcher as needed.',
+        protect: 'Do not remove the middleware export unless you remove auth completely. Ensure NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY are set in .env.local.'
       }
     };
   }
@@ -890,7 +982,84 @@ dist
   };
 
   const envExample = plan.envVars.map((item) => `${item}=`).join('\n');
-  const readme = `# ${plan.appName}\n\n## What this is\n${plan.summary}\n\n## Workflow\n${(plan.workflowPhases || []).map((item) => `- ${item.phase}: ${item.purpose}`).join('\n')}\n\n## Stack\n${plan.stack.map((item) => `- ${item}`).join('\n')}\n\n## Pages\n${plan.pages.map((item) => `- ${item}`).join('\n')}\n\n## Next steps\n${(plan.buildChecklist || []).map((item) => `- ${item}`).join('\n')}\n`;
+
+  const authEnvSection = plan.needsAuth ? `
+### Auth (Clerk)
+\`\`\`
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+\`\`\`
+Get your keys from [dashboard.clerk.com](https://dashboard.clerk.com/last-active?path=api-keys).
+` : '';
+
+  const dbEnvSection = plan.needsDatabase ? `
+### Database (Prisma / PostgreSQL)
+\`\`\`
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+\`\`\`
+After setting this, run: \`npx prisma db push\`
+` : '';
+
+  const paymentsEnvSection = plan.needsPayments ? `
+### Payments (Stripe)
+\`\`\`
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+\`\`\`
+Get your keys from [dashboard.stripe.com](https://dashboard.stripe.com/apikeys).
+` : '';
+
+  const readme = `# ${plan.appName}
+
+> ${plan.summary}
+
+## 🚀 Getting Started
+
+### 1. Install dependencies
+\`\`\`bash
+npm install
+\`\`\`
+
+### 2. Set up environment variables
+Copy the example file and fill in your values:
+\`\`\`bash
+cp .env.example .env.local
+\`\`\`
+Then open \`.env.local\` and fill in the values below.
+${authEnvSection}${dbEnvSection}${paymentsEnvSection}
+### 3. Run the development server
+\`\`\`bash
+npm run dev
+\`\`\`
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## 🏗️ Tech Stack
+${plan.stack.map((item) => `- ${item}`).join('\n')}
+
+## 📄 Pages
+${plan.pages.map((item) => `- \`/${item.toLowerCase().replace(/ /g, '-')}\` — ${item}`).join('\n')}
+
+## 🔧 Project Workflow
+${(plan.workflowPhases || []).map((item) => `- **${item.phase}**: ${item.purpose}`).join('\n')}
+
+## ✅ Build Checklist
+${(plan.buildChecklist || []).map((item) => `- [ ] ${item}`).join('\n')}
+
+## 📦 Scripts
+| Command | Description |
+|---|---|
+| \`npm run dev\` | Start the development server |
+| \`npm run build\` | Build for production |
+| \`npm run start\` | Start the production server |
+| \`npm run lint\` | Run ESLint |
+
+## 🚢 Deployment
+The easiest way to deploy is with [Vercel](https://vercel.com). Connect your repo and set the same environment variables from your \`.env.local\` file in the Vercel project settings.
+`;
+
 
   return {
     fileTree: Object.keys(files),
@@ -958,12 +1127,17 @@ Rules:
 You are generating app/layout.tsx for Next.js 14 App Router.
 Rules:
 - Output ONLY valid TypeScript JSX. No markdown, no explanation.
-- Import the Google Fonts that match the DNA (use 'next/font/google').
+- Import the Google Fonts that match the DNA using 'next/font/google'.
+- CRITICAL FONT RULE: Use the EXACT PascalCase name from the next/font/google package. For example:
+  - CORRECT: import { Inter } from 'next/font/google'; const inter = Inter({...})
+  - CORRECT: import { Playfair_Display } from 'next/font/google'; const playfairDisplay = Playfair_Display({...})
+  - WRONG: import { inter } from 'next/font/google'  (lowercase is NOT valid)
+  - WRONG: import { 'Playfair Display' } from 'next/font/google' (spaces are NOT valid, use underscores)
 - Include complete OpenGraph and Twitter card metadata.
 - The body tag must apply the font variable classes.
-- Include a <link rel="preconnect"> to fonts.googleapis.com.
 - Include './globals.css' import.
-- The layout must use \`suppressHydrationWarning\` on the html tag.`,
+- The layout must use \`suppressHydrationWarning\` on the html tag.
+- Do NOT include any ClerkProvider or auth provider unless the design brief explicitly requires auth.`,
       user: `${brief}\n\nApp Name: ${heroHeadline}\nDescription: ${heroSubtext}\nDeployment URL: https://${(plan.appName || intake.projectName || 'project').toLowerCase().replace(/ /g, '-')}.vercel.app\n\nGenerate app/layout.tsx now. Output ONLY the code starting with imports.`
     },
     pageTsx: {
