@@ -1391,15 +1391,16 @@ app.post('/engineer/scaffold', async (req, res) => {
               const fileName = `app/${pagePrompt.slug === 'page' ? '' : pagePrompt.slug + '/'}page.tsx`;
               let pageCode = await executeLlm(pagePrompt, fileName);
               
-              if (pagePrompt.slug === 'page' && pageCode && pageCode.length > 200) {
-                emitEngineerEvent(req, 'SCAFFOLD_REVIEW', 'Scaffold complete. Running AI self-review on landing page...', 'running');
+              // Run the Quality Enforcement Agent on ALL pages (not just the homepage)
+              if (pageCode && pageCode.length > 200) {
+                emitEngineerEvent(req, 'SCAFFOLD_REVIEW', `Quality Enforcement running on ${fileName}...`, 'running');
                 const reviewedPageRes = await executeLLMCallWithFailover({
                   messages: [
                     {role: "system", content: prompts.selfReview.system},
                     {role: "user", content: typeof prompts.selfReview.user === 'function' ? prompts.selfReview.user(pageCode) : prompts.selfReview.user}
                   ],
-                  temperature: 0.2,
-                  max_tokens: 6000
+                  temperature: 0.15,
+                  max_tokens: 12000
                 });
                 
                 if (reviewedPageRes && reviewedPageRes.usage) {
@@ -1418,6 +1419,7 @@ app.post('/engineer/scaffold', async (req, res) => {
                   pageCode = reviewedPage;
                 }
               }
+
               
               emitEngineerEvent(req, 'SCAFFOLD_FILE', `QA pass completed on ${fileName}`, 'passed', { file: fileName });
               fileMap[fileName] = {
