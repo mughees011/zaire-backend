@@ -1373,50 +1373,64 @@ app.post('/engineer/scaffold', async (req, res) => {
              return res?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
           };
 
-          const [globalsCss, twConfig, layoutTsx, pageTsx] = await Promise.all([
+          const [globalsCss, twConfig, layoutTsx] = await Promise.all([
             executeLlm(prompts.globalsCss, 'globals.css'),
             executeLlm(prompts.tailwindConfig, 'tailwind.config.ts'),
-            executeLlm(prompts.layoutTsx, 'layout.tsx'),
-            executeLlm(prompts.pageTsx, 'page.tsx')
+            executeLlm(prompts.layoutTsx, 'layout.tsx')
           ]);
 
-          emitEngineerEvent(req, 'SCAFFOLD_REVIEW', 'Scaffold complete. Running AI self-review...', 'running');
-          let finalPageTsx = pageTsx;
-          if (pageTsx && pageTsx.length > 200) {
-            const reviewedPageRes = await executeLLMCallWithFailover({
-              messages: [
-                {role: "system", content: prompts.selfReview.system},
-                {role: "user", content: typeof prompts.selfReview.user === 'function' ? prompts.selfReview.user({ layout: layoutTsx, page: pageTsx }) : prompts.selfReview.user}
-              ],
-              temperature: 0.2,
-              max_tokens: 6000
-            });
-            
-            if (reviewedPageRes && reviewedPageRes.usage) {
-               await logAiUsage({
-                 userId: req.body?.userId || 'local-user',
-                 projectId: req.body?.projectId,
-                 stage: 'scaffold_review',
-                 provider: reviewedPageRes.provider || 'openai',
-                 model: reviewedPageRes.model || 'gpt-4o',
-                 usage: reviewedPageRes.usage
-               });
-            }
-            
-            const reviewedPage = reviewedPageRes?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
-            if (reviewedPage && reviewedPage.length > 200) {
-              finalPageTsx = reviewedPage;
+          const fileMap = {
+            'app/globals.css': { content: globalsCss, explanation: { what: 'AI Generated globals.css', why: 'Defines CSS custom properties and resets.', edit: 'Modify variables here.', protect: 'Keep in sync with tailwind config.' } },
+            'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Do not remove standard plugins.' } },
+            'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present.' } }
+          };
+
+          if (prompts.pages && prompts.pages.length > 0) {
+            // Process pages sequentially to avoid extreme rate limits
+            for (const pagePrompt of prompts.pages) {
+              const fileName = `app/${pagePrompt.slug === 'page' ? '' : pagePrompt.slug + '/'}page.tsx`;
+              let pageCode = await executeLlm(pagePrompt, fileName);
+              
+              if (pagePrompt.slug === 'page' && pageCode && pageCode.length > 200) {
+                emitEngineerEvent(req, 'SCAFFOLD_REVIEW', 'Scaffold complete. Running AI self-review on landing page...', 'running');
+                const reviewedPageRes = await executeLLMCallWithFailover({
+                  messages: [
+                    {role: "system", content: prompts.selfReview.system},
+                    {role: "user", content: typeof prompts.selfReview.user === 'function' ? prompts.selfReview.user(pageCode) : prompts.selfReview.user}
+                  ],
+                  temperature: 0.2,
+                  max_tokens: 6000
+                });
+                
+                if (reviewedPageRes && reviewedPageRes.usage) {
+                   await logAiUsage({
+                     userId: req.body?.userId || 'local-user',
+                     projectId: req.body?.projectId,
+                     stage: 'scaffold_review',
+                     provider: reviewedPageRes.provider || 'openai',
+                     model: reviewedPageRes.model || 'gpt-4o',
+                     usage: reviewedPageRes.usage
+                   });
+                }
+                
+                const reviewedPage = reviewedPageRes?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+                if (reviewedPage && reviewedPage.length > 200) {
+                  pageCode = reviewedPage;
+                }
+              }
+              
+              emitEngineerEvent(req, 'SCAFFOLD_FILE', `QA pass completed on ${fileName}`, 'passed', { file: fileName });
+              fileMap[fileName] = {
+                content: pageCode,
+                explanation: {
+                  what: `AI Generated ${fileName}`,
+                  why: `Complete award-winning page for ${pagePrompt.name}.`,
+                  edit: 'Modify copy and replace images.',
+                  protect: 'Ensure all sections are complete.'
+                }
+              };
             }
           }
-          
-          emitEngineerEvent(req, 'SCAFFOLD_FILE', 'QA pass completed on app/page.tsx', 'passed', { file: 'page.tsx' });
-
-          const fileMap = {
-            'app/globals.css': { content: globalsCss, explanation: { what: 'AI Generated globals.css — ZAIRE Design Intelligence', why: 'Defines CSS custom properties and resets.', edit: 'Modify variables here.', protect: 'Keep in sync with tailwind config.' } },
-            'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts — ZAIRE Design Intelligence', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Do not remove standard plugins.' } },
-            'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present.' } },
-            'app/page.tsx': { content: finalPageTsx, explanation: { what: 'AI Generated page.tsx', why: 'Complete landing page using DNA design system.', edit: 'Modify copy and replace images.', protect: 'Ensure all sections are complete.' } }
-          };
 
           for (const [key, val] of Object.entries(fileMap)) {
             if (val.content && !val.content.includes('[SYSTEM ERROR]')) {

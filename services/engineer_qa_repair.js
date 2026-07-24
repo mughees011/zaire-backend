@@ -202,6 +202,26 @@ async function qaProject(projectId, files, designBrief = null) {
         });
         passedCount += 1;
       }
+
+      // Check for Godx level motion requirements
+      if (designBrief.motion_spec && designBrief.motion_spec.level !== 'minimal') {
+        const pageTsx = fileIndex.get('app/page.tsx');
+        if (pageTsx && !pageTsx.content.includes('framer-motion')) {
+          checks.push({
+            name: 'Motion Conformance',
+            status: 'warning',
+            message: `Design brief calls for ${designBrief.motion_spec.level} motion, but framer-motion is missing in app/page.tsx.`
+          });
+          warningCount += 1;
+        } else if (pageTsx) {
+          checks.push({
+            name: 'Motion Conformance',
+            status: 'passed',
+            message: `Framer-motion properly integrated for godx level UX.`
+          });
+          passedCount += 1;
+        }
+      }
     }
     return {
       status: errorCount > 0 ? 'failed' : warningCount > 0 ? 'warning' : 'passed',

@@ -274,7 +274,7 @@ function buildDesignNarrative(brief, fullIntake) {
     `Target category: ${competitive.category || 'general product'}.`,
     referenceNote,
     `Motion level: ${motion.level || 'moderate'} — effects chosen to match category norms, not decoration for its own sake.`,
-    `Primary accent (${tokens.primary_color || 'unresolved'}) is scoped to this project only — not shared with any other ZAIRE-generated project.`
+    `Primary accent (${tokens.primary_color || 'unresolved'}) `
   ];
 
   if (brief.design_rationale) assumptions.push(`Design Rationale: ${brief.design_rationale}`);
