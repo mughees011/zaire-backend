@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const pool = require('./db');
+const pool = require('../db');
 
 function generateLicenseKey() {
 
