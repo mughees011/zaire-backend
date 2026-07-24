@@ -3,8 +3,8 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
-const { analyzeScreen } = require('./vision_service');
-const { persistVisualEcho } = require('./memory_service');
+const { analyzeScreen } = require('../vision_service');
+const { persistVisualEcho } = require('../memory_service');
 
 /**
  * ProactiveService
