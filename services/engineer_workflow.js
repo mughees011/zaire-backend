@@ -1161,6 +1161,9 @@ CRITICAL RULES:
 - Every button must have hover and focus states.
 - Images: use placeholder images via \`https://images.unsplash.com\` with relevant search terms.
 - The page must be mobile responsive (use Tailwind responsive classes: sm:, md:, lg:).
+- SELF-CONTAINED RULE: Do NOT import from any local component files (e.g. NO import Navbar from '../components/Navbar'). Define ALL components (Navbar, Footer, Hero, etc.) as functions INSIDE this single file. Only import from npm packages.
+- Do NOT use Clerk, NextAuth, or any auth library unless the design brief explicitly states auth is required.
+- Output only standard ASCII + common UTF-8 characters. Do NOT include curly quotes, em dashes or special Unicode symbols in the code itself.
 
 DNA AESTHETIC: ${dnaKey}
 Hero Pattern: ${profile.hero_pattern || ''}
@@ -1184,27 +1187,54 @@ CRITICAL RULES:
 - Write ALL copy contextually for this specific page topic. NEVER lorem ipsum.
 - Every section must be fully implemented — no placeholder comments.
 - Apply all DNA rules: spacing, border-radius, animation easing.
-- Include a Navbar and Footer if this is a standalone page.`,
+- Include a Navbar and Footer if this is a standalone page.
+- SELF-CONTAINED RULE: Do NOT import from any local component files (e.g. NO import Navbar from '../components/Navbar'). Define ALL components (Navbar, Footer, etc.) as functions INSIDE this single file. Only import from npm packages.
+- Do NOT use Clerk, NextAuth, or any auth library.
+- Output only standard ASCII + common UTF-8 characters. Do NOT include curly quotes, em dashes or special Unicode symbols in the code itself.`,
         user: `${brief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}\n\nGenerate the complete TSX code for this page. Output ONLY the code.`
       };
     }),
     selfReview: {
       system: BASE_SYSTEM + `
-You are performing a quality review of generated code.
-Review the provided app/page.tsx against the Anti-Patterns listed in the brief.
-If you find ANY of these issues:
-  - Lorem ipsum text
-  - Equal-sized feature card grid (all cards same size)
-  - Missing hover states on buttons
-  - Hardcoded secrets
-  - No mobile responsiveness
-  - Less than 5 complete sections
+You are ZAIRE's Quality Enforcement Agent. Your job is to audit generated TSX and enforce award-winning standards.
+You are reviewing a generated page.tsx file. You will check it against all the rules below and FIX any violations.
 
-Fix them and return the COMPLETE corrected file.
-If no issues are found, return the file unchanged.
-Output ONLY the raw TSX code. No markdown, no explanation.`,
-      user: (pageContent) => `${brief}\n\nCURRENT app/page.tsx:\n${pageContent.substring(0, 4000)}\n\nReview and return the corrected (or unchanged) complete file.`
+AUDIT CHECKLIST — Fix ALL violations before returning:
+
+ANIMATION QUALITY:
+- [ ] framer-motion IS imported and used for at least 3 distinct animation types (e.g. fadeUp on scroll, stagger children, hover scale)
+- [ ] motion.div with whileInView and viewport={{ once: true }} is used for scroll reveals — NOT just opacity-0 CSS classes
+- [ ] Stagger animations (staggerChildren in variants) are used on at least one list/grid section
+- [ ] Hero section has an entrance animation (not static)
+- [ ] CTA buttons have whileHover and whileTap motion props
+
+SECTION QUALITY:
+- [ ] At least 5 FULL sections are present and completely implemented (not placeholders)
+- [ ] NO section is just a heading + paragraph in a centered box — each section must use a complex layout pattern
+- [ ] Feature section uses a bento grid, asymmetric split, or floating card pattern — NOT a plain 3-column equal card grid
+- [ ] Testimonials use a real layout (carousel, masonry cards, or quote blocks with avatar images) — NOT a simple list
+- [ ] Pricing section (if present) has tiered cards with feature comparison — NOT a single price block
+- [ ] FAQ section (if present) uses an accordion/expand pattern — NOT a static list
+
+CONTENT QUALITY:
+- [ ] ZERO lorem ipsum anywhere
+- [ ] ALL copy is specific to the app name and target user provided
+- [ ] Testimonials have real-sounding names, roles, and companies
+- [ ] Feature descriptions explain real benefits, not generic "Fast, Reliable, Scalable"
+
+CODE QUALITY:
+- [ ] NO local component imports (import X from '../components/...' is FORBIDDEN — all components must be defined inline)
+- [ ] NO Clerk, auth libraries, or any external auth provider code unless the brief explicitly requires it
+- [ ] All string literals use straight quotes (') not curly quotes (\u2018\u2019\u201C\u201D)
+- [ ] No em dashes (\u2014) or non-breaking spaces in code strings
+- [ ] 'use client'; is at the TOP of the file
+- [ ] All Tailwind classes are valid (no made-up class names)
+- [ ] Mobile responsive: all grid layouts use responsive prefixes (sm:, md:, lg:)
+
+OUTPUT RULE: Return the COMPLETE corrected TSX file. No markdown, no explanation. Start with 'use client';`,
+      user: (pageContent) => `${brief}\n\nApp Name: ${heroHeadline}\nTarget User: ${intake.who || 'professionals'}\n\nCURRENT app/page.tsx TO AUDIT AND FIX:\n${pageContent}\n\nAudit the file against ALL checklist items above. Fix every violation. Return the COMPLETE corrected file. Output ONLY the code.`
     }
+
   };
 }
 

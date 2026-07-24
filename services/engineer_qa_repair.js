@@ -223,6 +223,61 @@ async function qaProject(projectId, files, designBrief = null) {
         }
       }
     }
+
+    // ── Broken Local Import Check ─────────────────────────────────────────
+    // Detect generated TSX files that import from local paths that don't exist in the project.
+    const brokenImports = [];
+    const localImportPattern = /from\s+['"](\.\.\/?components\/[^'"]+)['"]/g;
+    for (const [path, fileObj] of fileIndex.entries()) {
+      if (path.endsWith('.tsx') || path.endsWith('.ts')) {
+        const content = fileObj?.content || '';
+        let m;
+        while ((m = localImportPattern.exec(content)) !== null) {
+          const importedPath = m[1];
+          // Normalize: ../components/Navbar -> components/Navbar.tsx or components/Navbar/index.tsx
+          const normalized = importedPath.replace(/^\.\.\//, '').replace(/^\.\//, '');
+          const exists = fileIndex.has(normalized) ||
+                         fileIndex.has(normalized + '.tsx') ||
+                         fileIndex.has(normalized + '.ts') ||
+                         fileIndex.has('app/' + normalized + '.tsx');
+          if (!exists) {
+            brokenImports.push({ file: path, import: importedPath });
+          }
+        }
+      }
+    }
+    if (brokenImports.length > 0) {
+      checks.push({
+        name: 'Import Integrity',
+        status: 'failed',
+        message: `${brokenImports.length} broken local import(s) detected. These will cause "Module not found" errors on build: ${brokenImports.slice(0, 3).map(b => `${b.file} imports "${b.import}"`).join('; ')}.`
+      });
+      errorCount += 1;
+    } else if (normalizedFiles.some(f => f.path?.endsWith('.tsx'))) {
+      checks.push({
+        name: 'Import Integrity',
+        status: 'passed',
+        message: 'No broken local component imports detected.'
+      });
+      passedCount += 1;
+    }
+
+    // ── Auth Library Without Env Vars Check ──────────────────────────────
+    const hasClerkCode = normalizedFiles.some(f =>
+      (f.content || '').includes('@clerk/nextjs') || (f.path || '').includes('middleware')
+    );
+    const hasClerkEnv = (projectSignals.envReferences || []).some(v =>
+      v.includes('CLERK')
+    );
+    if (hasClerkCode && !hasClerkEnv) {
+      checks.push({
+        name: 'Auth Config',
+        status: 'warning',
+        message: 'Clerk auth code detected but NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY are not referenced in the generated env vars. Set these in .env.local before running npm run dev.'
+      });
+      warningCount += 1;
+    }
+
     return {
       status: errorCount > 0 ? 'failed' : warningCount > 0 ? 'warning' : 'passed',
       passed_count: passedCount,
@@ -661,6 +716,19 @@ async function materializeProject(projectName, files) {
  * Exports a project by zipping the provided files and piping to the response.
  * Returns a Promise that resolves/rejects correctly so errors can be caught by callers.
  */
+function sanitizeToUtf8(str) {
+  if (typeof str !== 'string') return String(str || '');
+  // Re-encode through Buffer to strip any invalid byte sequences
+  return Buffer.from(str, 'utf8').toString('utf8')
+    // Replace the most common "smart" typography characters that break parsers
+    .replace(/[\u2018\u2019]/g, "'")   // curly single quotes -> straight
+    .replace(/[\u201C\u201D]/g, '"')   // curly double quotes -> straight
+    .replace(/\u2014/g, '--')           // em dash -> --
+    .replace(/\u2013/g, '-')            // en dash -> -
+    .replace(/\u2026/g, '...')          // ellipsis -> ...
+    .replace(/[\u00A0]/g, ' ');         // non-breaking space -> regular space
+}
+
 function exportProjectZip(projectId, files, res) {
   return new Promise((resolve, reject) => {
     try {
@@ -686,11 +754,73 @@ function exportProjectZip(projectId, files, res) {
 
       archive.pipe(res);
 
+      // Collect env var placeholders from the package.json and file contents
+      // so we can generate a useful .env.local template
+      const envVarNames = new Set();
+      const envVarPattern = /process\.env\.([A-Z_][A-Z0-9_]+)/g;
+
       for (const file of normalizedFiles) {
         if (file.path && file.content !== undefined && file.content !== null) {
           const safeRelativePath = assertSafeRelativePath(file.path);
-          archive.append(String(file.content), { name: safeRelativePath });
+          // Sanitize to valid UTF-8 before adding to zip
+          const safeContent = sanitizeToUtf8(file.content);
+          archive.append(safeContent, { name: safeRelativePath });
+
+          // Collect env var references for the .env.local template
+          let match;
+          while ((match = envVarPattern.exec(safeContent)) !== null) {
+            envVarNames.add(match[1]);
+          }
         }
+      }
+
+      // Inject a ready-to-use .env.local template if not already present
+      const hasEnvLocal = normalizedFiles.some(f => f.path === '.env.local');
+      if (!hasEnvLocal) {
+        // Always-needed vars
+        const baseVars = [
+          '# ============================================================',
+          '# .env.local — fill in your values and run: npm run dev',
+          '# ============================================================',
+          '',
+        ];
+
+        // Add any vars found in the generated code
+        const knownVars = [...envVarNames].filter(v =>
+          !['NODE_ENV', 'PORT', 'HOST'].includes(v)
+        );
+
+        if (knownVars.includes('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY') || knownVars.includes('CLERK_SECRET_KEY')) {
+          baseVars.push('# --- Clerk Auth ---');
+          baseVars.push('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE');
+          baseVars.push('CLERK_SECRET_KEY=sk_test_YOUR_KEY_HERE');
+          baseVars.push('# Get your keys at: https://dashboard.clerk.com/last-active?path=api-keys');
+          baseVars.push('');
+        }
+
+        if (knownVars.includes('DATABASE_URL')) {
+          baseVars.push('# --- Database ---');
+          baseVars.push('DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME');
+          baseVars.push('');
+        }
+
+        if (knownVars.includes('STRIPE_SECRET_KEY') || knownVars.includes('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY')) {
+          baseVars.push('# --- Stripe Payments ---');
+          baseVars.push('STRIPE_SECRET_KEY=sk_test_YOUR_KEY_HERE');
+          baseVars.push('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE');
+          baseVars.push('');
+        }
+
+        // Any remaining env vars found in code
+        const remaining = knownVars.filter(v => !['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY', 'DATABASE_URL', 'STRIPE_SECRET_KEY', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'].includes(v));
+        if (remaining.length > 0) {
+          baseVars.push('# --- Other ---');
+          remaining.forEach(v => baseVars.push(`${v}=`));
+          baseVars.push('');
+        }
+
+        archive.append(baseVars.join('\n'), { name: '.env.local' });
+        console.log(`[EXPORT] Injected .env.local template with ${knownVars.length} vars`);
       }
 
       archive.finalize().then(() => {
@@ -702,6 +832,7 @@ function exportProjectZip(projectId, files, res) {
     }
   });
 }
+
 
 module.exports = {
   qaProject,
