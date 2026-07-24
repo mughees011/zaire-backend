@@ -704,15 +704,16 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', d
   const metadataTitle = jsString(appTitle);
   const metadataDescription = jsString(plan.summary || productDescription);
   const files = {
-    'app/layout.tsx': {\n      content: buildLayoutContent(plan, metadataTitle, metadataDescription, resolvedDisplay, resolvedBody, resolvedBg, resolvedText),
+    'app/layout.tsx': {
+      content: buildLayoutContent(plan, metadataTitle, metadataDescription, resolvedDisplay, resolvedBody, resolvedBg, resolvedText),
       explanation: {
         what: 'This is the root layout required by the Next.js App Router.',
         why: 'Without it, the generated app cannot run as a real Next project.',
         edit: 'Metadata, providers, and global wrappers can be added here.',
         protect: 'Keep the html/body structure and children render intact.'
       }
-
     },
+
     'app/globals.css': {
       content: `@import url('https://fonts.googleapis.com/css2?family=${resolvedDisplay.replace(/ /g, '+')}:ital,wght@0,400;0,600;0,700;1,400;1,600&family=${resolvedBody.replace(/ /g, '+')}:wght@300;400;500;600&display=swap');
 
