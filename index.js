@@ -12,7 +12,7 @@ const fs = require('fs');
 const multer = require('multer');
 const fsExtra = require('fs-extra');
 const open = require('open');
-const pool = require('./db');
+const pool = require('./db/db');
 const { requireAuth } = require('./middleware/auth');
 const { usageLimit } = require('./middleware/usage_limit');
 const { bootstrapUser } = require('./services/user_bootstrap');
@@ -132,13 +132,13 @@ process.on('unhandledRejection', (reason) => console.error('[FATAL] Unhandled Re
 let ProactiveService;
 let globalProactive = null;
 try {
-  ProactiveService = require('./proactive_service');
+  ProactiveService = require('./services/proactive_service');
 } catch (e) {
   console.error("Critical error loading ProactiveService:", e.message);
 }
 
 const { google } = require('googleapis');
-const { analyzeScreen } = require('./vision_service');
+const { analyzeScreen } = require('./specialists/vision_service');
 
 // ─── Global Error Handling (Catch everything early) ──────────────────────────
 process.on('uncaughtException', (err) => {
@@ -450,7 +450,7 @@ app.post('/api/bootstrap', requireAuth, async (req, res) => {
 
 // ─── LemonSqueezy Billing Integration ──────────────────────────────────────────
 const billingService = require('./billing_service');
-const subscriptionService = require('./subscription_service');
+const subscriptionService = require('./services/subscription_service');
 const crypto = require('crypto');
 
 // Timing-safe HMAC signature verification for LemonSqueezy webhook security
@@ -3168,7 +3168,7 @@ function applyDaemonPowerProfile(nextProfile = {}) {
 }
 
 // ─── INITIALIZE ───
-const { initDatabase } = require('./db_init');
+const { initDatabase } = require('./db/db_init');
 initDatabase().then(() => {
   if (process.env.RUN_DAEMONS === 'true') {
     console.log('[CORE] Starting local ZAIRE daemons...');

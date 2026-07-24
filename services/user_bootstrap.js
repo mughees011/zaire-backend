@@ -1,4 +1,4 @@
-const { getSubscription, upsertSubscription } = require('../subscription_service');
+const { getSubscription, upsertSubscription } = require('./subscription_service');
 
 async function bootstrapUser(user) {
   const existingSub = await getSubscription(user.id);

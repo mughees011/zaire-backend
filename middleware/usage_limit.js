@@ -1,4 +1,4 @@
-const subscriptionService = require('../subscription_service');
+const subscriptionService = require('../services/subscription_service');
 
 async function usageLimit(req, res, next) {
     try {

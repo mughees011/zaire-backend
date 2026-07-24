@@ -2,7 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const subscriptionService = require('../subscription_service');
+const subscriptionService = require('../services/subscription_service');
 
 const SESSION_FILE = path.join(
   process.env.LOCALAPPDATA || process.env.APPDATA || os.homedir(),

@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const {
   upsertSubscription
-} = require('../subscription_service');
+} = require('../services/subscription_service');
 
 const router = express.Router();
 
