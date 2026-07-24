@@ -80,9 +80,6 @@ const godxBlock = `
 
     return \`\${imports}
 /*
- * ==========================================
- * ZAIRE GODX DESIGN INTELLIGENCE REPORT
- * ==========================================
  * Design Rationale: \${rd}
  * Motion Rationale: \${md}
  * Structural Rationale: \${sr}

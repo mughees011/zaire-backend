@@ -252,9 +252,6 @@ function buildPageContent(plan, intake, appTitle, productDescription, bg, text, 
 
     return `${imports}
 /*
- * ==========================================
- * ZAIRE GODX DESIGN INTELLIGENCE REPORT
- * ==========================================
  * Design Rationale: ${rd}
  * Motion Rationale: ${md}
  * Structural Rationale: ${sr}
@@ -594,58 +591,7 @@ function slugifyPageName(name) {
     .replace(/^-+|-+$/g, '') || 'page';
 }
 
-function isLandingPage(pageName) {
-  return /landing|value proposition|^home$/i.test(pageName || '');
-}
 
-function buildAdditionalPageFiles(plan, intake, tokens, designBrief) {
-  const { bg, text, primary, displayFont, bodyFont, isLight } = tokens;
-  const textMuted = isLight ? '#6b7280' : '#9ca3af';
-  const border = isLight ? '#e5e7eb' : '#27272a';
-  const pages = plan.pages || [];
-  const files = {};
-
-  pages.forEach((pageName) => {
-    if (isLandingPage(pageName)) return; // app/page.tsx already covers this
-    const slug = slugifyPageName(pageName);
-    if (!slug || slug === 'page') return;
-
-    // Try to find a matching component name for slightly richer stub copy —
-    // best-effort only; falls back to a clean generic section if no match.
-    const relatedComponent = (plan.components || []).find((c) =>
-      c.toLowerCase().includes(slug.split('-')[0])
-    );
-
-    files[`app/${slug}/page.tsx`] = {
-      content: `export default function ${slug.replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/^[a-z]/, (c) => c.toUpperCase())}Page() {
-  return (
-    <main style={{ background: '${bg}', color: '${text}', fontFamily: "'${bodyFont}', system-ui, sans-serif", minHeight: '100vh', padding: '120px 32px 80px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3.5rem)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '16px' }}>
-          ${pageName}
-        </h1>
-        <p style={{ color: '${textMuted}', fontSize: '1.05rem', maxWidth: '640px', marginBottom: '40px' }}>
-          ${relatedComponent ? `Built around the ${relatedComponent} component defined in the architecture plan.` : 'Generated stub for this route — expand with the real layout for this page.'}
-        </p>
-        <div style={{ border: '1px dashed ${border}', borderRadius: '12px', padding: '48px', textAlign: 'center', color: '${textMuted}' }}>
-          TODO: implement ${pageName} content (see lib/engineer-plan.ts for the approved component list for this route)
-        </div>
-      </div>
-    </main>
-  );
-}
-`,
-      explanation: {
-        what: `Route stub for "${pageName}", one of the pages defined in the architecture plan.`,
-        why: 'Every page listed in the approved plan needs a real route file — a plan with 11 pages that only ships 1 route is an incomplete build.',
-        edit: 'Replace the TODO block with the real section content for this page.',
-        protect: 'Keep the default export and the route folder name in sync with any internal links to this page.'
-      }
-    };
-  });
-
-  return files;
-}
 
 function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', designBrief = null) {
   let heroHeadline = plan.appName || plan.normalizedName || 'Project';
@@ -752,12 +698,7 @@ h1, h2, h3 { font-family: var(--font-display); }
     },
   };
 
-  // Every other page in plan.pages gets its own route file now — previously
-  // this scaffold only ever produced app/page.tsx regardless of plan size.
-  Object.assign(files, buildAdditionalPageFiles(plan, intake, {
-    bg: resolvedBg, text: resolvedText, primary: resolvedPrimary,
-    displayFont: resolvedDisplay, bodyFont: resolvedBody, isLight: isLightTheme
-  }, designBrief));
+  // AI will generate the rest of the pages instead of using the fallback stub function
 
   // Pass the approved designBrief through so support files use resolved tokens
   Object.assign(files, buildEngineerSupportFiles(plan, intake, skillLevel, designBrief));
@@ -824,6 +765,10 @@ h1, h2, h3 { font-family: var(--font-display); }
       '@types/react': '^18.3.3',
       '@types/react-dom': '^18.3.0',
       autoprefixer: '^10.4.19',
+      'framer-motion': '^11.2.10',
+      'lucide-react': '^0.395.0',
+      'clsx': '^2.1.1',
+      'tailwind-merge': '^2.3.0',
       next: '^14.2.4',
       postcss: '^8.4.39',
       react: '^18.3.1',
@@ -1030,8 +975,11 @@ CRITICAL RULES:
 - Output ONLY valid TSX code. No markdown fences. No text before or after. Start with 'use client'; or imports.
 - Use Tailwind CSS classes exclusively for styling. Inline styles only for CSS variables.
 - Write ALL copy contextually — based on the app name, description, and target user. NEVER lorem ipsum.
+- YOU MUST use \`framer-motion\` (import { motion } from 'framer-motion') to add high-end micro-interactions, scroll-reveals, and stagger effects matching the DNA motion level.
+- YOU MUST use \`lucide-react\` for any icons needed.
 - Include a complete, functional Navbar with logo and navigation links.
 - Include ALL sections in this order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
+- You MUST generate at least 5 to 8 complex sections. Prohibit simple layouts (e.g. just text in a box). Use bento grids, asymmetrical layouts, sticky scroll, or animated elements.
 - Every section must be fully implemented — no placeholder comments like "// add content here".
 - Use real data — fake but believable testimonials, feature descriptions, pricing tiers (if SaaS).
 - Apply all DNA rules: spacing, border-radius, animation easing, hover states.
@@ -1044,6 +992,27 @@ Hero Pattern: ${profile.hero_pattern || ''}
 Layout Pattern: ${profile.layout_pattern || ''}`,
       user: `${brief}\n\nApp Name: ${heroHeadline}\nDescription: ${heroSubtext}\nTarget User: ${intake.who || 'professionals'}\n\nGenerate the complete app/page.tsx now. Output ONLY the code.`
     },
+    pages: (plan.pages || []).map(pageName => {
+      const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
+      const slug = isLanding ? 'page' : slugifyPageName(pageName);
+      return {
+        name: pageName,
+        slug: slug,
+        system: BASE_SYSTEM + `
+You are generating app/${slug === 'page' ? '' : slug + '/'}page.tsx — the "${pageName}" page of the website.
+It must be STUNNING and feel like a world-class design studio built it.
+
+CRITICAL RULES:
+- Output ONLY valid TSX code. No markdown fences. No text before or after.
+- YOU MUST use \`framer-motion\` and \`lucide-react\`.
+- You MUST generate at least 4 to 6 complex sections specific to the purpose of "${pageName}". Prohibit simple text layouts. Use grids, cards, and interactive UI elements.
+- Write ALL copy contextually for this specific page topic. NEVER lorem ipsum.
+- Every section must be fully implemented — no placeholder comments.
+- Apply all DNA rules: spacing, border-radius, animation easing.
+- Include a Navbar and Footer if this is a standalone page.`,
+        user: `${brief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}\n\nGenerate the complete TSX code for this page. Output ONLY the code.`
+      };
+    }),
     selfReview: {
       system: BASE_SYSTEM + `
 You are performing a quality review of generated code.
