@@ -11,7 +11,7 @@ from tkinter import messagebox
 
 import requests
 
-from machine_id import generate_machine_fingerprint
+from security.machine_id import generate_machine_fingerprint
 
 try:
     import winsound
