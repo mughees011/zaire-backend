@@ -1,5 +1,5 @@
 const express = require('express');
-const chatHistoryService = require('../chat_history_service');
+const chatHistoryService = require('../services/chat_history_service');
 
 const router = express.Router();
 

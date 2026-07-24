@@ -78,6 +78,9 @@ function spawnPythonDaemon(scriptPath, options = {}) {
   const exeName = process.platform === 'win32' ? 'zaire_core.exe' : 'zaire_core';
   const exePath = path.join(__dirname, exeName);
   
+  // Inject PYTHONPATH so scripts in subdirectories can import from root backend/
+  options.env = { ...process.env, PYTHONPATH: __dirname, ...(options.env || {}) };
+
   if (isProduction && fs.existsSync(exePath)) {
     const baseName = path.basename(scriptPath);
     console.log(`[SPAWN] Using compiled zaire_core for ${baseName}`);
@@ -449,7 +452,7 @@ app.post('/api/bootstrap', requireAuth, async (req, res) => {
 });
 
 // ─── LemonSqueezy Billing Integration ──────────────────────────────────────────
-const billingService = require('./billing_service');
+const billingService = require('./services/billing_service');
 const subscriptionService = require('./services/subscription_service');
 const crypto = require('crypto');
 
@@ -2425,7 +2428,7 @@ function triggerDailyBriefing(socket) {
   console.log('[BRIEFING] Initiating Stark Proactive Greeting...');
   if (socket) socket.emit('neural_log', { content: "System: Initiating daily briefing sequence." });
 
-  const briefingProc = spawnPythonDaemon(path.join(__dirname, 'daily_briefing.py'), {
+  const briefingProc = spawnPythonDaemon(path.join(__dirname, 'daemons', 'daily_briefing.py'), {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
   });
 
@@ -2542,7 +2545,7 @@ app.post('/presence', async (req, res) => {
 
               try {
                 const { execSync } = require('child_process');
-                const briefPath = path.join(__dirname, 'daily_briefing.py');
+                const briefPath = path.join(__dirname, 'daemons', 'daily_briefing.py');
                 const briefText = execSync(`python "${briefPath}"`, { encoding: 'utf-8' }).trim();
 
                 if (briefText) {
@@ -3055,14 +3058,14 @@ const {
   adjustVolume, setVolume, toggleMute, setBrightness,
   saveScreenshot, listWindows, focusWindow, closeWindow,
   listFiles, searchFiles, openFile, controlMedia
-} = require('./system_tools');
+} = require('./system/system_tools');
 
 
 
 
 
-const { rememberFact, recallMemories, getAllMemories, forgetMemory, buildMemoryContext, persistVisualEcho } = require('./memory_service');
-const chatHistoryService = require('./chat_history_service');
+const { rememberFact, recallMemories, getAllMemories, forgetMemory, buildMemoryContext, persistVisualEcho } = require('./memory/memory_service');
+const chatHistoryService = require('./services/chat_history_service');
 
 // ─── Python Sidecar Management ────────────────────────────────────────────────
 let sidecarReady = false;
@@ -3187,7 +3190,7 @@ initDatabase().then(() => {
 function startPythonSidecar() {
   if (sidecarProcess) return;
   console.log('[AGENT] Starting Gemma 4 Agent Daemon...');
-  const scriptPath = path.join(__dirname, 'agent_daemon.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'agent_daemon.py');
 
   sidecarProcess = spawnPythonDaemon(scriptPath, {
 
@@ -3251,7 +3254,7 @@ function startPythonSidecar() {
 function startAirLLM() {
   if (airLLMProc) return;
   console.log('[AIRLLM] Initializing Deep Intelligence Bridge (Port 3012)...');
-  const scriptPath = path.join(__dirname, 'airllm_service.py');
+  const scriptPath = path.join(__dirname, 'services', 'airllm_service.py');
   airLLMProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -3292,7 +3295,7 @@ let lastWeeklyBriefingKey = null;
 function startSelfHealingDaemon() {
   if (selfHealingProc) return;
   console.log('[GUARDIAN] Starting Self-Healing Daemon...');
-  const scriptPath = path.join(__dirname, 'self_healing_daemon.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'self_healing_daemon.py');
   selfHealingProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -3312,7 +3315,7 @@ function startSelfHealingDaemon() {
 function startWeeklyBriefingService() {
   if (weeklyBriefingProc) return;
   console.log('[WEEKLY] Starting Weekly Briefing Service...');
-  const scriptPath = path.join(__dirname, 'weekly_briefing.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'weekly_briefing.py');
   weeklyBriefingProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -3360,7 +3363,7 @@ function startWeeklyBriefingScheduler() {
 
 function startObserverDaemon() {
   console.log('[OBSERVER] Starting ZAIRE Observer Daemon (Vision & HUD)...');
-  const scriptPath = path.join(__dirname, 'observer_daemon.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'observer_daemon.py');
 
   observerProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -3385,7 +3388,7 @@ let vectorMemoryReady = false;
 function startVectorMemory() {
   if (vectorMemoryProc) return;
   console.log('[VECTOR_MEM] Starting ZAIRE Vector Memory (ChromaDB)...');
-  const scriptPath = path.join(__dirname, 'vector_memory.py');
+  const scriptPath = path.join(__dirname, 'memory', 'vector_memory.py');
   vectorMemoryProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -3423,7 +3426,7 @@ let localLLMReady = false;
 function startLocalLLM() {
   if (localLLMProc) return;
   console.log('[LOCAL_LLM] Starting ZAIRE Local LLM Fallback (Ollama bridge)...');
-  const scriptPath = path.join(__dirname, 'local_llm_service.py');
+  const scriptPath = path.join(__dirname, 'services', 'local_llm_service.py');
   localLLMProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -3461,7 +3464,7 @@ let processMonReady = false;
 function startProcessMonitor() {
   if (processMonProc) return;
   console.log('[PROCESS_MON] Starting ZAIRE Process & App Monitor...');
-  const scriptPath = path.join(__dirname, 'process_monitor.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'process_monitor.py');
   processMonProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3487,7 +3490,7 @@ let clipboardReady = false;
 function startClipboard() {
   if (clipboardProc) return;
   console.log('[CLIPBOARD] Starting ZAIRE Clipboard Intelligence...');
-  const scriptPath = path.join(__dirname, 'clipboard_daemon.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'clipboard_daemon.py');
   clipboardProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3513,7 +3516,7 @@ let fileWatcherReady = false;
 function startFileWatcher() {
   if (fileWatcherProc) return;
   console.log('[FILE_WATCHER] Starting ZAIRE File Watcher...');
-  const scriptPath = path.join(__dirname, 'file_watcher.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'file_watcher.py');
   fileWatcherProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3539,7 +3542,7 @@ let sysHealthReady = false;
 function startSysHealth() {
   if (sysHealthProc) return;
   console.log('[SYS_HEALTH] Starting ZAIRE System Health Monitor...');
-  const scriptPath = path.join(__dirname, 'system_health.py');
+  const scriptPath = path.join(__dirname, 'security', 'system_health.py');
   sysHealthProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3565,7 +3568,7 @@ let alarmReady = false;
 function startAlarmScheduler() {
   if (alarmProc) return;
   console.log('[ALARM] Starting ZAIRE Smart Alarm Scheduler...');
-  const scriptPath = path.join(__dirname, 'alarm_scheduler.py');
+  const scriptPath = path.join(__dirname, 'daemons', 'alarm_scheduler.py');
   alarmProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3601,7 +3604,7 @@ function startFaceSecurity() {
   }
 
   console.log('[SECURITY] Starting ZAIRE Face Security Daemon...');
-  const scriptPath = path.join(__dirname, 'face_security.py');
+  const scriptPath = path.join(__dirname, 'security', 'face_security.py');
   securityProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -3635,7 +3638,7 @@ let smartHomeReady = false;
 function startSmartHome() {
   if (smartHomeProc) return;
   console.log('[SMART_HOME] Starting ZAIRE Smart Home Hub...');
-  const scriptPath = path.join(__dirname, 'smart_home.py');
+  const scriptPath = path.join(__dirname, 'specialists', 'smart_home.py');
   smartHomeProc = spawnPythonDaemon(scriptPath, {
     stdio: ['ignore', 'pipe', 'pipe'], detached: false,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
@@ -5792,7 +5795,7 @@ io.on('connection', (socket) => {
 
           } else if (name === "send_push_notification") {
             try {
-              const scriptPath = path.join(__dirname, 'pushbullet_service.py');
+              const scriptPath = path.join(__dirname, 'services', 'pushbullet_service.py');
               const output = await new Promise((resolve) => {
                 exec(`python "${scriptPath}" --note "${args.title}" "${args.body}"`, (err, stdout) => {
                   if (err) resolve(`Failed to send push: ${err.message}`);
@@ -6081,7 +6084,7 @@ io.on('connection', (socket) => {
           } else if (name === "get_morning_brief") {
             try {
               const { execSync } = require('child_process');
-              const briefPath = path.join(__dirname, 'daily_briefing.py');
+              const briefPath = path.join(__dirname, 'daemons', 'daily_briefing.py');
               const output = execSync(`python "${briefPath}"`, { encoding: 'utf-8' });
               result = output.trim() || "Briefing failed to generate, sir.";
               socket.emit('neural_log', { content: '🌅 Morning briefing generated and dispatched.' });

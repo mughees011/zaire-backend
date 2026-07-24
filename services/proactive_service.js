@@ -4,7 +4,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 const { analyzeScreen } = require('../specialists/vision_service');
-const { persistVisualEcho } = require('../memory_service');
+const { persistVisualEcho } = require('../memory/memory_service');
 
 /**
  * ProactiveService

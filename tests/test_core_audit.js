@@ -1,5 +1,5 @@
-const memory = require('./memory_service');
-const proactive = require('./proactive_service');
+const memory = require('../memory/memory_service');
+const proactive = require('../services/proactive_service');
 
 async function runAudit() {
     console.log('--- ZAIRE CORE 2.0 STABILITY AUDIT ---');

@@ -19,7 +19,7 @@ from specialists.engineer  import EngineerSpecialist
 from specialists.business  import BusinessSpecialist
 from specialists.multimodal import ZaireVision
 from .llm_utils import call_llm_sync, call_llm_stream, SafeGroqClient
-from goap_planner import GOAPPlanner
+from specialists.goap_planner import GOAPPlanner
 
 # ─── Service URLs ─────────────────────────────────────────────────────────────
 VECTOR_MEMORY_URL = "http://127.0.0.1:3004"
