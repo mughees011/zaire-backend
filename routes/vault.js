@@ -1,6 +1,6 @@
 const express = require('express');
-const { requireAuth } = require('../auth_middleware');
-const { saveUserKeys, getKeyStatus, getUserKeys } = require('../vault_service');
+const { requireAuth } = require('../middleware/auth_middleware');
+const { saveUserKeys, getKeyStatus, getUserKeys } = require('../services/vault_service');
 const { mergeAndSaveSystemConfig } = require('../services/system_config_service');
 
 const router = express.Router();

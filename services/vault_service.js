@@ -1,5 +1,5 @@
-const pool = require('./db');
-const { encrypt, decrypt, maskKey } = require('./crypto_utils');
+const pool = require('../db/db');
+const { encrypt, decrypt, maskKey } = require('../security/crypto_utils');
 
 /**
  * Saves or updates encrypted keys for a given user as slots

@@ -1,6 +1,6 @@
 const express = require('express');
-const { requireAuth } = require('../auth_middleware');
-const pool = require('../db');
+const { requireAuth } = require('../middleware/auth_middleware');
+const pool = require('../db/db');
 
 const router = express.Router();
 const HIDDEN_MODE_META_PREFIX = '\n[ZAIRE_MODE_META]';

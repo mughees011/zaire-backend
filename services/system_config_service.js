@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { encrypt: aesEncrypt, decrypt: aesDecrypt } = require('../crypto_utils');
+const { encrypt: aesEncrypt, decrypt: aesDecrypt } = require('../security/crypto_utils');
 
 const CONFIG_FILE = path.join(__dirname, '..', 'memory', 'system_config.json');
 const SECRETS_FILE = path.join(__dirname, '..', 'memory', 'api_secrets.json');

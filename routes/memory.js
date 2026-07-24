@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
     }
 
     const userId = req.body.userId || 'local-user';
-    const pool = require('../db');
+    const pool = require('../db/db');
     
     await pool.query(
       `INSERT INTO memories (user_id, content, type, context_tags) VALUES ($1, $2, $3, $4)`,
