@@ -1201,18 +1201,7 @@ app.post('/engineer/design-brief', async (req, res) => {
 
     emitEngineerEvent(req, 'DESIGN_INTEL_FETCH', 'Analyzing reference sites...', 'running');
     const referenceContext = await enrichIntakeWithReferences(fullIntake);
-
-
-    if (resLlm && resLlm.usage) {
-      await logAiUsage({
-        userId,
-        projectId,
-        stage: 'design_brief',
-        provider: resLlm.provider || 'openai',
-        model: resLlm.model || 'gpt-4o',
-        usage: resLlm.usage
-      });
-    }
+    const brief = await generateValidDesignBrief(plan, fullIntake, referenceContext, emitEngineerEvent, req);
 
     // Save to DB
     if (!String(projectId).startsWith('local-')) {
@@ -1689,12 +1678,12 @@ app.post('/engineer/design-brief/edit', async (req, res) => {
 // Useful if the intake changed or the brief quality wasn't good enough.
 app.post('/engineer/design-brief/regenerate', async (req, res) => {
   try {
-    const { projectId, intake } = req.body;
+    const { projectId, intake, plan: bodyPlan } = req.body;
     if (!projectId) return res.status(400).json({ success: false, error: 'Missing projectId' });
 
     emitEngineerEvent(req, 'DESIGN_INTEL_STARTED', 'Regenerating Design Intelligence brief...', 'running');
 
-    let plan = {};
+    let plan = bodyPlan || {};
     if (!String(projectId).startsWith('local-')) {
       const planRes = await pool.query(`SELECT plan_data FROM architecture_plans WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1`, [projectId]);
       if (planRes.rows.length) plan = planRes.rows[0].plan_data;
