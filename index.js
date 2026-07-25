@@ -1107,13 +1107,17 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
         max_tokens: 4000
       });
 
-      const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+      let content = resLlm?.choices?.[0]?.message?.content || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        content = jsonMatch[0];
+      }
       const tempBrief = JSON.parse(content);
 
       // Raw Intake Guard Check
       let isInvalid = false;
       const intakeFields = [fullIntake?.who, fullIntake?.what, fullIntake?.designStyle]
-        .filter(Boolean)
+        .filter(s => s && s.trim().length > 15)
         .map(s => s.toLowerCase().replace(/[^\w\s]/gi, '').trim());
 
       for (const cp of (tempBrief.content_plan || [])) {
@@ -1121,7 +1125,8 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
         for (const text of toCheck) {
           if (!text) continue;
           const normalized = text.toLowerCase().replace(/[^\w\s]/gi, '').trim();
-          if (intakeFields.some(f => normalized === f || normalized.includes(f) || f.includes(normalized))) {
+          
+          if (intakeFields.some(f => normalized.includes(f) || (normalized.length > 20 && f.includes(normalized)))) {
             isInvalid = true;
             break;
           }
