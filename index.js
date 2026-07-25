@@ -1868,6 +1868,43 @@ app.post('/engineer/materialize', async (req, res) => {
     const projectName = plan.normalizedName || intake.projectName || req.body?.projectName || 'zaire-generated-project';
     const result = await materializeProject(projectName, fileRecords);
 
+    // ── Run Automated Dependency Installation ──────────
+    try {
+      if (req.body?.installDependencies !== false) {
+        let installCmd = null;
+        let installMsg = 'Installing dependencies...';
+
+        if (fileRecords.some(f => f.path === 'package.json')) {
+          installCmd = 'npm install --prefer-offline --no-audit --no-fund';
+          installMsg = 'Installing Node dependencies (npm install)...';
+        } else if (fileRecords.some(f => f.path === 'requirements.txt')) {
+          installCmd = 'pip install -r requirements.txt';
+          installMsg = 'Installing Python dependencies (pip install)...';
+        } else if (fileRecords.some(f => f.path === 'Cargo.toml')) {
+          installCmd = 'cargo fetch';
+          installMsg = 'Fetching Rust dependencies (cargo fetch)...';
+        } else if (fileRecords.some(f => f.path === 'go.mod')) {
+          installCmd = 'go mod download';
+          installMsg = 'Downloading Go modules (go mod download)...';
+        }
+
+        if (installCmd) {
+          emitEngineerEvent(req, 'MATERIALIZE_INSTALL', installMsg, 'running');
+          await new Promise((resolve) => {
+            exec(installCmd, { cwd: result.outputDir }, (error) => {
+              if (error) {
+                console.warn(`[ENGINEER INSTALL FAIL] ${error.message}`);
+              }
+              resolve();
+            });
+          });
+          emitEngineerEvent(req, 'MATERIALIZE_INSTALL', 'Dependencies installed successfully.', 'complete');
+        }
+      }
+    } catch(err) {
+      console.warn('[ENGINEER INSTALL ERR]', err.message);
+    }
+
     // ── Persist to DB so the user can resume this project later ──────────
     const userId = req.body?.userId || 'local-user';
     let materializedProjectId = req.body?.projectId;
