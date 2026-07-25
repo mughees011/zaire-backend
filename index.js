@@ -257,8 +257,17 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { validateBody, checkoutSchema } = require('./middleware/validation');
 
-// Helmet security headers (Tailored for ZAIRE WebApp environment compatibility)
-app.use(helmet());
+// Helmet security headers — CSP is intentionally disabled here.
+// This Express server is a pure API backend; it does not serve HTML pages.
+// The Content-Security-Policy for the frontend is managed by Netlify/_headers.
+// Enabling helmet's default CSP on API responses would block all browser
+// fetch() calls from the frontend (default-src 'self' rejects cross-origin XHR).
+// All other Helmet protections (HSTS, X-Frame-Options, X-Content-Type-Options,
+// Referrer-Policy, X-DNS-Prefetch-Control, etc.) remain active.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 const allowedOrigins = [
   'http://localhost:3000',
