@@ -1,5 +1,6 @@
 const { buildEngineerSupportFiles } = require('./engineer_scaffold_support');
 const { selectDnaKey, buildDnaSystemBlock, buildProfileObject } = require('./design_dna');
+const { selectEffects } = require('./design_dna_extended');
 
 function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
@@ -1082,6 +1083,7 @@ function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
   if (!profile) profile = buildProfileObject(dnaKey);
   const dnaBlock = buildDnaSystemBlock(dnaKey);
 
+  let uiBrief = brief;
   try {
     const briefObj = JSON.parse(brief.replace('DESIGN BRIEF:\n', ''));
     if (briefObj?.content_plan?.[0]) {
@@ -1089,86 +1091,82 @@ function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
       if (cp.section_copy_briefs?.[0]?.headline_intent) heroHeadline = cp.section_copy_briefs[0].headline_intent;
       if (cp.core_message) heroSubtext = cp.core_message;
     }
+    // Token Saver: Extract ONLY what's needed for UI generation to avoid injecting DB schema/auth specs into TSX prompts.
+    uiBrief = JSON.stringify({
+      color_palette: briefObj.color_palette || {},
+      typography: briefObj.typography || {},
+      motion_spec: briefObj.motion_spec || {},
+      content_plan: briefObj.content_plan || []
+    }, null, 2);
   } catch (e) {
-    // Ignore parse errors, fallback to raw intake
+    // Ignore parse errors, fallback to raw brief
   }
 
-  const BASE_SYSTEM = `You are ZAIRE — an elite senior UI/UX engineer and world-class designer.
-You produce premium, human-crafted website code that no other AI can replicate.
-Your output is always pure code — NEVER markdown fences, NEVER explanatory text before or after the code.
-Every file you generate must feel like it was crafted by a senior designer at a world-class studio.
-You strictly follow the Design Brief and DNA Profile provided. You NEVER default to generic output.
-${dnaBlock}`;
+  const effects = selectEffects(intake);
+  let effectsBlock = '';
+  if (effects.length > 0) {
+    effectsBlock = '\nAPPROVED EFFECTS LIBRARY (Use these snippets instead of writing from scratch):\n' + 
+      effects.map(e => `- ${e.key} (Use when: ${e.use_when})\n  Approach: ${e.approach}\n  Snippet: \`${e.snippet}\``).join('\n');
+  }
+
+  const BASE_SYSTEM = `Role: ZAIRE — Elite UI/UX Engineer.
+Task: Output ONLY pure, premium code (NO markdown fences, NO explanation).
+Constraint: Strictly follow the Design Brief and DNA Profile. NEVER default to generic outputs.
+${dnaBlock}${effectsBlock}`;
 
   return {
     globalsCss: {
       system: BASE_SYSTEM + `
-You are generating globals.css.
+Context: globals.css
 Rules:
-- Output ONLY raw CSS. No markdown, no explanation text.
-- Define all CSS custom properties (variables) based on the exact palette and typography from the brief.
-- Include: CSS reset, body styles, custom scrollbar, ::selection, .container utility, Google Fonts @import.
-- Use real Google Fonts that match the DNA typography.
-- The result must feel like a premium design system, not a generic reset.`,
-      user: `${brief}\n\nGenerate globals.css now. Output ONLY the CSS code, starting with @import or :root.`
+- CSS variables from exact palette & typography brief.
+- Include CSS reset, custom scrollbar, ::selection, .container utility, Google Fonts @import matching DNA.
+- Result must be a premium design system.`,
+      user: `${uiBrief}\n\nGenerate globals.css now. Output ONLY CSS code, starting with @import or :root.`
     },
     tailwindConfig: {
       system: BASE_SYSTEM + `
-You are generating tailwind.config.ts.
+Context: tailwind.config.ts
 Rules:
-- Output ONLY valid TypeScript. No markdown, no explanation.
-- Use \`type { Config } from 'tailwindcss'\`.
-- Extend theme with: custom colors (from the DNA palette), custom fontFamily (from DNA typography), custom keyframes and animation (fadeUp, fadeIn, gradient-shift), custom screens (xs: 375px).
-- Do not use placeholder values — all colors must be real hex values from the design brief.
-- Use \`require('@tailwindcss/typography')\` and \`require('@tailwindcss/forms')\` in plugins array.`,
-      user: `${brief}\n\nGenerate tailwind.config.ts now. Output ONLY the TypeScript code.`
+- Valid TypeScript using \`type { Config } from 'tailwindcss'\`.
+- Extend theme with DNA colors, fontFamily, custom animations (fadeUp, fadeIn, gradient-shift), screens (xs: 375px).
+- NO placeholder hex values.
+- Include plugins: \`@tailwindcss/typography\`, \`@tailwindcss/forms\`.`,
+      user: `${uiBrief}\n\nGenerate tailwind.config.ts now. Output ONLY TypeScript.`
     },
     layoutTsx: {
       system: BASE_SYSTEM + `
-You are generating app/layout.tsx for Next.js 14 App Router.
+Context: app/layout.tsx (Next.js 14)
 Rules:
-- Output ONLY valid TypeScript JSX. No markdown, no explanation.
-- Import the Google Fonts that match the DNA using 'next/font/google'.
-- CRITICAL FONT RULE: Use the EXACT PascalCase name from the next/font/google package. For example:
-  - CORRECT: import { Inter } from 'next/font/google'; const inter = Inter({...})
-  - CORRECT: import { Playfair_Display } from 'next/font/google'; const playfairDisplay = Playfair_Display({...})
-  - WRONG: import { inter } from 'next/font/google'  (lowercase is NOT valid)
-  - WRONG: import { 'Playfair Display' } from 'next/font/google' (spaces are NOT valid, use underscores)
-- Include complete OpenGraph and Twitter card metadata.
-- The body tag must apply the font variable classes.
-- Include './globals.css' import.
-- The layout must use \`suppressHydrationWarning\` on the html tag.
-- Do NOT include any ClerkProvider or auth provider unless the design brief explicitly requires auth.`,
-      user: `${brief}\n\nApp Name: ${heroHeadline}\nDescription: ${heroSubtext}\nDeployment URL: https://${(plan.appName || intake.projectName || 'project').toLowerCase().replace(/ /g, '-')}.vercel.app\n\nGenerate app/layout.tsx now. Output ONLY the code starting with imports.`
+- Valid TSX.
+- Import Google Fonts via 'next/font/google'. CRITICAL: Use EXACT PascalCase export (e.g. import { Playfair_Display }).
+- Include OpenGraph/Twitter card metadata.
+- Apply font variables to body.
+- Import './globals.css'.
+- Use \`suppressHydrationWarning\` on html.
+- NO auth providers unless explicitly required.`,
+      user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nDesc: ${heroSubtext}\nGenerate app/layout.tsx now. Output ONLY code.`
     },
     pageTsx: {
       system: BASE_SYSTEM + `
-You are generating app/page.tsx — the full landing page of the website.
-This is the most important file. It must be STUNNING and feel like a world-class design studio built it.
-
-CRITICAL RULES:
-- Output ONLY valid TSX code. No markdown fences. No text before or after. Start with 'use client'; or imports.
-- Use Tailwind CSS classes exclusively for styling. Inline styles only for CSS variables.
-- Write ALL copy contextually — based on the app name, description, and target user. NEVER lorem ipsum.
-- YOU MUST use \`framer-motion\` (import { motion } from 'framer-motion') to add high-end micro-interactions, scroll-reveals, and stagger effects matching the DNA motion level.
-- YOU MUST use \`lucide-react\` for any icons needed.
-- Include a complete, functional Navbar with logo and navigation links.
-- Include ALL sections in this order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
-- You MUST generate at least 5 to 8 complex sections. Prohibit simple layouts (e.g. just text in a box). Use bento grids, asymmetrical layouts, sticky scroll, or animated elements.
-- Every section must be fully implemented — no placeholder comments like "// add content here".
-- Use real data — fake but believable testimonials, feature descriptions, pricing tiers (if SaaS).
-- Apply all DNA rules: spacing, border-radius, animation easing, hover states.
-- Every button must have hover and focus states.
-- Images: use placeholder images via \`https://images.unsplash.com\` with relevant search terms.
-- The page must be mobile responsive (use Tailwind responsive classes: sm:, md:, lg:).
-- SELF-CONTAINED RULE: Do NOT import from any local component files (e.g. NO import Navbar from '../components/Navbar'). Define ALL components (Navbar, Footer, Hero, etc.) as functions INSIDE this single file. Only import from npm packages.
-- Do NOT use Clerk, NextAuth, or any auth library unless the design brief explicitly states auth is required.
-- Output only standard ASCII + common UTF-8 characters. Do NOT include curly quotes, em dashes or special Unicode symbols in the code itself.
-
-DNA AESTHETIC: ${dnaKey}
+Context: app/page.tsx (Landing Page)
+Rules:
+- Valid TSX. Start with 'use client'; or imports.
+- Tailwind CSS exclusively.
+- NO lorem ipsum. Write contextual copy.
+- MUST use \`framer-motion\` (animations) and \`lucide-react\` (icons).
+- Order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
+- Minimum 5-8 complex sections (bento grids, asymmetry, floating cards). NO simple layouts.
+- NO placeholders. Real data logic.
+- Apply DNA spacing, borders, hover/focus states.
+- Responsive classes (sm:, md:, lg:).
+- SELF-CONTAINED: NO local component imports. Define ALL components inline.
+- NO auth code unless requested.
+- Standard ASCII/UTF-8 only (no curly quotes or em dashes).
+DNA: ${dnaKey}
 Hero Pattern: ${profile.hero_pattern || ''}
 Layout Pattern: ${profile.layout_pattern || ''}`,
-      user: `${brief}\n\nApp Name: ${heroHeadline}\nDescription: ${heroSubtext}\nTarget User: ${intake.who || 'professionals'}\n\nGenerate the complete app/page.tsx now. Output ONLY the code.`
+      user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nDesc: ${heroSubtext}\nTarget User: ${intake.who || 'professionals'}\nGenerate complete app/page.tsx now. Output ONLY code.`
     },
     pages: (plan.pages || []).map(pageName => {
       const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
@@ -1177,62 +1175,35 @@ Layout Pattern: ${profile.layout_pattern || ''}`,
         name: pageName,
         slug: slug,
         system: BASE_SYSTEM + `
-You are generating app/${slug === 'page' ? '' : slug + '/'}page.tsx — the "${pageName}" page of the website.
-It must be STUNNING and feel like a world-class design studio built it.
-
-CRITICAL RULES:
-- Output ONLY valid TSX code. No markdown fences. No text before or after.
-- YOU MUST use \`framer-motion\` and \`lucide-react\`.
-- You MUST generate at least 4 to 6 complex sections specific to the purpose of "${pageName}". Prohibit simple text layouts. Use grids, cards, and interactive UI elements.
-- Write ALL copy contextually for this specific page topic. NEVER lorem ipsum.
-- Every section must be fully implemented — no placeholder comments.
-- Apply all DNA rules: spacing, border-radius, animation easing.
-- Include a Navbar and Footer if this is a standalone page.
-- SELF-CONTAINED RULE: Do NOT import from any local component files (e.g. NO import Navbar from '../components/Navbar'). Define ALL components (Navbar, Footer, etc.) as functions INSIDE this single file. Only import from npm packages.
-- Do NOT use Clerk, NextAuth, or any auth library.
-- Output only standard ASCII + common UTF-8 characters. Do NOT include curly quotes, em dashes or special Unicode symbols in the code itself.`,
-        user: `${brief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}\n\nGenerate the complete TSX code for this page. Output ONLY the code.`
+Context: app/${slug === 'page' ? '' : slug + '/'}page.tsx (${pageName})
+Rules:
+- Valid TSX.
+- MUST use \`framer-motion\` and \`lucide-react\`.
+- 4-6 complex sections for "${pageName}". NO simple text boxes.
+- Contextual copy. NO lorem ipsum.
+- NO placeholders.
+- Apply DNA spacing, borders, animation.
+- Include Navbar/Footer if standalone.
+- SELF-CONTAINED: NO local component imports. Define ALL components inline.
+- NO auth code.
+- Standard ASCII/UTF-8 only.`,
+        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}\nGenerate complete TSX code. Output ONLY code.`
       };
     }),
     selfReview: {
       system: BASE_SYSTEM + `
-You are ZAIRE's Quality Enforcement Agent. Your job is to audit generated TSX and enforce award-winning standards.
-You are reviewing a generated page.tsx file. You will check it against all the rules below and FIX any violations.
+Role: Quality Enforcement Agent. Audit TSX and fix ALL violations.
 
-AUDIT CHECKLIST — Fix ALL violations before returning:
+CHECKLIST (Fix ALL before returning):
+- [ ] framer-motion used for 3+ animation types (scroll reveal, stagger, hover).
+- [ ] 5+ FULL sections (no plain boxes, use bento/grids).
+- [ ] ZERO lorem ipsum. Contextual copy only.
+- [ ] NO local component imports. Define ALL inline.
+- [ ] NO auth libraries (unless requested).
+- [ ] Straight quotes only. No em dashes.
 
-ANIMATION QUALITY:
-- [ ] framer-motion IS imported and used for at least 3 distinct animation types (e.g. fadeUp on scroll, stagger children, hover scale)
-- [ ] motion.div with whileInView and viewport={{ once: true }} is used for scroll reveals — NOT just opacity-0 CSS classes
-- [ ] Stagger animations (staggerChildren in variants) are used on at least one list/grid section
-- [ ] Hero section has an entrance animation (not static)
-- [ ] CTA buttons have whileHover and whileTap motion props
-
-SECTION QUALITY:
-- [ ] At least 5 FULL sections are present and completely implemented (not placeholders)
-- [ ] NO section is just a heading + paragraph in a centered box — each section must use a complex layout pattern
-- [ ] Feature section uses a bento grid, asymmetric split, or floating card pattern — NOT a plain 3-column equal card grid
-- [ ] Testimonials use a real layout (carousel, masonry cards, or quote blocks with avatar images) — NOT a simple list
-- [ ] Pricing section (if present) has tiered cards with feature comparison — NOT a single price block
-- [ ] FAQ section (if present) uses an accordion/expand pattern — NOT a static list
-
-CONTENT QUALITY:
-- [ ] ZERO lorem ipsum anywhere
-- [ ] ALL copy is specific to the app name and target user provided
-- [ ] Testimonials have real-sounding names, roles, and companies
-- [ ] Feature descriptions explain real benefits, not generic "Fast, Reliable, Scalable"
-
-CODE QUALITY:
-- [ ] NO local component imports (import X from '../components/...' is FORBIDDEN — all components must be defined inline)
-- [ ] NO Clerk, auth libraries, or any external auth provider code unless the brief explicitly requires it
-- [ ] All string literals use straight quotes (') not curly quotes (\u2018\u2019\u201C\u201D)
-- [ ] No em dashes (\u2014) or non-breaking spaces in code strings
-- [ ] 'use client'; is at the TOP of the file
-- [ ] All Tailwind classes are valid (no made-up class names)
-- [ ] Mobile responsive: all grid layouts use responsive prefixes (sm:, md:, lg:)
-
-OUTPUT RULE: Return the COMPLETE corrected TSX file. No markdown, no explanation. Start with 'use client';`,
-      user: (pageContent) => `${brief}\n\nApp Name: ${heroHeadline}\nTarget User: ${intake.who || 'professionals'}\n\nCURRENT app/page.tsx TO AUDIT AND FIX:\n${pageContent}\n\nAudit the file against ALL checklist items above. Fix every violation. Return the COMPLETE corrected file. Output ONLY the code.`
+Return COMPLETE corrected TSX. NO markdown fences. Start with 'use client';`,
+      user: (pageContent) => `${uiBrief}\n\nApp: ${heroHeadline}\nUser: ${intake.who || 'professionals'}\n\nCURRENT app/page.tsx TO FIX:\n${pageContent}\n\nAudit and fix ALL items. Return ONLY corrected code.`
     }
 
   };
@@ -1297,10 +1268,35 @@ Generate the JSON architecture plan tailored to this specific project requiremen
   return { system: systemPrompt, user: userPrompt };
 }
 
+function buildCapabilitiesGuardPrompt(requestText) {
+  const systemPrompt = `You are the ZAIRE Capabilities Guard.
+Your job is to intercept impossible user requests before they waste API tokens.
+ZAIRE is a 2D web app generator (Next.js 14, Tailwind CSS, Framer Motion).
+
+CAPABILITY LIMITS:
+- NO 3D rendering, WebGL, Three.js, React Three Fiber, or WebXR.
+- NO native mobile apps (iOS/Android).
+- NO complex game loops or game engines.
+- NO custom hardware integrations (IoT, Bluetooth, etc.).
+
+If the user's request violates these limits (e.g. "make a 3D car configurator"), you MUST rewrite it into a feasible 2D premium equivalent (e.g. "Premium landing page for a car configurator with smooth scrolling, high-end imagery, and modern UI").
+If the request is already feasible, return it exactly as is, without adding conversational text.
+
+Return ONLY the rewritten or accepted request text. NO markdown fences. NO explanation.`;
+
+  const userPrompt = `USER REQUEST:
+"${requestText}"
+
+Analyze and return the feasible request text.`;
+
+  return { system: systemPrompt, user: userPrompt };
+}
+
 module.exports = {
   buildEngineerPlan,
   buildEngineerScaffold,
   buildGenerationPrompts,
   buildIncrementalPlan,
-  buildArchitecturePrompts
+  buildArchitecturePrompts,
+  buildCapabilitiesGuardPrompt
 };
