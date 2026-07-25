@@ -30,7 +30,8 @@ const {
   buildEngineerScaffold,
   buildGenerationPrompts,
   buildIncrementalPlan,
-  buildArchitecturePrompts
+  buildArchitecturePrompts,
+  buildCapabilitiesGuardPrompt
 } = require('./services/engineer_workflow');
 const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
 const {
@@ -802,8 +803,36 @@ function emitEngineerEvent(req, stage, label, status = 'running', detail = {}) {
 
 app.post('/engineer/plan', async (req, res) => {
   try {
-    emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
+    emitEngineerEvent(req, 'PLAN_STARTED', 'Initializing architecture plan...', 'running');
     const intake = req.body?.intake || req.body || {};
+
+    // ── CAPABILITIES GUARD ───────────────────────────────────────────────────
+    try {
+      if (intake.what) {
+        emitEngineerEvent(req, 'PLAN_STARTED', 'Running capabilities guard...', 'running');
+        const guardPrompts = buildCapabilitiesGuardPrompt(intake.what);
+        const guardRes = await executeLLMCallWithFailover({
+          messages: [
+            {role: "system", content: guardPrompts.system},
+            {role: "user", content: guardPrompts.user}
+          ],
+          temperature: 0.1,
+          max_tokens: 200
+        });
+        if (guardRes?.choices?.[0]?.message?.content) {
+          const guardedWhat = guardRes.choices[0].message.content.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+          if (guardedWhat && guardedWhat !== intake.what && !guardedWhat.includes('ZAIRE Core is online')) {
+            console.log(`[CAPABILITIES GUARD] Intercepted impossible request. Rewrote:\n  FROM: ${intake.what}\n  TO: ${guardedWhat}`);
+            intake.what = guardedWhat;
+            emitEngineerEvent(req, 'PLAN_STARTED', 'Intercepted impossible request. Re-scoping to 2D UI equivalent.', 'running');
+          }
+        }
+      }
+    } catch (guardErr) {
+      console.warn('[CAPABILITIES GUARD] Failed to run guard, proceeding with original request', guardErr.message);
+    }
+
+    emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
     let plan = buildEngineerPlan(intake);
     
     try {
@@ -1370,8 +1399,17 @@ app.post('/engineer/scaffold', async (req, res) => {
                });
              }
              
-             return res?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+             const rawContent = res?.choices?.[0]?.message?.content || '';
+             
+             // MASSIVE BUG FIX: If we hit the backend fallback mode (no API keys / rate limited),
+             // do NOT write the english fallback message as TSX code into the file.
+             if (rawContent.includes('ZAIRE Core is online in local fallback mode')) {
+               return '[SYSTEM ERROR] AI API keys missing or rate limited.';
+             }
+             
+             return rawContent.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
           };
+
 
           const [globalsCss, twConfig, layoutTsx] = await Promise.all([
             executeLlm(prompts.globalsCss, 'globals.css'),
@@ -1391,8 +1429,21 @@ app.post('/engineer/scaffold', async (req, res) => {
               const fileName = `app/${pagePrompt.slug === 'page' ? '' : pagePrompt.slug + '/'}page.tsx`;
               let pageCode = await executeLlm(pagePrompt, fileName);
               
-              // Run the Quality Enforcement Agent on ALL pages (not just the homepage)
+              // TOKEN SAVER: Fast local check to see if the AI rewrite is even necessary.
+              let needsRewrite = false;
               if (pageCode && pageCode.length > 200) {
+                const hasLoremIpsum = /lorem\s+ipsum/i.test(pageCode);
+                const hasBrokenImports = /from\s+['"](\.\.\/?components\/[^'"]+)['"]/i.test(pageCode);
+                const missingFramer = !pageCode.includes('framer-motion');
+                
+                needsRewrite = hasLoremIpsum || hasBrokenImports || missingFramer;
+                if (!needsRewrite) {
+                  console.log(`[TOKEN SAVER] Skipping AI rewrite for ${fileName}, initial generation passed local QA.`);
+                }
+              }
+
+              // Run the Quality Enforcement Agent ONLY if local QA failed
+              if (needsRewrite) {
                 emitEngineerEvent(req, 'SCAFFOLD_REVIEW', `Quality Enforcement running on ${fileName}...`, 'running');
                 const reviewedPageRes = await executeLLMCallWithFailover({
                   messages: [

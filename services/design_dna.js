@@ -12,7 +12,10 @@
  * it into prompt-ready text, and hand it to buildGenerationPrompts as intended.
  */
 
+const { EXTENDED_DNA } = require('./design_dna_extended');
+
 const AESTHETIC_DNA = {
+  ...EXTENDED_DNA,
   TECH_FUTURISM: {
     use_when: 'AI products, dev tools, SaaS platforms, dashboards, data platforms',
     mood_words: ['Precise', 'Intelligent', 'Fast', 'Dense', 'Alive', 'Systematic'],
@@ -124,7 +127,14 @@ FINAL CRITIQUE CHECKLIST (the model must self-check before returning any file):
  */
 function selectDnaKey(intake = {}) {
   const style = `${intake.designStyle || ''} ${intake.projectType || ''}`.toLowerCase();
-  if (/luxury|watch|fashion|premium spirit|editorial/.test(style)) return 'LUXURY_DARK';
+  if (/glass|glassmorphism|blur|translucent/.test(style)) return 'GLASSMORPHISM';
+  if (/neo-brutalism|brutal|indie|bold|anti-corporate/.test(style)) return 'NEO_BRUTALISM';
+  if (/memphis|playful|youth|colorful|confetti/.test(style)) return 'MEMPHIS';
+  if (/y2k|retro|chrome|nostalgia|futurism/.test(style)) return 'Y2K';
+  if (/bento|apple-style|showcase/.test(style)) return 'BENTO_GRID';
+  if (/swiss|editorial|publication|strict grid/.test(style)) return 'SWISS_EDITORIAL';
+  if (/aurora|mesh|ethereal|blob/.test(style)) return 'AURORA_GRADIENT';
+  if (/luxury|watch|fashion|premium spirit/.test(style)) return 'LUXURY_DARK';
   if (/architecture|gallery|boutique|portfolio/.test(style) && /light|clean|minimal|white/.test(style)) return 'MINIMAL_LUXURY';
   if (/saas|dashboard|ai|dev tool|platform|agent|command center|industrial/.test(style)) return 'TECH_FUTURISM';
   return 'TECH_FUTURISM'; // ZAIRE's own house style as the sane default
@@ -140,7 +150,7 @@ function buildDnaSystemBlock(dnaKey) {
   return `
 DNA PROFILE: ${dnaKey}
 Use when: ${dna.use_when}
-Mood: ${dna.mood_words.join(', ')}
+${dna.mood_words ? `Mood: ${dna.mood_words.join(', ')}` : ''}
 
 PALETTE (use these exact values, do not invent new hexes):
 ${Object.entries(dna.palette).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
@@ -150,13 +160,14 @@ TYPOGRAPHY:
 - Interface: ${dna.typography.interface}${dna.typography.interface_weight ? ` (weight ${dna.typography.interface_weight})` : ''}
 ${dna.typography.mono ? `- Mono: ${dna.typography.mono}` : ''}
 
-SPACING: ${dna.spacing_philosophy}
-MOTION: ${dna.animation_philosophy}
-CORNERS: ${dna.corners}
+${dna.spacing_philosophy ? `SPACING: ${dna.spacing_philosophy}` : ''}
+MOTION: ${dna.animation_philosophy || dna.motion || 'Smooth transitions'}
+${dna.corners ? `CORNERS: ${dna.corners}` : ''}
+${dna.signature_css ? `SIGNATURE CSS: ${dna.signature_css}` : ''}
 ${dna.special_elements ? `SIGNATURE ELEMENTS: ${dna.special_elements.join('; ')}` : ''}
 
 DO NOT:
-${dna.dont_do.map((d) => `- ${d}`).join('\n')}
+${(dna.dont_do || []).map((d) => `- ${d}`).join('\n')}
 ${UNIVERSAL_LAWS}`;
 }
 
