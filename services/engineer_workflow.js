@@ -669,7 +669,16 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={\`${fontClassApply} antialiased\`}>{children}</body>
+      <body
+        className={\`${fontClassApply} antialiased\`}
+        style={{
+          background: '${resolvedBg}',
+          color: '${resolvedText}',
+          minHeight: '100vh',
+        }}
+      >
+        <main>{children}</main>
+      </body>
     </html>
   );
 }
@@ -1155,6 +1164,7 @@ Rules:
 - Tailwind CSS exclusively.
 - NO lorem ipsum. Write contextual copy.
 - MUST use \`framer-motion\` (animations) and \`lucide-react\` (icons).
+- Track which \`lucide-react\` icons you use. NEVER use the same icon twice in the same file.
 - Order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
 - Minimum 5-8 complex sections (bento grids, asymmetry, floating cards). NO simple layouts.
 - NO placeholders. Real data logic.
@@ -1171,6 +1181,10 @@ Layout Pattern: ${profile.layout_pattern || ''}`,
     pages: (plan.pages || []).map(pageName => {
       const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
       const slug = isLanding ? 'page' : slugifyPageName(pageName);
+      
+      const cpEntry = (brief?.content_plan || []).find(p => p.page === pageName);
+      const cpContext = cpEntry ? `\nContent Plan for this page:\n${JSON.stringify(cpEntry, null, 2)}\n` : '';
+
       return {
         name: pageName,
         slug: slug,
@@ -1179,6 +1193,7 @@ Context: app/${slug === 'page' ? '' : slug + '/'}page.tsx (${pageName})
 Rules:
 - Valid TSX.
 - MUST use \`framer-motion\` and \`lucide-react\`.
+- Track which \`lucide-react\` icons you use. NEVER use the same icon twice in the same file.
 - 4-6 complex sections for "${pageName}". NO simple text boxes.
 - Contextual copy. NO lorem ipsum.
 - NO placeholders.
@@ -1187,7 +1202,7 @@ Rules:
 - SELF-CONTAINED: NO local component imports. Define ALL components inline.
 - NO auth code.
 - Standard ASCII/UTF-8 only.`,
-        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}\nGenerate complete TSX code. Output ONLY code.`
+        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}${cpContext}\nGenerate complete TSX code. Output ONLY code.`
       };
     }),
     selfReview: {

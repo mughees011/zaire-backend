@@ -36,7 +36,7 @@ function deriveSessionTitle(data = {}) {
 /**
  * Get all saved chat sessions metadata.
  */
-function getSessions() {
+function getSessions(userId) {
   try {
     const files = fs.readdirSync(CHATS_DIR);
     const sessions = files
@@ -49,9 +49,11 @@ function getSessions() {
           id: data.id,
           title: deriveSessionTitle(data),
           timestamp: data.updatedAt || stats.mtime.toISOString(),
-          messageCount: data.messages.length
+          messageCount: data.messages.length,
+          userId: data.userId
         };
       })
+      .filter(s => s.userId === userId)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     return sessions;
   } catch (e) {
