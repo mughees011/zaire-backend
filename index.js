@@ -4018,6 +4018,18 @@ function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
     return resolvedFallback || 'mistral-small-latest';
   }
 
+  if (provider === 'anthropic') {
+    return resolvedFallback || 'claude-3-5-sonnet-20240620';
+  }
+
+  if (provider === 'cohere') {
+    return resolvedFallback || 'command-r-plus';
+  }
+
+  if (provider === 'azure openai') {
+    return resolvedFallback || 'gpt-4o';
+  }
+
   return resolvedFallback || model || 'gpt-4o-mini';
 }
 
@@ -4075,20 +4087,27 @@ async function executeLLMCallWithFailover(options) {
                 : 'gpt-4o-mini';
           const useModel = normalizeProviderModel(slot.provider, slot.model, defaultModel);
 
+          const reqBody = {
+              model: useModel,
+              messages: options.messages,
+              temperature: options.temperature,
+              max_tokens: options.max_tokens || 300,
+            };
+            if (options.stream) {
+              reqBody.stream = true;
+            }
+            if (!options.stream && options.tools && options.tools.length > 0) {
+              reqBody.tools = options.tools;
+              if (options.tool_choice) reqBody.tool_choice = options.tool_choice;
+            }
+
           const response = await fetch(baseUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({
-              model: useModel,
-              messages: options.messages,
-              temperature: options.temperature,
-              max_tokens: options.max_tokens || 300,
-              stream: options.stream,
-              ...(options.stream ? {} : { tools: options.tools, tool_choice: options.tool_choice })
-            })
+            body: JSON.stringify(reqBody)
           });
 
           if (!response.ok) {
@@ -4157,6 +4176,135 @@ async function executeLLMCallWithFailover(options) {
                 }
               ]
             };
+          }
+        }
+
+        if (providerLower === 'anthropic') {
+          const useModel = normalizeProviderModel(slot.provider, slot.model, 'claude-3-5-sonnet-20240620');
+          let systemPrompt = "";
+          const anthropicMessages = [];
+          
+          options.messages.forEach(m => {
+            if (m.role === 'system') {
+              systemPrompt = m.content;
+            } else {
+              anthropicMessages.push({ role: m.role, content: m.content });
+            }
+          });
+
+          const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model: useModel,
+              max_tokens: options.max_tokens || 4000,
+              system: systemPrompt || undefined,
+              messages: anthropicMessages,
+              temperature: options.temperature || 0.3
+            })
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errBody}`);
+          }
+
+          const data = await response.json();
+          const text = data.content?.[0]?.text || "";
+
+          console.log(`[FAILOVER] ✓ Successful response from ${slot.provider}`);
+          if (options.stream) {
+            return mockStream(text);
+          } else {
+            return { choices: [{ message: { role: "assistant", content: text } }] };
+          }
+        }
+
+        if (providerLower === 'cohere') {
+          const useModel = normalizeProviderModel(slot.provider, slot.model, 'command-r-plus');
+          
+          let preamble = "";
+          const chatHistory = [];
+          let message = "";
+          
+          options.messages.forEach(m => {
+            if (m.role === 'system') {
+              preamble = m.content;
+            } else if (m.role === 'user') {
+              message = m.content;
+              chatHistory.push({ role: 'USER', message: m.content });
+            } else if (m.role === 'assistant') {
+              chatHistory.push({ role: 'CHATBOT', message: m.content });
+            }
+          });
+          
+          if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'USER') {
+            chatHistory.pop();
+          }
+
+          const response = await fetch("https://api.cohere.ai/v1/chat", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: useModel,
+              message: message || "Continue",
+              chat_history: chatHistory.length > 0 ? chatHistory : undefined,
+              preamble: preamble || undefined,
+              temperature: options.temperature || 0.3
+            })
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errBody}`);
+          }
+          const data = await response.json();
+          const text = data.text || "";
+
+          console.log(`[FAILOVER] ✓ Successful response from ${slot.provider}`);
+          if (options.stream) {
+            return mockStream(text);
+          } else {
+            return { choices: [{ message: { role: "assistant", content: text } }] };
+          }
+        }
+
+        if (providerLower === 'azure openai') {
+          const useModel = normalizeProviderModel(slot.provider, slot.model, 'gpt-4o');
+          let baseUrl = slot.baseUrl || "";
+          if (!baseUrl) throw new Error("Azure OpenAI requires a Base URL Endpoint.");
+          
+          const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'api-key': apiKey
+            },
+            body: JSON.stringify({
+              messages: options.messages,
+              temperature: options.temperature,
+              max_tokens: options.max_tokens || 300
+            })
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errBody}`);
+          }
+
+          const data = await response.json();
+          console.log(`[FAILOVER] ✓ Successful response from ${slot.provider}`);
+          if (options.stream) {
+            return parseSSEResponse(response);
+          } else {
+            return data;
           }
         }
       } catch (err) {
