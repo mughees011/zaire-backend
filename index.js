@@ -1,6 +1,12 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 process.env.TZ = 'Asia/Karachi';
+
+// Add the ENCRYPTION_KEY startup check
+if (process.env.NODE_ENV === 'production' && !process.env.ENCRYPTION_KEY) {
+  throw new Error('FATAL: ENCRYPTION_KEY is required in production.');
+}
+
 const express = require('express');
 const app = express();
 const http = require('http');
@@ -249,12 +255,10 @@ function getSpecialistFallbackPayload(mode) {
 // ─── Express + Socket.io Setup with Security Enhancements ─────────────────────
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { validateBody, checkoutSchema } = require('./middleware/validation');
 
 // Helmet security headers (Tailored for ZAIRE WebApp environment compatibility)
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+app.use(helmet());
 
 const allowedOrigins = [
   'http://localhost:3000',
@@ -281,7 +285,7 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
@@ -494,7 +498,7 @@ function verifyLemonSqueezyWebhook(req, res, next) {
   next();
 }
 
-app.post('/billing/checkout', async (req, res) => {
+app.post('/billing/checkout', validateBody(checkoutSchema), async (req, res) => {
   try {
     const { plan } = req.body;
 
@@ -1071,6 +1075,90 @@ app.post('/engineer/plan/incremental', async (req, res) => {
   }
 });
 
+async function generateValidDesignBrief(plan, fullIntake, referenceContext, emitEngineerEvent, req) {
+  const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
+  let brief = null;
+  let attempts = 0;
+  let lastError = null;
+
+  while (attempts < 2 && !brief) {
+    attempts++;
+    let userPrompt = prompts.user;
+    if (attempts > 1) {
+      userPrompt += "\n\nCRITICAL RULE: The previous generation failed because it copied the project intake text directly. You MUST produce an OUTCOME-focused headline and core message. NEVER restate the intake.who, intake.what, or intake.designStyle verbatim.";
+    }
+
+    try {
+      const resLlm = await executeLLMCallWithFailover({
+        messages: [
+          {role: "system", content: prompts.system},
+          {role: "user", content: userPrompt}
+        ],
+        temperature: 0.3,
+        max_tokens: 4000
+      });
+
+      const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+      const tempBrief = JSON.parse(content);
+
+      // Raw Intake Guard Check
+      let isInvalid = false;
+      const intakeFields = [fullIntake?.who, fullIntake?.what, fullIntake?.designStyle]
+        .filter(Boolean)
+        .map(s => s.toLowerCase().replace(/[^\w\s]/gi, '').trim());
+
+      for (const cp of (tempBrief.content_plan || [])) {
+        const toCheck = [cp.core_message, ...(cp.section_copy_briefs || []).map(s => s.headline_intent), ...(cp.section_copy_briefs || []).map(s => s.supporting_point)];
+        for (const text of toCheck) {
+          if (!text) continue;
+          const normalized = text.toLowerCase().replace(/[^\w\s]/gi, '').trim();
+          if (intakeFields.some(f => normalized === f || normalized.includes(f) || f.includes(normalized))) {
+            isInvalid = true;
+            break;
+          }
+        }
+      }
+
+      if (isInvalid) {
+        console.warn(`[ENGINEER] Guard triggered: Raw intake text leaked. (Attempt ${attempts})`);
+        if (req && emitEngineerEvent) {
+          emitEngineerEvent(req, 'DESIGN_GUARD_TRIGGERED', `Content generation guard triggered on attempt ${attempts}`, 'warning');
+        }
+        if (attempts >= 2) throw new Error("Guard triggered twice");
+        continue;
+      }
+
+      brief = tempBrief;
+      const narrative = buildDesignNarrative(brief, fullIntake);
+      brief.assumptions = narrative.assumptions;
+      brief.agent_consensus = narrative.agentConsensus;
+    } catch (err) {
+      lastError = err;
+      if (attempts >= 2) break;
+    }
+  }
+
+  if (!brief) {
+    console.error('[ENGINEER DESIGN PARSE ERR]', lastError);
+    console.log('[ENGINEER] Using fallback design brief');
+    brief = {
+      competitive_analysis: { category: "software", table_stakes: [], differentiation_opportunities: [], avoid: [] },
+      visual_tokens: { primary_color: "#4f46e5", neutral_scale: "#111111", typography: { display: "Inter", body: "Inter" }, border_radius: "8px", spacing_system: "8px base" },
+      content_plan: (plan.pages || []).map(p => ({
+        page: p, job: "Learn about the product", reader_state: "cold", core_message: "Built to last. Designed for you.",
+        section_copy_briefs: [{ headline_intent: "Built to last. Designed for you.", supporting_point: "Discover a premium experience tailored to your needs.", cta_intent: "Get Started" }]
+      })),
+      motion_spec: { level: "minimal", allowed_effects: [], forbidden_effects: [], rationale: "Fallback minimal motion." },
+      page_architecture: { pages: [], rationale: "" },
+      image_strategy: {}, conversion_checklist: [], design_rationale: "Fallback rationale."
+    };
+    const narrative = buildDesignNarrative(brief, fullIntake);
+    brief.assumptions = narrative.assumptions;
+    brief.agent_consensus = narrative.agentConsensus;
+  }
+  return brief;
+}
+
 // ─── POST /engineer/design-brief ───────────────────────────────────────────────
 // Phase 2.5: Design Intelligence Stage
 app.post('/engineer/design-brief', async (req, res) => {
@@ -1104,78 +1192,7 @@ app.post('/engineer/design-brief', async (req, res) => {
 
     emitEngineerEvent(req, 'DESIGN_INTEL_FETCH', 'Analyzing reference sites...', 'running');
     const referenceContext = await enrichIntakeWithReferences(fullIntake);
-    const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
 
-    const resLlm = await executeLLMCallWithFailover({
-      messages: [
-        {role: "system", content: prompts.system},
-        {role: "user", content: prompts.user}
-      ],
-      temperature: 0.3,
-      max_tokens: 4000
-    });
-
-    let brief = null;
-    try {
-      const content = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
-      brief = JSON.parse(content);
-      const narrative = buildDesignNarrative(brief, fullIntake);
-      brief.assumptions = narrative.assumptions;
-      brief.agent_consensus = narrative.agentConsensus;
-    } catch (parseErr) {
-      console.error('[ENGINEER DESIGN PARSE ERR]', parseErr);
-      console.log('[ENGINEER] Using fallback design brief');
-      brief = {
-        competitive_analysis: {
-          category: "developer/founder portfolio",
-          table_stakes: ["one clear what I build statement above the fold", "visible project list with real outcomes", "one direct contact path"],
-          differentiation_opportunities: ["lead with proof instead of a bio"],
-          avoid: ["generic Hi I am a passionate developer opening line", "skill-badge walls with no context"]
-        },
-        visual_tokens: {
-          primary_color: "#FF6A00",
-          neutral_scale: "#05080A to #F5F6F7",
-          typography: {
-            display: "Space Grotesk",
-            body: "Inter"
-          },
-          border_radius: "4px",
-          spacing_system: "8px base"
-        },
-        content_plan: [
-          {
-            page: "Landing",
-            job: "Convert visitor to contact",
-            reader_state: "Cold",
-            core_message: "I build robust systems",
-            section_copy_briefs: [
-              { headline_intent: "Establish authority", supporting_point: "Shipped 5 production apps", cta_intent: "View Work" }
-            ]
-          }
-        ],
-        motion_spec: {
-          level: "Moderate motion",
-          allowed_effects: ["micro-interactions", "fade-in"],
-          forbidden_effects: ["bouncy animations", "excessive parallax"]
-        },
-        page_architecture: {
-          pages: [
-            { name: "Home", job: "Landing", is_section_of: null, priority: 1 }
-          ]
-        },
-        image_strategy: {
-          hero_role: "Abstract geometric or product screenshot",
-          product_role: "Actual UI screenshot",
-          human_role: "Authentic team photo",
-          abstract_role: "Subtle texture",
-          forbidden_imagery: ["Generic stock photos"]
-        },
-        conversion_checklist: ["Clear CTA", "Fast load time"]
-      };
-      const fallbackNarrative = buildDesignNarrative(brief, fullIntake);
-      brief.assumptions = fallbackNarrative.assumptions;
-      brief.agent_consensus = fallbackNarrative.agentConsensus;
-    }
 
     if (resLlm && resLlm.usage) {
       await logAiUsage({
@@ -1513,6 +1530,75 @@ app.post('/engineer/scaffold', async (req, res) => {
       }
     }
 
+    // ── PRE-DELIVERY COMPLETION CHECK ───────────────────────────────────────────
+    try {
+      const checkResults = [];
+      const deliveredFiles = scaffold.files || {};
+      const intakeFields = [intake?.who, intake?.what, intake?.designStyle]
+        .filter(Boolean)
+        .map(s => s.toLowerCase().replace(/[^\w\s]/gi, '').trim());
+
+      const customerFacingExts = /\.(tsx|ts|css|html|json|md)$/;
+
+      for (const [filePath, fileRecord] of Object.entries(deliveredFiles)) {
+        const content = fileRecord?.content || '';
+        if (!customerFacingExts.test(filePath)) continue;
+
+        // Check 1: No TODO in customer-facing files
+        if (content.includes('TODO')) {
+          checkResults.push({ pass: false, rule: 'NO_TODO', file: filePath, detail: 'File contains literal TODO' });
+          console.warn(`[PRE-DELIVERY] FAIL NO_TODO in ${filePath}`);
+        } else {
+          checkResults.push({ pass: true, rule: 'NO_TODO', file: filePath });
+        }
+
+        // Check 2: No verbatim intake text
+        const normalizedContent = content.toLowerCase().replace(/[^\w\s]/gi, '');
+        const leaked = intakeFields.find(f => f.length > 20 && normalizedContent.includes(f));
+        if (leaked) {
+          checkResults.push({ pass: false, rule: 'NO_RAW_INTAKE', file: filePath, detail: `Verbatim intake text: "${leaked.slice(0, 60)}"` });
+          console.warn(`[PRE-DELIVERY] FAIL NO_RAW_INTAKE in ${filePath}`);
+        } else {
+          checkResults.push({ pass: true, rule: 'NO_RAW_INTAKE', file: filePath });
+        }
+      }
+
+      // Check 3: All planned pages exist
+      for (const pageName of (plan.pages || [])) {
+        const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
+        const slug = isLanding ? 'page' : pageName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        const expectedPath = isLanding ? 'app/page.tsx' : `app/${slug}/page.tsx`;
+        if (!deliveredFiles[expectedPath] || !deliveredFiles[expectedPath].content) {
+          checkResults.push({ pass: false, rule: 'PAGE_EXISTS', file: expectedPath, detail: `Page for "${pageName}" is missing` });
+          console.warn(`[PRE-DELIVERY] FAIL PAGE_EXISTS: ${expectedPath} missing`);
+        } else {
+          checkResults.push({ pass: true, rule: 'PAGE_EXISTS', file: expectedPath });
+        }
+      }
+
+      // Check 4: globals.css has resolved token values
+      const cssContent = deliveredFiles['app/globals.css']?.content || '';
+      if (!cssContent.includes('--color-primary:') || !cssContent.includes('--color-bg:')) {
+        checkResults.push({ pass: false, rule: 'CSS_TOKENS', file: 'app/globals.css', detail: 'CSS custom properties missing' });
+        console.warn('[PRE-DELIVERY] FAIL CSS_TOKENS in globals.css');
+      } else {
+        checkResults.push({ pass: true, rule: 'CSS_TOKENS', file: 'app/globals.css' });
+      }
+
+      const failures = checkResults.filter(r => !r.pass);
+      if (failures.length > 0) {
+        console.warn(`[PRE-DELIVERY] ${failures.length} check(s) FAILED:`);
+        failures.forEach(f => console.warn(`  [FAIL] ${f.rule} @ ${f.file}: ${f.detail || ''}`));
+        emitEngineerEvent(req, 'PRE_DELIVERY_WARN', `${failures.length} quality check(s) failed — review server logs.`, 'warning', { failures });
+      } else {
+        console.log(`[PRE-DELIVERY] All ${checkResults.length} checks passed.`);
+        emitEngineerEvent(req, 'PRE_DELIVERY_PASS', 'All pre-delivery quality checks passed.', 'complete');
+      }
+    } catch (checkErr) {
+      console.warn('[PRE-DELIVERY CHECK ERR]', checkErr.message);
+    }
+    // ── END PRE-DELIVERY CHECK ───────────────────────────────────────────────────
+
     res.json({
       success: true,
       scaffold: {
@@ -1608,21 +1694,7 @@ app.post('/engineer/design-brief/regenerate', async (req, res) => {
     const fullIntake = { ...intake, projectType: intake?.projectType || 'saas', designStyle: intake?.designStyle || 'Modern dark premium', who: intake?.who || 'professionals', what: intake?.what || plan.summary || '', projectName: intake?.projectName || plan.appName || 'project' };
 
     const referenceContext = await enrichIntakeWithReferences(fullIntake);
-    const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
-
-    const resLlm = await executeLLMCallWithFailover({
-      messages: [{ role: 'system', content: prompts.system }, { role: 'user', content: prompts.user }],
-      temperature: 0.3,
-      max_tokens: 4000
-    });
-
-    let brief = null;
-    try {
-      const raw = resLlm?.choices?.[0]?.message?.content?.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
-      brief = JSON.parse(raw);
-    } catch (e) {
-      return res.status(500).json({ success: false, error: 'AI returned invalid JSON for design brief.' });
-    }
+    const brief = await generateValidDesignBrief(plan, fullIntake, referenceContext, emitEngineerEvent, req);
 
     if (!String(projectId).startsWith('local-')) {
       await pool.query(

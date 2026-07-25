@@ -12,13 +12,13 @@ if (USING_FALLBACK_SECRET) {
 
 // Derive a static 32-byte cryptographic key using SHA-256 hash of the secret.
 const KEY = crypto.createHash('sha256').update(ENCRYPTION_SECRET).digest();
-const ALGORITHM = 'aes-256-cbc';
-const IV_LENGTH = 16; // 16 bytes for AES block sizes
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 12; // 12 bytes is standard for GCM
 
 /**
- * Encrypts a raw plain text string using AES-256-CBC
+ * Encrypts a raw plain text string using AES-256-GCM
  * @param {string} text - The raw secret/API Key
- * @returns {string} - The hex formatted iv + encrypted data block (iv:encryptedBytes)
+ * @returns {string} - The hex formatted iv + encrypted data block + auth tag (iv:encryptedBytes:authTag)
  */
 function encrypt(text) {
   if (!text) return null;
@@ -27,8 +27,10 @@ function encrypt(text) {
     const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    // Store iv alongside ciphertext so we can decrypt later.
-    return `${iv.toString('hex')}:${encrypted}`;
+    const authTag = cipher.getAuthTag().toString('hex');
+    
+    // Store iv and auth tag alongside ciphertext so we can decrypt later.
+    return `${iv.toString('hex')}:${encrypted}:${authTag}`;
   } catch (err) {
     console.error('[CRYPTO ERROR] Encryption failed:', err.message);
     throw new Error('Credential encryption failed.');
@@ -36,23 +38,33 @@ function encrypt(text) {
 }
 
 /**
- * Decrypts a secure AES-256-CBC block
- * @param {string} encryptedBlock - The combined iv + encrypted text (iv:encryptedBytes)
+ * Decrypts a secure AES-256-GCM block
+ * @param {string} encryptedBlock - The combined iv + encrypted text + auth tag (iv:encryptedBytes:authTag)
  * @returns {string} - The original raw plaintext string
  */
 function decrypt(encryptedBlock) {
   if (!encryptedBlock) return null;
   try {
     const parts = encryptedBlock.split(':');
-    const iv = Buffer.from(parts.shift(), 'hex');
-    const encryptedText = Buffer.from(parts.join(':'), 'hex');
+    
+    // Fallback for older AES-256-CBC blocks (which only have 2 parts: iv and encryptedText)
+    if (parts.length === 2) {
+       console.warn('[CRYPTO] Legacy CBC encrypted block detected. It cannot be decrypted with GCM.');
+       return null; 
+    }
+
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedText = Buffer.from(parts[1], 'hex');
+    const authTag = Buffer.from(parts[2], 'hex');
 
     const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv);
+    decipher.setAuthTag(authTag);
+    
     let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch (err) {
-    console.error('[CRYPTO ERROR] Decryption failed (key mismatch or corrupted payload):', err.message);
+    console.error('[CRYPTO ERROR] Decryption failed (key mismatch, corrupted payload, or legacy CBC format):', err.message);
     return null; // Return null instead of crashing server if keys are corrupted or rotated.
   }
 }

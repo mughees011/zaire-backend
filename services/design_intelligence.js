@@ -233,7 +233,7 @@ You must produce a JSON object exactly matching this schema:
 
 Rules:
 1. "visual_tokens": Must be concrete decisions (e.g., specific colors, fonts like Inter/Playfair), not adjectives.
-2. "content_plan": Headlines must describe an outcome for the user, not just describe the product. No generic "Click Here" CTAs.
+2. "content_plan": MUST contain exactly one entry for EVERY page listed in the ARCHITECTURE PLAN (e.g. if there are 5 pages, output 5 content_plan entries). Headlines must describe an outcome for the user, not just describe the product. No generic "Click Here" CTAs. Never restate the project intake verbatim.
 3. "motion_spec": Follow category logic. B2B = minimal, Agency = expressive, Consumer = moderate. Every effect must have a purpose.
 4. "reference_extractions": When LIVE COMPETITIVE CONTEXT includes DETECTED COLORS/FONTS/LAYOUT/MOTION for a reference site,
    you MUST make an explicit ADOPT / ADOPT_WITH_CHANGE / REJECT call for each notable pattern found — never silently
