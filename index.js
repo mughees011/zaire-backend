@@ -1114,7 +1114,6 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
       }
       const tempBrief = JSON.parse(content);
 
-      // Raw Intake Guard Check
       let isInvalid = false;
       const intakeFields = [fullIntake?.who, fullIntake?.what, fullIntake?.designStyle]
         .filter(s => s && s.trim().length > 15)
@@ -1133,8 +1132,16 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
         }
       }
 
+      if (!isInvalid && tempBrief.content_plan?.length < (plan.pages?.length || 1)) {
+        isInvalid = true;
+        console.warn(`[ENGINEER] Guard triggered: content_plan missing pages. (Attempt ${attempts})`);
+        if (req && emitEngineerEvent) {
+          emitEngineerEvent(req, 'DESIGN_GUARD_TRIGGERED', `Missing content plan pages on attempt ${attempts}`, 'warning');
+        }
+      }
+
       if (isInvalid) {
-        console.warn(`[ENGINEER] Guard triggered: Raw intake text leaked. (Attempt ${attempts})`);
+        console.warn(`[ENGINEER] Guard triggered: Raw intake text leaked or missing pages. (Attempt ${attempts})`);
         if (req && emitEngineerEvent) {
           emitEngineerEvent(req, 'DESIGN_GUARD_TRIGGERED', `Content generation guard triggered on attempt ${attempts}`, 'warning');
         }
@@ -1154,22 +1161,9 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
 
   if (!brief) {
     console.error('[ENGINEER DESIGN PARSE ERR]', lastError);
-    console.log('[ENGINEER] Using fallback design brief');
-    brief = {
-      competitive_analysis: { category: "software", table_stakes: [], differentiation_opportunities: [], avoid: [] },
-      visual_tokens: { primary_color: "#4f46e5", neutral_scale: "#111111", typography: { display: "Inter", body: "Inter" }, border_radius: "8px", spacing_system: "8px base" },
-      content_plan: (plan.pages || []).map(p => ({
-        page: p, job: "Learn about the product", reader_state: "cold", core_message: "Built to last. Designed for you.",
-        section_copy_briefs: [{ headline_intent: "Built to last. Designed for you.", supporting_point: "Discover a premium experience tailored to your needs.", cta_intent: "Get Started" }]
-      })),
-      motion_spec: { level: "minimal", allowed_effects: [], forbidden_effects: [], rationale: "Fallback minimal motion." },
-      page_architecture: { pages: [], rationale: "" },
-      image_strategy: {}, conversion_checklist: [], design_rationale: "Fallback rationale."
-    };
-    const narrative = buildDesignNarrative(brief, fullIntake);
-    brief.assumptions = narrative.assumptions;
-    brief.agent_consensus = narrative.agentConsensus;
+    throw new Error("design brief generation failed, please retry");
   }
+
   return brief;
 }
 
@@ -1347,12 +1341,12 @@ app.post('/engineer/scaffold', async (req, res) => {
             typography: { display: displayFont, body: bodyFont }
           },
           content_plan: [{
-            core_message: what,
+            core_message: "Empowering your workflow with state-of-the-art solutions.",
             target_audience: who,
             section_copy_briefs: [{
               section: 'Hero',
-              headline_intent: `${appName} — ${what.split('.')[0] || appName}`,
-              body_intent: `Built for ${who}.`
+              headline_intent: `Welcome to ${appName}`,
+              body_intent: "Discover a premium experience tailored to your needs."
             }]
           }],
           page_architecture: [
@@ -1456,7 +1450,17 @@ app.post('/engineer/scaffold', async (req, res) => {
                 const hasBrokenImports = /from\s+['"](\.\.\/?components\/[^'"]+)['"]/i.test(pageCode);
                 const missingFramer = !pageCode.includes('framer-motion');
                 
-                needsRewrite = hasLoremIpsum || hasBrokenImports || missingFramer;
+                const textNodes = (pageCode.match(/>([^<]+)</g) || []).map(t => t.replace(/[><]/g, '').trim()).filter(Boolean);
+                const pageTextNormalized = textNodes.join(' ').toLowerCase().replace(/[^\w\s]/gi, '');
+                const intakeFields = [fullIntake?.who, fullIntake?.what, fullIntake?.projectName]
+                  .filter(s => s && s.trim().length > 15)
+                  .map(s => s.toLowerCase().replace(/[^\w\s]/gi, '').trim());
+                
+                const hasRawTextLeak = intakeFields.some(f => pageTextNormalized.includes(f) || (pageTextNormalized.length > 20 && f.includes(pageTextNormalized)));
+                if (hasRawTextLeak) console.warn(`[ENGINEER] Guard triggered: Raw intake text leaked in ${fileName}`);
+
+                needsRewrite = hasLoremIpsum || hasBrokenImports || missingFramer || hasRawTextLeak;
+                
                 if (!needsRewrite) {
                   console.log(`[TOKEN SAVER] Skipping AI rewrite for ${fileName}, initial generation passed local QA.`);
                 }
@@ -1489,6 +1493,17 @@ app.post('/engineer/scaffold', async (req, res) => {
                 if (reviewedPage && reviewedPage.length > 200) {
                   pageCode = reviewedPage;
                 }
+              }
+
+              // Final check for raw intake text leak
+              const textNodesFinal = (pageCode.match(/>([^<]+)</g) || []).map(t => t.replace(/[><]/g, '').trim()).filter(Boolean);
+              const pageTextNormalizedFinal = textNodesFinal.join(' ').toLowerCase().replace(/[^\w\s]/gi, '');
+              const intakeFieldsFinal = [fullIntake?.who, fullIntake?.what, fullIntake?.projectName]
+                  .filter(s => s && s.trim().length > 15)
+                  .map(s => s.toLowerCase().replace(/[^\w\s]/gi, '').trim());
+              const stillHasLeak = intakeFieldsFinal.some(f => pageTextNormalizedFinal.includes(f) || (pageTextNormalizedFinal.length > 20 && f.includes(pageTextNormalizedFinal)));
+              if (stillHasLeak) {
+                throw new Error(`Critical Validation Failure: Raw intake text leaked into user-facing copy in ${fileName}`);
               }
 
               
@@ -4030,6 +4045,9 @@ function normalizeProviderModel(providerName, configuredModel, fallbackModel) {
     return resolvedFallback || 'gpt-4o';
   }
 
+  // Unknown provider: log and return caller's fallback instead of silently
+  // defaulting to an OpenAI model which would confuse the wrong SDK branch.
+  console.warn(`[FAILOVER] normalizeProviderModel: unknown provider "${providerName}" — using supplied fallback "${resolvedFallback || model || 'gpt-4o-mini'}"`);
   return resolvedFallback || model || 'gpt-4o-mini';
 }
 
@@ -4349,8 +4367,14 @@ async function executeLLMCallWithFailover(options) {
     console.error("[FAILOVER] 🚨 Local LLM Fallback also failed:", err.message);
   }
 
-  // Final barrier failed! Return a graceful system alert
-  const finalError = "Sir, ZAIRE Core is online in local fallback mode. I can receive your messages and keep the interface responsive, but full AI reasoning needs one active provider key in Settings > AI Vault or an env key such as GROQ_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or SILICONFLOW_API_KEY.";
+  // Final barrier failed! Return a graceful, provider-aware system alert.
+  const configuredSlots = getActiveSlots();
+  const providerList = configuredSlots.length > 0
+    ? configuredSlots.map(s => s.provider).join(', ')
+    : 'none';
+  const finalError = configuredSlots.length > 0
+    ? `Sir, all ${providerList} key(s) in AI Vault returned errors. Please check that each key is valid and has not expired in your provider's dashboard, then re-save it under Settings > AI Vault.`
+    : "Sir, ZAIRE Core is online but has no active provider key. Add a key for any supported provider (Groq, OpenAI, Anthropic, OpenRouter, Google Gemini, DeepSeek, Mistral, Cohere, SiliconFlow) under Settings > AI Vault, or set an environment variable: GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY, MISTRAL_API_KEY, or SILICONFLOW_API_KEY.";
   if (options.stream) {
     return mockStream(finalError);
   } else {

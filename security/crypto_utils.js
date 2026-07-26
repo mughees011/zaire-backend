@@ -70,8 +70,9 @@ function decrypt(encryptedBlock) {
 }
 
 /**
- * Helper to mask a raw key for secure status returns
- * Example: 'gsk_YzmxIOZsIF...' -> 'gsk_Yz...r3FY'
+ * Helper to mask a raw key for secure status returns.
+ * Works for any provider key format (Groq gsk_, OpenAI sk-, Anthropic sk-ant-, etc.)
+ * Example: 'sk-ant-abc123...' -> 'sk-ant-********r3FY'
  * @param {string} key - The raw API key
  * @returns {string} - The masked string
  */
