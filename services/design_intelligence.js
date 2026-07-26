@@ -201,7 +201,16 @@ You must produce a JSON object exactly matching this schema:
       "reader_state": "string (cold vs warm)",
       "core_message": "string",
       "section_copy_briefs": [
-        { "headline_intent": "string", "supporting_point": "string", "cta_intent": "string" }
+        {
+          "section_key": "string (e.g. hero_centered, features_grid, pricing_tiers, faq_accordion, cta_centered)",
+          "headline_intent": "string",
+          "supporting_point": "string",
+          "cta_intent": "string",
+          "items": [{"title": "string", "description": "string", "icon": "string"}],
+          "tiers": [{"name": "string", "price": "string", "period": "string", "features": ["string"], "highlighted": false, "ctaLabel": "string"}],
+          "stats": [{"value": "string", "label": "string"}],
+          "members": [{"name": "string", "role": "string"}]
+        }
       ]
     }
   ],

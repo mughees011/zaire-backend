@@ -172,119 +172,47 @@ function buildPageContent(plan, intake, appTitle, productDescription, bg, text, 
   const surface = isLight ? '#f3f4f6' : '#111111';
   const primaryHover = isLight ? '#4f46e5' : '#c4b5fd';
 
-  // --- GODX DYNAMIC GENERATION ---
+  // --- GODX DYNAMIC GENERATION WITH SECTION LIBRARY ---
   if (designBrief && designBrief.content_plan && designBrief.content_plan.length > 0 && designBrief.content_plan[0].section_copy_briefs) {
     const cp = designBrief.content_plan[0];
-    const sections = cp.section_copy_briefs || [];
-    const motion = designBrief.motion_spec || {};
-    const useFramer = motion.level && motion.level !== 'minimal';
+    const { buildSection, selectSectionsForPage } = require('./section_library');
 
-    let imports = "'use client';\nimport { useState, useEffect } from 'react';\n";
-    if (useFramer) {
-      imports += "import { motion } from 'framer-motion';\n";
-    }
+    const tokens = {
+      primaryColor: primary, bgColor: bg, textColor: text,
+      textMuted, borderColor: border, surfaceColor: surface,
+      displayFont, bodyFont,
+      borderRadius: designBrief.visual_tokens?.border_radius || '12px',
+      neutralScale: designBrief.visual_tokens?.neutral_scale || '#111'
+    };
 
-    const rd = designBrief.design_rationale || 'Resolved based on target audience.';
-    const md = motion.rationale || 'Standard UX patterns.';
-    const sr = designBrief.page_architecture?.rationale || 'Linear conversion flow.';
-    const refs = designBrief.reference_extractions ? designBrief.reference_extractions.map(r => '- ' + r.feature + ': ' + r.adaptation).join('\\n * ') : 'None extracted.';
+    const selectedSections = selectSectionsForPage(
+      cp,
+      plan.components || [],
+      tokens,
+      name // brand/app name
+    );
 
-    let jsxSections = '';
-    
-    // Always add Hero first
-    const heroWrapperStart = useFramer ? "<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}>" : "<div>";
-    const heroWrapperEnd = useFramer ? "</motion.div>" : "</div>";
+    const jsxSections = selectedSections.map(({ key, content }) => {
+      try {
+        return buildSection(key, tokens, content);
+      } catch (e) {
+        console.warn(`[SECTION LIB] buildSection("${key}") failed:`, e.message);
+        return `{/* ${key} section could not be rendered */}`;
+      }
+    }).join('\\n');
 
-    // Hero subtext must never equal the headline — that's a silent content bug,
-    // not a valid fallback. If core_message and productDescription collided,
-    // derive a distinct line from the target audience instead of repeating.
-    const heroHeadlineText = cp.core_message || appTitle;
-    const heroSubtextText = cp.reader_state === 'warm'
-      ? "Welcome back. Let's get to work."
-      : (cp.section_copy_briefs?.[0]?.supporting_point || cp.core_message || "Discover a premium experience tailored to your needs.");
+    return `'use client';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { ChevronDown, Star, ArrowRight, Check, Play, Menu, X, ArrowUpRight, Github, Twitter, Linkedin } from 'lucide-react';
 
-    jsxSections += `
-      {/* DYNAMIC HERO */}
-      <section style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '120px 32px 80px' }}>
-        ${heroWrapperStart}
-          <h1 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2.5rem, 6vw, 5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '820px', marginBottom: '24px' }}>
-            ${heroHeadlineText}
-          </h1>
-          <p style={{ color: '${textMuted}', fontSize: '1.125rem', lineHeight: 1.75, maxWidth: '560px', margin: '0 auto 48px' }}>
-            ${heroSubtextText}
-          </p>
-          <a href="#primary-cta" style={{ background: '${primary}', color: '#fff', padding: '16px 40px', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '1rem' }}>
-            Explore Now
-          </a>
-        ${heroWrapperEnd}
-      </section>`;
-
-    // Add Dynamic Sections
-    sections.forEach((sec, idx) => {
-      const bgStyle = idx % 2 === 0 ? `background: '${surface}'` : `borderTop: '1px solid ${border}'`;
-      const wrapper = useFramer 
-        ? "<motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-100px' }} transition={{ duration: 0.6, delay: 0.1 }}>"
-        : "<div>";
-      const endWrapper = useFramer ? "</motion.div>" : "</div>";
-      const headline = sec.headline_intent || 'Important Section';
-      const support = sec.supporting_point || 'More details about this section.';
-      const ctaBlock = sec.cta_intent ? `
-            <a href="#" style={{ border: '1px solid ${primary}', color: '${primary}', padding: '12px 32px', borderRadius: '999px', textDecoration: 'none', fontWeight: 500 }}>
-              ${sec.cta_intent}
-            </a>` : '';
-
-      jsxSections += `
-      {/* DYNAMIC SECTION */}
-      <section style={{ padding: '100px 32px', ${bgStyle} }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
-          ${wrapper}
-            <h2 style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3.5rem)', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '24px' }}>
-              ${headline}
-            </h2>
-            <p style={{ color: '${textMuted}', fontSize: '1.125rem', lineHeight: 1.8, maxWidth: '700px', margin: '0 auto 40px' }}>
-              ${support}
-            </p>${ctaBlock}
-          ${endWrapper}
-        </div>
-      </section>`;
-    });
-
-    return `${imports}
-/*
- * Design Rationale: ${rd}
- * Motion Rationale: ${md}
- * Structural Rationale: ${sr}
- * 
- * Adapted Features from References:
- * ${refs}
- * ==========================================
- */
 export default function Page() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 40);
-    window.addEventListener('scroll', handler);
-    return () => window.removeEventListener('scroll', handler);
-  }, []);
-
   return (
     <main style={{ background: '${bg}', color: '${text}', fontFamily: "'${bodyFont}', system-ui, sans-serif", minHeight: '100vh', overflowX: 'hidden' }}>
-      {/* NAVBAR */}
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled ? '${isLight ? 'rgba(250,250,250,0.9)' : 'rgba(5,5,5,0.9)'}' : 'transparent', backdropFilter: scrolled ? 'blur(16px)' : 'none', borderBottom: scrolled ? '1px solid ${border}' : '1px solid transparent', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s ease' }}>
-        <span style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.375rem', fontWeight: 700, color: '${primary}' }}>${name}</span>
-      </nav>
-
       ${jsxSections}
-
-      {/* FOOTER */}
-      <footer style={{ borderTop: '1px solid ${border}', padding: '40px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', margin: '0 auto' }}>
-        <span style={{ fontFamily: "'${displayFont}', Georgia, serif", fontSize: '1.25rem', fontWeight: 700, color: '${primary}' }}>${name}</span>
-        <p style={{ color: '${textMuted}', fontSize: '0.875rem' }}>© {new Date().getFullYear()} ${name}. All rights reserved.</p>
-      </footer>
     </main>
   );
-}
-`;
+}`;
   }
 
   if (pt === 'portfolio') {
@@ -1100,6 +1028,38 @@ function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
     // Ignore parse errors, fallback to raw brief
   }
 
+  const { buildSection, selectSectionsForPage } = require('./section_library');
+  const skeletonTokens = {
+    primaryColor: 'var(--color-primary, #4f46e5)',
+    bgColor: 'var(--color-bg, #ffffff)',
+    textColor: 'var(--color-text, #111111)',
+    textMuted: 'var(--color-text-muted, #6b7280)',
+    borderColor: 'var(--color-border, #e5e7eb)',
+    surfaceColor: 'var(--color-surface, #f3f4f6)',
+    displayFont: 'var(--font-display, Inter)',
+    bodyFont: 'var(--font-body, Inter)',
+    borderRadius: 'var(--border-radius, 12px)',
+    neutralScale: 'var(--neutral-base, #111)'
+  };
+  
+  function getSkeleton(cp, components) {
+    if (!cp || !cp.section_copy_briefs) return '';
+    try {
+      const selected = selectSectionsForPage(cp, components, skeletonTokens, heroHeadline);
+      return selected.map(({ key, content }) => buildSection(key, skeletonTokens, content)).join('\\n');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  let landingSkeleton = '';
+  try {
+    const briefObj = JSON.parse(brief.replace('DESIGN BRIEF:\\n', ''));
+    if (briefObj?.content_plan?.[0]) {
+      landingSkeleton = getSkeleton(briefObj.content_plan[0], plan.components || []);
+    }
+  } catch (e) {}
+
   const effects = selectEffects(intake);
   let effectsBlock = '';
   if (effects.length > 0) {
@@ -1168,7 +1128,20 @@ Rules:
 DNA: ${dnaKey}
 Hero Pattern: ${profile.hero_pattern || ''}
 Layout Pattern: ${profile.layout_pattern || ''}`,
-      user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nDesc: ${heroSubtext}\nTarget User: ${intake.who || 'professionals'}\nGenerate complete app/page.tsx now. Output ONLY code.`
+      user: `${uiBrief}
+
+App Name: ${heroHeadline}
+Desc: ${heroSubtext}
+Target User: ${intake.who || 'professionals'}
+${landingSkeleton ? `Pre-assembled skeleton (from ZAIRE Section Library — already token-correct):
+${landingSkeleton}
+
+Your task: Improve this skeleton. You may:
+1. Add Framer Motion entrance animations to existing sections.
+2. Replace placeholder content values with richer, on-brand copy from the Content Plan.
+3. Add one bespoke section not in the skeleton if the Content Plan calls for something with no library match.
+
+DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final complete TSX.` : 'Generate complete app/page.tsx now. Output ONLY code.'}`
     },
     pages: (plan.pages || []).map(pageName => {
       const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
@@ -1179,6 +1152,11 @@ Layout Pattern: ${profile.layout_pattern || ''}`,
 
       const pageComponents = (plan.components || []).filter(c => c.is_section_of === pageName || (isLanding && !c.is_section_of));
       const compContext = pageComponents.length > 0 ? `\nPlanned Components to Build:\n${pageComponents.map(c => `- ${c.name}: ${c.purpose || c.type || ''}`).join('\n')}\n` : '';
+
+      let pageSkeleton = '';
+      if (cpEntry) {
+        pageSkeleton = getSkeleton(cpEntry, pageComponents);
+      }
 
       return {
         name: pageName,
@@ -1198,7 +1176,19 @@ Rules:
 - SELF-CONTAINED: NO local component imports. Define ALL components inline.
 - NO auth code.
 - Standard ASCII/UTF-8 only.`,
-        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}${cpContext}${compContext}\nGenerate complete TSX code. Output ONLY code.`
+        user: `${uiBrief}
+
+App Name: ${heroHeadline}
+Page Topic: ${pageName}${cpContext}${compContext}
+${pageSkeleton ? `Pre-assembled skeleton (from ZAIRE Section Library — already token-correct):
+${pageSkeleton}
+
+Your task: Improve this skeleton. You may:
+1. Add Framer Motion entrance animations to existing sections.
+2. Replace placeholder content values with richer, on-brand copy from the Content Plan.
+3. Add one bespoke section not in the skeleton if the Content Plan calls for something with no library match.
+
+DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final complete TSX.` : 'Generate complete TSX code. Output ONLY code.'}`
       };
     }),
     selfReview: {
