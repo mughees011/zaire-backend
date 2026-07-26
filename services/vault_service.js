@@ -2,6 +2,44 @@ const pool = require('../db/db');
 const { encrypt, decrypt, maskKey } = require('../security/crypto_utils');
 
 /**
+ * Validates that a raw API key's format is consistent with its declared provider.
+ * Throws if it detects a mismatch so the error surfaces at save-time, not at LLM call-time.
+ * @param {string} provider - Provider name (e.g. 'Groq', 'OpenAI', 'Anthropic')
+ * @param {string} rawKey   - The plaintext key to validate
+ */
+function validateKeyFormatOnSave(provider, rawKey) {
+  if (!rawKey) return; // Empty = no key being changed, nothing to validate.
+  const p = String(provider || '').trim().toLowerCase();
+  const k = String(rawKey || '').trim();
+
+  const FORMAT_RULES = [
+    { providers: ['groq'],               prefix: 'gsk_',    label: 'Groq' },
+    { providers: ['openai', 'azure openai'], prefix: 'sk-', label: 'OpenAI' },
+    { providers: ['anthropic'],          prefix: 'sk-ant-', label: 'Anthropic' },
+  ];
+
+  for (const rule of FORMAT_RULES) {
+    if (rule.providers.includes(p)) {
+      if (!k.startsWith(rule.prefix)) {
+        throw new Error(
+          `${rule.label} keys must start with "${rule.prefix}". ` +
+          `The key you provided doesn't match — check you copied the correct key from ${rule.label}'s dashboard.`
+        );
+      }
+      return;
+    }
+  }
+
+  // For all other providers, enforce a minimum length to catch obvious pastes.
+  if (k.length < 16) {
+    throw new Error(
+      `The key for ${provider} looks too short (${k.length} chars). ` +
+      `Please paste the full API key from your provider's dashboard.`
+    );
+  }
+}
+
+/**
  * Saves or updates encrypted keys for a given user as slots
  * @param {string} userId - The Clerk User ID
  * @param {Array} slots - Array of slot objects: { slot, provider, key, model, purpose, baseUrl, enabled }
@@ -32,6 +70,8 @@ async function saveUserKeys(userId, slots) {
       const providerChanged = existing && existingProvider.toLowerCase() !== nextProvider.toLowerCase();
 
       if (s.key) {
+        // Validate key format before encrypting — surface mismatch errors immediately.
+        validateKeyFormatOnSave(s.provider, s.key);
         encKey = encrypt(s.key);
         hasKey = true;
       } else if (!s.enabled || nextProvider === 'Empty' || providerChanged) {

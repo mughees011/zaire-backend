@@ -76,17 +76,56 @@ function normalizeIncomingSlots(body = {}) {
     }));
 }
 
+const SUPPORTED_PROVIDERS = new Set([
+  'groq',
+  'openrouter',
+  'openai',
+  'google gemini',
+  'anthropic',
+  'deepseek',
+  'mistral',
+  'cohere',
+  'azure openai',
+  'siliconflow'
+]);
+
 function isSupportedProvider(provider = '') {
-  const normalized = String(provider || '').toLowerCase();
-  return [
-    'groq',
-    'openrouter',
-    'openai',
-    'google gemini',
-    'deepseek',
-    'mistral',
-    'siliconflow'
-  ].includes(normalized);
+  return SUPPORTED_PROVIDERS.has(String(provider || '').trim().toLowerCase());
+}
+
+/**
+ * Validates that a raw API key matches the expected format for its provider.
+ * Returns { valid: boolean, reason?: string }
+ */
+function validateKeyFormat(provider = '', rawKey = '') {
+  const p = String(provider || '').trim().toLowerCase();
+  const k = String(rawKey || '').trim();
+  if (!k) return { valid: false, reason: `No API key provided for ${provider}.` };
+
+  const FORMAT_RULES = [
+    { providers: ['groq'],                      prefix: 'gsk_',    label: 'Groq' },
+    { providers: ['openai', 'azure openai'],    prefix: 'sk-',     label: 'OpenAI' },
+    { providers: ['anthropic'],                 prefix: 'sk-ant-', label: 'Anthropic' },
+  ];
+
+  for (const rule of FORMAT_RULES) {
+    if (rule.providers.includes(p)) {
+      if (!k.startsWith(rule.prefix)) {
+        return {
+          valid: false,
+          reason: `${rule.label} API keys must start with "${rule.prefix}". The key you entered doesn't match — double-check you copied the right key from ${rule.label}'s dashboard.`
+        };
+      }
+      return { valid: true };
+    }
+  }
+
+  // Providers without a fixed prefix (OpenRouter, Gemini, DeepSeek, Mistral, Cohere, SiliconFlow)
+  // — only validate that the key is non-trivially long.
+  if (k.length < 16) {
+    return { valid: false, reason: `The key for ${provider} looks too short. Please paste the full API key from your provider's dashboard.` };
+  }
+  return { valid: true };
 }
 
 /**
@@ -188,22 +227,37 @@ router.post(['/ai-vault/test', '/api/vault/test'], requireAuth, async (req, res)
     }
 
     if (!isSupportedProvider(provider)) {
-      return res.status(400).json({ success: false, error: `${provider} is saved, but runtime support is not enabled yet. Use Groq, OpenAI, OpenRouter, Google Gemini, DeepSeek, Mistral, or SiliconFlow for now.`, code: 'VAULT_TEST_PROVIDER_UNSUPPORTED' });
+      return res.status(400).json({
+        success: false,
+        error: `"${provider}" is not a recognised provider. Supported providers: Groq, OpenAI, Anthropic, OpenRouter, Google Gemini, DeepSeek, Mistral, Cohere, SiliconFlow, Azure OpenAI.`,
+        code: 'VAULT_TEST_PROVIDER_UNSUPPORTED'
+      });
     }
 
-    let keyAvailable = Boolean(rawKey);
-    if (!keyAvailable) {
+    // Validate key format if a raw key was provided
+    if (rawKey) {
+      const formatCheck = validateKeyFormat(provider, rawKey);
+      if (!formatCheck.valid) {
+        return res.status(400).json({ success: false, error: formatCheck.reason, code: 'VAULT_TEST_KEY_FORMAT_INVALID' });
+      }
+    }
+
+    let resolvedKey = rawKey;
+    if (!resolvedKey) {
       const storedKeys = await getUserKeys(userId);
       const storedSlot = storedKeys.find((entry) => Number(entry.slot) === slotNumber);
-      keyAvailable = Boolean(
+      resolvedKey = (
         storedSlot &&
-        String(storedSlot.provider || '').toLowerCase() === provider.toLowerCase() &&
-        String(storedSlot.key || '').trim()
-      );
+        String(storedSlot.provider || '').toLowerCase() === provider.toLowerCase()
+      ) ? String(storedSlot.key || '').trim() : '';
     }
 
-    if (!keyAvailable) {
-      return res.status(400).json({ success: false, error: 'This slot needs a fresh API key for the selected provider before it can run.', code: 'VAULT_TEST_KEY_REQUIRED' });
+    if (!resolvedKey) {
+      return res.status(400).json({
+        success: false,
+        error: `No API key configured for ${provider} — add one in AI Vault under Settings.`,
+        code: 'VAULT_TEST_KEY_REQUIRED'
+      });
     }
 
     res.status(200).json({ success: true, message: `${provider} is configured and ready for runtime use.` });

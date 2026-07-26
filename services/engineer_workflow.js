@@ -201,9 +201,7 @@ function buildPageContent(plan, intake, appTitle, productDescription, bg, text, 
     const heroHeadlineText = cp.core_message || appTitle;
     const heroSubtextText = cp.reader_state === 'warm'
       ? "Welcome back. Let's get to work."
-      : (productDescription && productDescription !== heroHeadlineText
-          ? productDescription
-          : `Built for ${who}.`);
+      : (cp.section_copy_briefs?.[0]?.supporting_point || cp.core_message || "Discover a premium experience tailored to your needs.");
 
     jsxSections += `
       {/* DYNAMIC HERO */}
@@ -669,14 +667,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={\`${fontClassApply} antialiased\`}
-        style={{
-          background: '${resolvedBg}',
-          color: '${resolvedText}',
-          minHeight: '100vh',
-        }}
-      >
+      <body className={\`${fontClassApply} antialiased bg-[var(--color-bg)] text-[var(--color-text)] min-h-screen\`}>
         <main>{children}</main>
       </body>
     </html>
@@ -725,9 +716,7 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', d
     },
 
     'app/globals.css': {
-      content: `@import url('https://fonts.googleapis.com/css2?family=${resolvedDisplay.replace(/ /g, '+')}:ital,wght@0,400;0,600;0,700;1,400;1,600&family=${resolvedBody.replace(/ /g, '+')}:wght@300;400;500;600&display=swap');
-
-@tailwind base;
+      content: `@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -735,8 +724,8 @@ function buildEngineerScaffold(plan, intake = {}, skillLevel = 'PROFESSIONAL', d
   --color-bg: ${resolvedBg};
   --color-text: ${resolvedText};
   --color-primary: ${resolvedPrimary};
-  --font-display: '${resolvedDisplay}', Georgia, serif;
-  --font-body: '${resolvedBody}', system-ui, sans-serif;
+  --color-neutral: ${vt.neutral_scale || '#111111'};
+  --spacing-base: ${vt.spacing_system || '8px'};
   color-scheme: ${isLightTheme ? 'light' : 'dark'};
 }
 
@@ -1128,10 +1117,12 @@ ${dnaBlock}${effectsBlock}`;
       system: BASE_SYSTEM + `
 Context: globals.css
 Rules:
-- CSS variables from exact palette & typography brief.
-- Include CSS reset, custom scrollbar, ::selection, .container utility, Google Fonts @import matching DNA.
+- MUST declare CSS custom properties for primary_color, neutral_scale, and spacing_system from the brief inside :root.
+- DO NOT use @import for Google Fonts. Fonts are loaded via Next.js in layout.tsx.
+- Use the actual tokens (e.g. --color-primary: #hex, --neutral-base: #hex, --spacing-base: 8px). Do not use hardcoded Tailwind default classes as fallbacks for variables.
+- Include CSS reset, custom scrollbar, ::selection.
 - Result must be a premium design system.`,
-      user: `${uiBrief}\n\nGenerate globals.css now. Output ONLY CSS code, starting with @import or :root.`
+      user: `${uiBrief}\n\nGenerate globals.css now. Output ONLY CSS code, starting with @tailwind or :root.`
     },
     tailwindConfig: {
       system: BASE_SYSTEM + `
@@ -1148,9 +1139,10 @@ Rules:
 Context: app/layout.tsx (Next.js 14)
 Rules:
 - Valid TSX.
-- Import Google Fonts via 'next/font/google'. CRITICAL: Use EXACT PascalCase export (e.g. import { Playfair_Display }).
+- MUST import fonts via 'next/font/google'. CRITICAL: Use EXACT PascalCase export (e.g. import { Playfair_Display }).
+- Apply font variables to body className.
+- Apply resolved background and text colors from the design brief to the body using CSS variables (e.g. bg-[var(--color-bg)] text-[var(--color-text)]).
 - Include OpenGraph/Twitter card metadata.
-- Apply font variables to body.
 - Import './globals.css'.
 - Use \`suppressHydrationWarning\` on html.
 - NO auth providers unless explicitly required.`,
@@ -1185,6 +1177,9 @@ Layout Pattern: ${profile.layout_pattern || ''}`,
       const cpEntry = (brief?.content_plan || []).find(p => p.page === pageName);
       const cpContext = cpEntry ? `\nContent Plan for this page:\n${JSON.stringify(cpEntry, null, 2)}\n` : '';
 
+      const pageComponents = (plan.components || []).filter(c => c.is_section_of === pageName || (isLanding && !c.is_section_of));
+      const compContext = pageComponents.length > 0 ? `\nPlanned Components to Build:\n${pageComponents.map(c => `- ${c.name}: ${c.purpose || c.type || ''}`).join('\n')}\n` : '';
+
       return {
         name: pageName,
         slug: slug,
@@ -1192,9 +1187,10 @@ Layout Pattern: ${profile.layout_pattern || ''}`,
 Context: app/${slug === 'page' ? '' : slug + '/'}page.tsx (${pageName})
 Rules:
 - Valid TSX.
+- MUST implement EVERY component listed in "Planned Components to Build". DO NOT drop sections.
 - MUST use \`framer-motion\` and \`lucide-react\`.
 - Track which \`lucide-react\` icons you use. NEVER use the same icon twice in the same file.
-- 4-6 complex sections for "${pageName}". NO simple text boxes.
+- NO simple text boxes. Use bento grids and asymmetric layouts.
 - Contextual copy. NO lorem ipsum.
 - NO placeholders.
 - Apply DNA spacing, borders, animation.
@@ -1202,7 +1198,7 @@ Rules:
 - SELF-CONTAINED: NO local component imports. Define ALL components inline.
 - NO auth code.
 - Standard ASCII/UTF-8 only.`,
-        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}${cpContext}\nGenerate complete TSX code. Output ONLY code.`
+        user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nPage Topic: ${pageName}${cpContext}${compContext}\nGenerate complete TSX code. Output ONLY code.`
       };
     }),
     selfReview: {

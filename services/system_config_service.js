@@ -305,11 +305,13 @@ function envProviderSlots() {
   const candidates = [
     { provider: 'Groq', env: 'GROQ_API_KEY', modelEnv: 'GROQ_MODEL' },
     { provider: 'OpenAI', env: 'OPENAI_API_KEY', modelEnv: 'OPENAI_MODEL' },
+    { provider: 'Anthropic', env: 'ANTHROPIC_API_KEY', modelEnv: 'ANTHROPIC_MODEL' },
     { provider: 'OpenRouter', env: 'OPENROUTER_API_KEY', modelEnv: 'OPENROUTER_MODEL' },
     { provider: 'SiliconFlow', env: 'SILICONFLOW_API_KEY', modelEnv: 'SILICONFLOW_MODEL' },
     { provider: 'Google Gemini', env: 'GEMINI_API_KEY', modelEnv: 'GEMINI_MODEL' },
     { provider: 'DeepSeek', env: 'DEEPSEEK_API_KEY', modelEnv: 'DEEPSEEK_MODEL' },
-    { provider: 'Mistral', env: 'MISTRAL_API_KEY', modelEnv: 'MISTRAL_MODEL' }
+    { provider: 'Mistral', env: 'MISTRAL_API_KEY', modelEnv: 'MISTRAL_MODEL' },
+    { provider: 'Cohere', env: 'COHERE_API_KEY', modelEnv: 'COHERE_MODEL' }
   ];
 
   return candidates
