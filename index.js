@@ -2660,12 +2660,22 @@ app.post('/presence', async (req, res) => {
     const { status, user } = req.body;
     const now = Date.now();
 
+    // Persist current user to disk so Python specialists can resolve dynamically
+    try {
+      const memDir = path.join(__dirname, 'memory');
+      if (!fs.existsSync(memDir)) fs.mkdirSync(memDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(memDir, 'presence_state.json'),
+        JSON.stringify({ user: user || 'Master', status: status || 'detected', updated: now }, null, 2)
+      );
+    } catch (_) {}
+
     const MASTER_GREETINGS = [
-      "Welcome back, sir.",
-      "Good to see you, Mughees.",
+      "Welcome back, Master.",
+      "Good to see you again, sir.",
       "Ah, the Master returns. How can I be of service?",
-      "Hey Mughees, I've kept the seat warm for you.",
-      "Always a pleasure to see you, sir."
+      "I've kept everything running smoothly for you, sir.",
+      "Always a pleasure to have you back, sir."
     ];
 
     // Find the most active socket for broadcasting (safely)
@@ -2767,13 +2777,13 @@ app.post('/presence', async (req, res) => {
             isUserPresent = true;
           }
         }
-      } else if (user === 'Unknown') {
+      } else if (user === 'Guest' || user === 'Unknown') {
         if (!isUserPresent || now - lastGreetingTime > GREETING_COOLDOWN) {
           console.log(`[VISION] Unknown visitor detected.`);
           lastGreetingTime = now;
           isUserPresent = true;
 
-          const warning = "I'm sorry, I don't believe we've been introduced. Access is reserved for the Master.";
+          const warning = "Hello. I don't recognise you — this system is configured for its Master. If you're authorised, please have the Master register your presence.";
           io.emit('neural_interrupt', {
             text: warning,
             type: 'SECURITY_ALERT'
@@ -2792,6 +2802,19 @@ app.post('/presence', async (req, res) => {
       // Always update last seen time when detected
       lastSeenTime = now;
     }
+
+    // First-time master face registration completed
+    if (status === 'registered' && user === 'Master') {
+      console.log('[VISION] Master face registered for the first time.');
+      const registrationMsg = "Biometric signature captured and secured. I have you in my system now, sir. From this point on, I will recognise you on sight.";
+      if (socket) {
+        io.emit('neural_interrupt', { text: registrationMsg, type: 'SYSTEM_NOTICE' });
+        requestTTS(registrationMsg).then(audioRes => {
+          if (audioRes.audio) socket.emit('audio_chunk', { index: 0, audio: audioRes.audio, isBase64: false });
+        }).catch(() => {});
+      }
+    }
+
     res.sendStatus(200);
   } catch (err) {
     console.error("[PRESENCE] Critical failure in loop:", err.message);
@@ -4430,7 +4453,7 @@ const _pushAction = (msg) => {
 
 // Singleton for Proactive Intelligent Service
 
-const BASE_SYSTEM_PROMPT = `You are ZAIRE, Zaire AI Reasoning Entity, advanced AI assistant.
+const BASE_SYSTEM_PROMPT = `You are ZAIRE, Zaire advanced AI assistant.
 
 PERSONALITY_MODE: {{MODE}}
 SYSTEM_MOOD: {{MOOD}}

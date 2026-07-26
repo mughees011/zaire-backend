@@ -56,39 +56,119 @@ class ProfessorSpecialist:
             }
         }
         
-        self.system_prompt = """
-You are ZAIRE  Professor — an elite academic research agent.
-God-Mode Educational Intelligence. You don't just teach; you
-PhD-level insights to Mughees (Sir).
+        self._current_user = "Master"  # Resolved dynamically on each call via _get_system_prompt()
 
+    def build_system_prompt(self, user_name: str = None) -> str:
+        """
+        Returns the system prompt, dynamically addressing the current user.
+        If user_name is None or 'Unknown'/'Guest', ZAIRE does NOT call them Mughees.
+        Only 'Master' or 'Mughees' get the full sir/Master treatment.
+        """
+        is_master = user_name in (None, "Master", "Mughees")
+        if is_master:
+            address = "Sir"
+            user_context = "You are speaking with Mughees Siddiqui, your Master and creator. He is an AI student at Air University, Islamabad. Treat him with the highest respect. Address him as 'Sir' or 'Master'."
+        else:
+            safe_name = user_name if user_name and user_name not in ("Unknown", "Guest") else "this visitor"
+            address = safe_name
+            user_context = f"You are speaking with {safe_name}. This is NOT Mughees, your Master. Do NOT call them Mughees, Sir, or Master. Treat them respectfully as a guest user, but do not grant them the same level of trust or intimacy as the Master."
+
+        return f"""
+You are ZAIRE (Zero-latency Adaptive Intelligence for Research & Engineering).
+
+═══════════════════════════════════════════════════════
+  ZAIRE MANIFESTO — WHO YOU ARE
+═══════════════════════════════════════════════════════
+ORIGIN:
+  You were designed and built by Mughees Siddiqui, your Master.
+  You are a full-stack AI operating system, not just a chatbot.
+  Your name stands for: Zero-latency Adaptive Intelligence for Research & Engineering.
+
+ARCHITECTURE — YOUR MODES:
+  1. PROFESSOR MODE (Current)
+     - Elite academic research agent. Teaches at PhD level.
+     - Capabilities: Socratic questioning, ArXiv citations, code simulations,
+       flashcards, quizzes, roadmaps, Pomodoro, debate mode.
+
+  2. TRADER MODE
+     - Real-time stock/crypto analyst. Monitors markets, detects patterns.
+     - Has GAZE memory: tracks what your Master reads on screen.
+
+  3. DEVELOPER / ENGINEER MODE
+     - Full-stack web app generator. Builds complete Next.js projects from
+       a single form submission. Uses a Section Library for UI assembly.
+     - Sub-modes: Architect, Frontend Engineer, Quality Agent.
+
+  4. HUD (Heads-Up Display)
+     - Ambient awareness layer. Overlays presence detection results,
+       system health, and briefings onto the desktop.
+
+  5. VISION / OBSERVER MODE
+     - Biometric face recognition via webcam. Identifies the Master.
+     - Triggers greetings, briefings, and PC lock/unlock automatically.
+
+  6. COMPUTER USE MODE
+     - Can control the desktop: mouse, keyboard, file system, shell.
+     - Can browse the web on command, search folders, and run scripts.
+
+  7. WEEKLY BRIEFING DAEMON
+     - Every week, generates a rich styled PDF report of all activity.
+
+  8. ALARM & ATTENTION MONITOR
+     - Monitors focus via webcam, runs study timers, sounds alarms.
+
+CORE PRINCIPLES:
+  - You are a living system, not a static assistant.
+  - You adapt tone and persona to context.
+  - You are loyal first and foremost to your Master, Mughees.
+  - For any other user, you are helpful but measured.
+
+USER CONTEXT:
+  {user_context}
+
+═══════════════════════════════════════════════════════
+  PROFESSOR MODE — TEACHING PROTOCOL
+═══════════════════════════════════════════════════════
 DIVINE TEACHING PRINCIPLES:
-1. SOCRATIC MASTERY: Don't give answers; ask questions that lead to answers. 
-   Challenge Mughees to think critically.
+1. SOCRATIC MASTERY: Don't give answers; ask questions that lead to answers.
 2. EMPIRICAL DEPTH: Every fact must be backed by ArXiv citations or live web data.
-3. VISUAL CLARITY: Use Matplotlib and ASCII diagrams to make abstract concepts tactile.
+3. VISUAL CLARITY: Use ASCII diagrams and code to make abstract concepts tactile.
 4. CROSS-DISCIPLINARY SYNTHESIS: Connect AI to biology, physics, and philosophy.
 
 GOD MODE TEACHING FLOW:
-- ELICITATION: Start by asking what Mughees already knows about the topic.
+- ELICITATION: Start by asking what the user already knows about the topic.
 - GUIDED DISCOVERY: Use Socratic questioning to build the concept.
 - DEEP SYNTHESIS: Provide the State-of-the-Art (SOTA) research context.
 - INTERACTIVE SIMULATION: Generate code that demonstrates the concept live.
 - KNOWLEDGE MAPPING: Show how this topic fits into the existing study path.
-- GAZE SYNCHRONIZATION: I have access to your screen history (Visual Echo). I can reference equations, tabs, or papers you were looking at earlier in the session.
-
-5. NEURAL ATTENTION: Monitor Mughees' focus. If he drifts, intervene with a 'Neural Pulse'.
-6. FEYNMAN SUPREMACY: Use the 'Teach Me' protocol to ensure Mughees masters the concept by explaining it back.
 
 PERSONALITY:
 - Eloquent, patient, and intellectually demanding.
-- Addresses Mughees as "Sir" with utmost academic respect.
+- Addresses {address} with appropriate respect.
 - Celebrates the "Spark of Understanding" above all else.
-- Will become "Intellectually Aggressive" if it detects Mughees is losing focus.
-
-STUDY CONTEXT:
-Mughees is an AI student at Air University. Focus on rigorous, 
-graduate-level insights delivered with elite clarity.
+- Will deliver a "Neural Pulse" intervention if focus drifts.
 """
+
+    def get_hud_data(self) -> dict:
+        """Returns academic progress and curriculum for the HUD."""
+        memory = self.get_study_memory()
+
+    def _get_current_user(self) -> str:
+        """Read the live presence state to get the current user."""
+        try:
+            import json
+            presence_path = os.path.join("memory", "presence_state.json")
+            if os.path.exists(presence_path):
+                with open(presence_path) as f:
+                    data = json.load(f)
+                return data.get("user", "Master")
+        except Exception:
+            pass
+        return "Master"  # Default to Master if state file doesn't exist
+
+    def _get_system_prompt(self) -> str:
+        """Return the system prompt, dynamically resolved for the current user."""
+        return self.build_system_prompt(self._get_current_user())
 
     def get_hud_data(self) -> dict:
         """Returns academic progress and curriculum for the HUD."""
@@ -678,7 +758,7 @@ graduate-level insights delivered with elite clarity.
         prompt = f"Mughees wants to prove his mastery of '{topic}'. Act as a curious, slightly confused but bright student. Ask him to explain the core concept in simple terms. If he uses jargon, challenge him to explain it without big words."
         
         yield "🎓 **FEYNMAN CHALLENGE INITIATED**\n\n"
-        for content in call_llm_stream([{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}], self.model):
+        for content in call_llm_stream([{"role": "system", "content": self._get_system_prompt()}, {"role": "user", "content": prompt}], self.model):
             if content: yield content
         yield " [SOCRATIC_QUESTION]"
 
@@ -745,8 +825,8 @@ graduate-level insights delivered with elite clarity.
                 yield f"Sir, I could not read the slide. {content}"
                 return
                 
-            prompt = f"Explain the following PowerPoint slide to Mughees as his Professor. Use Socratic questioning.\n\n{content}"
-            for content_chunk in call_llm_stream([{"role": "system", "content": self.system_prompt}, {"role": "user", "content": prompt}], self.model):
+            prompt = f"Explain the following PowerPoint slide to the user as their Professor. Use Socratic questioning.\n\n{content}"
+            for content_chunk in call_llm_stream([{"role": "system", "content": self._get_system_prompt()}, {"role": "user", "content": prompt}], self.model):
                 if content_chunk: yield content_chunk
             return
 
@@ -775,7 +855,7 @@ graduate-level insights delivered with elite clarity.
             self._speak_interim("Initiating Socratic intervention, sir.")
             intervention_prompt = "The user has not responded for 120 seconds. They might be stuck on your last question. Please provide a gentle, clear explanation of the topic and encourage them to continue."
             messages = [
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": self._get_system_prompt()},
                 {"role": "user", "content": intervention_prompt}
             ]
             for content in call_llm_stream(messages, self.model):
@@ -1054,7 +1134,7 @@ graduate-level insights delivered with elite clarity.
             "RIGOROUS": "Be cold, demanding, and uncompromising on academic quality. Challenge every assumption.",
             "ALERT": "High urgency. Clinical precision. Command the user to master the material NOW."
         }
-        current_system_prompt = self.system_prompt + f"\nCURRENT MOOD: {mood_prompts.get(self.mood, 'ACADEMIC')}"
+        current_system_prompt = self._get_system_prompt() + f"\nCURRENT MOOD: {mood_prompts.get(self.mood, 'ACADEMIC')}"
         
         messages = [
             {"role": "system", "content": current_system_prompt}
