@@ -433,6 +433,24 @@ def _vision_loop():
                 _load_master_encoding()
                 _master_face_mtime = mtime
 
+        # ── Auto-Registration ────────────────────────────────────────────────
+        if not MASTER_FACE_PATH.exists() and _frame_counter % 20 == 0:
+            try:
+                rgb_test = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                locs = face_recognition.face_locations(rgb_test, model="hog")
+                if len(locs) > 0:
+                    cv2.imwrite(str(MASTER_FACE_PATH), frame)
+                    _log("🤖 FIRST-TIME SETUP: Auto-registered Master Face successfully!")
+                    # Inform the backend so TTS can announce it
+                    try:
+                        import requests
+                        requests.post(f"{BACKEND_URL}/presence", json={"status": "registered", "user": "Master"}, timeout=2)
+                    except Exception:
+                        pass
+                    _load_master_encoding()
+            except Exception as e:
+                _log(f"Auto-registration error: {e}")
+
         # ── Detect Faces ─────────────────────────────────────────────────────
         try:
             gray_preview = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -497,25 +515,11 @@ def _vision_loop():
         for enc in encodings:
             if _master_encoding is not None:
                 dynamic_tolerance = MATCH_TOLERANCE_DARK if avg_brightness < MIN_BRIGHTNESS_FOR_BRIGHT_TOL else MATCH_TOLERANCE_BRIGHT
-                # Dynamic tolerance: relaxed in low-light, stricter in normal light
                 match = face_recognition.compare_faces(
                     [_master_encoding], enc, tolerance=dynamic_tolerance
                 )
                 if match[0]:
                     master_found = True
-                else:
-                    intruder_found = True
-            else:
-                # No master registered — treat everyone as intruder
-                intruder_found = True
-
-        # ── MASTER PRIORITY OVERRIDE ────────────────────────────────────────
-        # If the Master is present, SUPPRESS all intruder alerts.
-        # The Master's presence authorizes the current session.
-        if master_found:
-            intruder_found = False
-            state["intruder_present"] = False
-
         # ── Master Detected ───────────────────────────────────────────────────
         if master_found:
             state["last_seen_master"] = time.time()
@@ -532,42 +536,6 @@ def _vision_loop():
                     _append_log("UNLOCK", "Master face confirmed — presence restored.")
 
                     # If PC was locked by face-lock, send unlock signal
-                    if state["pc_locked"] and state["face_lock_enabled"]:
-                        _unlock_pc()
-                        state["pc_locked"] = False
-                        _append_log("UNLOCK", "PC unlocked by face recognition.")
-
-                        # Notify ZAIRE frontend (Once per state change)
-                        if state.get("last_notified_presence") != "detected":
-                            try:
-                                import requests
-                                requests.post(
-                                    f"{BACKEND_URL}/presence",
-                                    json={"status": "detected", "user": "Master"},
-                                    timeout=2
-                                )
-                                state["last_notified_presence"] = "detected"
-                            except Exception:
-                                pass
-
-        # ── Intruder Detected ─────────────────────────────────────────────────
-        if intruder_found and state["face_lock_enabled"]:
-            _log("🚨 INTRUDER DETECTED!")
-            state["intruder_present"] = True
-            _trigger_intruder_response(frame)
-        else:
-            state["intruder_present"] = False
-
-        time.sleep(0.5)
-
-    cap.release()
-    state["running"]   = False
-    state["camera_ok"] = False
-    _log("Vision loop stopped.")
-
-
-# ─────────────────────────── REST API ────────────────────────────────────────
-
 @app.route("/security/start", methods=["POST"])
 def start_face_lock():
     """Enable Face-Lock mode and start the vision loop."""
