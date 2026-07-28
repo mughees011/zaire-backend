@@ -5,8 +5,15 @@ function planFrontend(intake, needsAuth, needsDatabase, needsPayments, visionDat
   const normalizedName = normalizeProjectName(intake.projectName);
   const appName = safeDisplayText(intake.projectName, normalizedName);
 
+  // ── STACK ─────────────────────────────────────────────────────────────────
   const frontendStack = ['Next.js 14 App Router', 'TypeScript', 'Tailwind CSS'];
 
+  // If Vision Agent suggests a motion library, add it to the stack
+  if (visionData?.motion?.suggestedLibrary && visionData.motion.suggestedLibrary !== 'none') {
+    frontendStack.push(visionData.motion.suggestedLibrary);
+  }
+
+  // ── PAGES ─────────────────────────────────────────────────────────────────
   const pages = [
     'Landing / value proposition',
     'Authenticated workspace',
@@ -15,7 +22,8 @@ function planFrontend(intake, needsAuth, needsDatabase, needsPayments, visionDat
     ...(needsAuth ? ['Sign in / sign up'] : [])
   ];
 
-  const components = [
+  // ── COMPONENTS ────────────────────────────────────────────────────────────
+  const baseComponents = [
     'ShellFrame',
     'ProjectCommandBar',
     'MissionComposer',
@@ -27,26 +35,55 @@ function planFrontend(intake, needsAuth, needsDatabase, needsPayments, visionDat
     ...(needsDatabase ? ['DataStatusBadge'] : [])
   ];
 
-  // Merge Vision Data if present
-  let layoutStructure = null;
-  let visionTokens = null;
+  const components = [...baseComponents];
+
+  // ── VISION AGENT MERGE ────────────────────────────────────────────────────
+  // When visionData is present, we layer the AI-extracted intelligence on top.
+  // All of these are passed through to the final plan for the code generator.
+
+  let designIntelligence = null;
 
   if (visionData) {
+    // 1. Merge components: Add vision-detected ones if not already present
     if (Array.isArray(visionData.components)) {
-      // Append AI-detected components that aren't already in the list
       visionData.components.forEach(c => {
         if (!components.includes(c)) components.push(c);
       });
     }
-    if (visionData.layoutStructure) {
-      layoutStructure = visionData.layoutStructure;
-    }
-    if (visionData.colorPalette || visionData.typography) {
-      visionTokens = {
-        colorPalette: visionData.colorPalette,
-        typography: visionData.typography
-      };
-    }
+
+    // 2. Build the full design intelligence block from all 7 stages
+    designIntelligence = {
+      // Mood
+      mode: visionData.mode,
+      personality: visionData.personality,
+      era: visionData.era,
+      feeling: visionData.feeling,
+      density: visionData.density,
+      hasGlassmorphism: visionData.hasGlassmorphism,
+      hasGradients: visionData.hasGradients,
+      hasBorderRadius: visionData.hasBorderRadius,
+      hasShadows: visionData.hasShadows,
+      animationComplexity: visionData.animationComplexity,
+
+      // Full color system
+      colorPalette: visionData.colorPalette,
+
+      // Full typography system
+      typography: visionData.typography,
+
+      // Layout system
+      layout: visionData.layout,
+
+      // Component details with props
+      componentDetails: visionData.componentDetails,
+      missingComponents: visionData.missingComponents,
+
+      // Motion system
+      motion: visionData.motion,
+
+      // Accessibility
+      accessibility: visionData.accessibility
+    };
   }
 
   return {
@@ -56,8 +93,15 @@ function planFrontend(intake, needsAuth, needsDatabase, needsPayments, visionDat
     frontendStack,
     pages,
     components,
-    layoutStructure,
-    visionTokens
+    // Legacy single-field support for backward compatibility
+    layoutStructure: visionData?.layout?.sectionBreakdown
+      ? visionData.layout.sectionBreakdown.map(s => `${s.sectionName}: ${s.description}`).join(' → ')
+      : null,
+    visionTokens: visionData
+      ? { colorPalette: visionData.colorPalette, typography: visionData.typography }
+      : null,
+    // Full design intelligence for advanced code generation
+    designIntelligence
   };
 }
 

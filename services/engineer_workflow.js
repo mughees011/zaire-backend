@@ -103,7 +103,8 @@ function buildEngineerPlan(intake = {}, visionData = null) {
     needsPayments,
     deploymentPlan: devopsPlan.deploymentPlan,
     layoutStructure: frontendPlan.layoutStructure,
-    visionTokens: frontendPlan.visionTokens
+    visionTokens: frontendPlan.visionTokens,
+    designIntelligence: frontendPlan.designIntelligence
   };
 }
 
