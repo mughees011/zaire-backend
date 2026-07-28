@@ -372,9 +372,20 @@ async function repairError(projectId, errorText, files) {
 /**
  * Applies a diff to the files, keeps a snapshot, and reruns the QA loop to verify.
  */
-async function applyAndVerifyRepair(projectId, files, diffText) {
+async function applyAndVerifyRepair(projectId, files, diffText, directPatches = []) {
   const normalizedFiles = normalizeFileList(files);
   const snapshot = JSON.parse(JSON.stringify(normalizedFiles));
+  
+  // Apply direct full-file replacements (from LLM)
+  if (directPatches && directPatches.length > 0) {
+    for (const patch of directPatches) {
+      const targetPath = normalizeLookupPath(patch.path);
+      const fileToPatch = normalizedFiles.find(f => normalizeLookupPath(f.path) === targetPath);
+      if (fileToPatch) {
+        fileToPatch.content = patch.content;
+      }
+    }
+  }
   
   // Apply patch if diff is provided and valid
   if (diffText && diffText.trim().length > 0) {
