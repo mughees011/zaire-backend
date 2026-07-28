@@ -44,6 +44,7 @@ const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative
 const memoryAgent = require('./services/agents/memory_agent');
 const repairAgent = require('./services/agents/repair_agent');
 const mockupRenderer = require('./services/agents/mockup_renderer');
+const clarificationAgent = require('./services/agents/clarification_agent');
 const {
   qaProject,
   repairError,
@@ -818,6 +819,50 @@ function emitEngineerEvent(req, stage, label, status = 'running', detail = {}) {
   if (status === 'running') io.emit('zaire_status', 'agent_thinking');
   if (status === 'complete' || status === 'passed') io.emit('zaire_status', 'idle');
 }
+
+// ─── POST /engineer/clarify ──────────────────────────────────────────────────
+// Pre-flight check to see if a prompt is too vague and requires clarification.
+app.post('/engineer/clarify', async (req, res) => {
+  try {
+    const intake = req.body;
+    if (!intake || !intake.what) {
+      return res.status(400).json({ success: false, error: 'Missing intake data or prompt.', code: 'ENGINEER_CLARIFY_MISSING_INTAKE' });
+    }
+
+    emitEngineerEvent(req, 'CLARIFICATION_CHECK', 'Evaluating prompt clarity...', 'running');
+    
+    const { systemPrompt, userPrompt } = clarificationAgent.buildClarificationPrompt(intake.what);
+    
+    const resultText = await executeLLMCallWithFailover({
+      systemPrompt,
+      userPrompt,
+      modelPref: 'fast' // gemini-1.5-flash is good for this
+    });
+
+    let result = { needsClarification: false };
+    try {
+      // Remove any markdown block wrapping just in case
+      let cleaned = resultText.trim();
+      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\n/, '').replace(/\n```$/, '');
+      else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\n/, '').replace(/\n```$/, '');
+      result = JSON.parse(cleaned);
+    } catch (e) {
+      console.warn('[CLARIFICATION AGENT] JSON parse failed, falling back.');
+    }
+    
+    if (result.needsClarification) {
+      emitEngineerEvent(req, 'CLARIFICATION_NEEDED', 'Prompt is ambiguous. Asking clarifying questions.', 'complete');
+    } else {
+      emitEngineerEvent(req, 'CLARIFICATION_PASSED', 'Prompt is highly specific. Proceeding.', 'complete');
+    }
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[ENGINEER CLARIFY ERR]', error.message);
+    // Fail open if something crashes so we don't block the build
+    res.json({ success: true, needsClarification: false });
+  }
+});
 
 app.post('/engineer/plan', async (req, res) => {
   try {
