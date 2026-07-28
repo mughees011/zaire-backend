@@ -1424,17 +1424,45 @@ app.post('/engineer/scaffold', async (req, res) => {
              return rawContent.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
           };
 
+          // =============================================================
+          // SANITIZERS — run on every generated file, AI-proof guarantees
+          // =============================================================
 
-          const [globalsCss, twConfig, layoutTsx] = await Promise.all([
+          /**
+           * Ensures a generated page/component file always starts with 'use client';.
+           * Next.js App Router treats every file as a Server Component by default.
+           * framer-motion, useState, useEffect etc. REQUIRE a Client Component boundary.
+           * Without this the build fails with "Could not find module in React Client Manifest".
+           */
+          const ensureClientDirective = (code) => {
+            if (!code || typeof code !== 'string') return code;
+            // Strip any existing use client (may have been added with wrong quotes or extra whitespace)
+            const stripped = code.replace(/^["']use client["'];?\s*/m, '').trimStart();
+            return `'use client';\n${stripped}`;
+          };
+
+          /**
+           * Ensures layout.tsx NEVER has 'use client' — it exports `metadata` which
+           * requires a Server Component. Also strips any accidental injection.
+           */
+          const sanitizeLayoutTsx = (code) => {
+            if (!code || typeof code !== 'string') return code;
+            return code.replace(/^["']use client["'];?\n?/m, '').trimStart();
+          };
+
+
+          const [globalsCss, twConfig, rawLayoutTsx] = await Promise.all([
             executeLlm(prompts.globalsCss, 'globals.css'),
             executeLlm(prompts.tailwindConfig, 'tailwind.config.ts'),
             executeLlm(prompts.layoutTsx, 'layout.tsx')
           ]);
 
+          const layoutTsx = sanitizeLayoutTsx(rawLayoutTsx);
+
           const fileMap = {
             'app/globals.css': { content: globalsCss, explanation: { what: 'AI Generated globals.css', why: 'Defines CSS custom properties and resets.', edit: 'Modify variables here.', protect: 'Keep in sync with tailwind config.' } },
             'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Do not remove standard plugins.' } },
-            'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present.' } }
+            'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present and no use client directive.' } }
           };
 
           if (prompts.pages && prompts.pages.length > 0) {
@@ -1442,6 +1470,11 @@ app.post('/engineer/scaffold', async (req, res) => {
             for (const pagePrompt of prompts.pages) {
               const fileName = `app/${pagePrompt.slug === 'page' ? '' : pagePrompt.slug + '/'}page.tsx`;
               let pageCode = await executeLlm(pagePrompt, fileName);
+
+              // CRITICAL: Always inject 'use client'; at the top.
+              // framer-motion, useState, useEffect all require a Client Component boundary.
+              // AI models sometimes forget this \u2014 we enforce it 100% of the time here.
+              pageCode = ensureClientDirective(pageCode);
               
               // TOKEN SAVER: Fast local check to see if the AI rewrite is even necessary.
               let needsRewrite = false;
@@ -1530,6 +1563,30 @@ app.post('/engineer/scaffold', async (req, res) => {
     } catch (outerAiErr) {
       console.warn('[ENGINEER SCAFFOLD OUTER AI FAIL]', outerAiErr.message);
     }
+
+    // ── FINAL CLIENT DIRECTIVE SWEEP ─────────────────────────────────────────────
+    // Last line of defense: run sanitizers on all delivered files before persisting.
+    // Ensures 'use client' is present on every page/component file and ABSENT from
+    // layout.tsx (which exports metadata and must be a Server Component).
+    try {
+      const deliveredFiles2 = scaffold.files || {};
+      for (const [filePath, fileRecord] of Object.entries(deliveredFiles2)) {
+        if (!fileRecord || typeof fileRecord.content !== 'string') continue;
+        if (/app\/layout\.tsx$/.test(filePath)) {
+          // layout.tsx MUST NOT have 'use client'
+          fileRecord.content = fileRecord.content.replace(/^['"]use client['"];?\n?/m, '').trimStart();
+        } else if (/\.(tsx|ts)$/.test(filePath) && /app\//.test(filePath)) {
+          // All other app/ TSX files MUST have 'use client'
+          if (!fileRecord.content.startsWith(`'use client';`)) {
+            const stripped = fileRecord.content.replace(/^['"]use client['"];?\s*/m, '').trimStart();
+            fileRecord.content = `'use client';\n${stripped}`;
+          }
+        }
+      }
+    } catch (sweepErr) {
+      console.warn('[CLIENT DIRECTIVE SWEEP ERR]', sweepErr.message);
+    }
+    // ── END FINAL SWEEP ──────────────────────────────────────────────────────────
 
     if (projectId && !String(projectId).startsWith('local-')) {
       try {
