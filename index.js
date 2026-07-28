@@ -39,6 +39,7 @@ const {
   buildArchitecturePrompts,
   buildCapabilitiesGuardPrompt
 } = require('./services/engineer_workflow');
+const { buildVisionExtractionPrompt } = require('./services/agents/vision_agent');
 const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
 const {
   qaProject,
@@ -845,8 +846,47 @@ app.post('/engineer/plan', async (req, res) => {
       console.warn('[CAPABILITIES GUARD] Failed to run guard, proceeding with original request', guardErr.message);
     }
 
+    // ── VISION AGENT GUARD ───────────────────────────────────────────────────
+    let visionData = null;
+    if (intake.referenceImage) {
+      try {
+        emitEngineerEvent(req, 'PLAN_STARTED', 'Analyzing reference image with Vision Agent...', 'running');
+        const visionPrompts = buildVisionExtractionPrompt();
+        
+        // Construct standard LLM payload, injecting the image if supported by the failover mechanism.
+        // Assuming executeLLMCallWithFailover accepts standard OpenAI format image_urls.
+        const visionRes = await executeLLMCallWithFailover({
+          messages: [
+            { role: "system", content: visionPrompts.system },
+            { 
+              role: "user", 
+              content: [
+                { type: "text", text: visionPrompts.user },
+                { type: "image_url", image_url: { url: intake.referenceImage } }
+              ]
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 500,
+          response_format: { type: "json_object" }
+        });
+
+        if (visionRes?.choices?.[0]?.message?.content) {
+          const content = visionRes.choices[0].message.content;
+          // Strip out any markdown fencing just in case
+          const jsonString = content.replace(/^```(json)?\n?|\n?```\s*$/gm, '').trim();
+          visionData = JSON.parse(jsonString);
+          console.log('[VISION AGENT] Extracted tokens:', visionData);
+          emitEngineerEvent(req, 'PLAN_STARTED', 'Vision extraction complete. Applying layout structures.', 'running');
+        }
+      } catch (visionErr) {
+        console.warn('[VISION AGENT] Failed to parse reference image, proceeding with text-only heuristic:', visionErr.message);
+        emitEngineerEvent(req, 'PLAN_STARTED', 'Vision extraction skipped or failed. Proceeding with heuristic plan.', 'running');
+      }
+    }
+
     emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
-    let plan = buildEngineerPlan(intake);
+    let plan = buildEngineerPlan(intake, visionData);
     
     try {
       const prompts = buildArchitecturePrompts(intake);

@@ -1,6 +1,9 @@
 const { buildEngineerSupportFiles } = require('./engineer_scaffold_support');
 const { selectDnaKey, buildDnaSystemBlock, buildProfileObject } = require('./design_dna');
 const { selectEffects } = require('./design_dna_extended');
+const { planFrontend } = require('./agents/frontend_agent');
+const { planBackend } = require('./agents/backend_agent');
+const { planDevOps } = require('./agents/devops_agent');
 
 function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
@@ -51,114 +54,56 @@ function buildWorkflowPhases() {
   ];
 }
 
-function buildEngineerPlan(intake = {}) {
-  const projectTypeLabel = inferProjectTypeLabel(intake.projectType);
+function buildEngineerPlan(intake = {}, visionData = null) {
   const needsAuth = normalizeBooleanLike(intake.auth);
   const needsDatabase = normalizeBooleanLike(intake.database);
   const needsPayments = normalizeBooleanLike(intake.payments);
   const isFullStack = String(intake.scope || '').toLowerCase() === 'full-stack' || needsAuth || needsDatabase || needsPayments;
-  const normalizedName = normalizeProjectName(intake.projectName);
-  const appName = safeDisplayText(intake.projectName, normalizedName);
-  const frontendStack = ['Next.js 14 App Router', 'TypeScript', 'Tailwind CSS'];
-  const backendStack = isFullStack ? ['Route Handlers', 'Server Actions', 'Node runtime'] : ['Static app shell', 'Client fetch orchestration'];
-  const dataStack = needsDatabase ? ['PostgreSQL', 'Prisma ORM'] : ['No persistent database required'];
-  const authStack = needsAuth ? ['Clerk authentication', 'Protected dashboard middleware'] : ['Anonymous access or lightweight session state'];
-  const paymentStack = needsPayments ? ['Stripe checkout', 'Webhook-based billing sync'] : ['No payment rails required'];
-  const pages = [
-    'Landing / value proposition',
-    'Authenticated workspace',
-    'Project detail / execution view',
-    ...(needsPayments ? ['Billing / plan management'] : []),
-    ...(needsAuth ? ['Sign in / sign up'] : [])
-  ];
-  const components = [
-    'ShellFrame',
-    'ProjectCommandBar',
-    'MissionComposer',
-    'ArchitectureSummary',
-    'ExecutionTimeline',
-    'CodeReviewPanel',
-    ...(needsPayments ? ['BillingCard'] : []),
-    ...(needsAuth ? ['AuthGate'] : []),
-    ...(needsDatabase ? ['DataStatusBadge'] : [])
-  ];
-  const apiRoutes = isFullStack
-    ? [
-        'POST /api/intake',
-        'POST /api/architecture/approve',
-        'POST /api/build',
-        ...(needsPayments ? ['POST /api/billing/create-checkout', 'POST /api/billing/webhook'] : []),
-        ...(needsAuth ? ['GET /api/session'] : [])
-      ]
-    : ['Client-side action queue only'];
-  const databaseSchema = needsDatabase
-    ? [
-        'users(id, email, role, created_at)',
-        'projects(id, owner_id, name, summary, deployment_target)',
-        'decisions(id, project_id, category, decision, rationale)',
-        'build_runs(id, project_id, phase, status, created_at)',
-        ...(needsPayments ? ['subscriptions(id, user_id, plan, status, stripe_customer_id)'] : [])
-      ]
-    : ['No relational schema required for v1'];
-  const authFlow = needsAuth
-    ? 'Clerk handles sign-up, session issuance, and route protection before the workspace loads.'
-    : 'Public landing path with optional invite capture before entering the workspace.';
-  const paymentFlow = needsPayments
-    ? 'Stripe Checkout creates the subscription, webhook confirms payment, and the billing record syncs into the project workspace.'
-    : 'No payment flow is required in the first release.';
-  const envVars = [
-    'NEXT_PUBLIC_APP_URL',
-    ...(needsAuth ? ['CLERK_PUBLISHABLE_KEY', 'CLERK_SECRET_KEY'] : []),
-    ...(needsDatabase ? ['DATABASE_URL'] : []),
-    ...(needsPayments ? ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] : []),
-    intake.deploymentTarget === 'Railway' ? 'RAILWAY_ENVIRONMENT' : 'VERCEL_ENV'
-  ];
-  const risks = [
-    isFullStack ? 'Scope can grow quickly without clear page and API boundaries.' : 'Frontend-only scope may still hide future backend dependencies.',
-    needsPayments ? 'Billing webhooks and subscription state need careful testing before launch.' : 'Monetization path is still undefined for later releases.',
-    needsDatabase ? 'Schema drift can slow shipping if migrations are not reviewed.' : 'Lack of persistence may limit saved workflows.',
-    intake.referenceSites ? 'References should guide quality, not force feature parity.' : 'Missing references may cause design ambiguity.'
-  ];
-  const assumptions = [
-    `Primary target user remains ${intake.who || 'builders'}.`,
-    intake.referenceSites ? `Reference sites are inspiration, not exact clones: ${intake.referenceSites}.` : 'No direct reference websites were provided.',
-    isFullStack ? 'Server-side logic is allowed in the first release.' : 'Backend scope stays deferred unless new requirements appear.',
-    `Deployment will start on ${intake.deploymentTarget || 'Vercel'}.`
+
+  // 1. Frontend Agent
+  const frontendPlan = planFrontend(intake, needsAuth, needsDatabase, needsPayments, visionData);
+
+  // 2. Backend Agent
+  const backendPlan = planBackend(intake, needsAuth, needsDatabase, needsPayments);
+
+  // 3. DevOps Agent
+  const devopsPlan = planDevOps(intake, isFullStack, needsAuth, needsDatabase, needsPayments);
+
+  // 4. Orchestrator Merge
+  const summary = `${frontendPlan.appName} is a ${frontendPlan.projectTypeLabel.toLowerCase()} for ${intake.who}. ZAIRE will ship it as a ${backendPlan.isFullStack ? 'full-stack' : 'frontend-first'} experience with ${needsAuth ? 'authentication' : 'no authentication'}, ${needsDatabase ? 'persistent data' : 'no database'}, and ${needsPayments ? 'payments enabled' : 'no payments in v1'}.`;
+
+  const stack = [
+    ...frontendPlan.frontendStack,
+    ...backendPlan.backendStack,
+    ...backendPlan.dataStack,
+    ...backendPlan.authStack,
+    ...backendPlan.paymentStack
   ];
 
   return {
-    summary: `${appName} is a ${projectTypeLabel.toLowerCase()} for ${intake.who}. ZAIRE will ship it as a ${isFullStack ? 'full-stack' : 'frontend-first'} experience with ${needsAuth ? 'authentication' : 'no authentication'}, ${needsDatabase ? 'persistent data' : 'no database'}, and ${needsPayments ? 'payments enabled' : 'no payments in v1'}.`,
-    stack: [...frontendStack, ...backendStack, ...dataStack, ...authStack, ...paymentStack],
-    pages,
-    components,
-    apiRoutes,
-    databaseSchema,
-    authFlow,
-    paymentFlow,
-    envVars,
-    risks,
-    assumptions,
-    workflowPhases: buildWorkflowPhases(),
-    buildChecklist: [
-      'Confirm the intake answers before generating the scaffold.',
-      'Approve the architecture only after the plan matches the business goal.',
-      'Create the shell and API routes before visual polish.',
-      'Run review, QA, and repair passes before package/deploy.',
-      'Verify required environment variables before shipping.'
-    ],
-    projectTypeLabel,
-    normalizedName,
-    appName,
-    isFullStack,
+    summary,
+    stack,
+    pages: frontendPlan.pages,
+    components: frontendPlan.components,
+    apiRoutes: backendPlan.apiRoutes,
+    databaseSchema: backendPlan.databaseSchema,
+    authFlow: backendPlan.authFlow,
+    paymentFlow: backendPlan.paymentFlow,
+    envVars: devopsPlan.envVars,
+    risks: devopsPlan.risks,
+    assumptions: devopsPlan.assumptions,
+    workflowPhases: devopsPlan.workflowPhases,
+    buildChecklist: devopsPlan.buildChecklist,
+    projectTypeLabel: frontendPlan.projectTypeLabel,
+    normalizedName: frontendPlan.normalizedName,
+    appName: frontendPlan.appName,
+    isFullStack: backendPlan.isFullStack,
     needsAuth,
     needsDatabase,
     needsPayments,
-    deploymentPlan: [
-      `Primary hosting target: ${intake.deploymentTarget || 'Vercel'}`,
-      isFullStack ? 'Run frontend and API together in the App Router deployment.' : 'Ship a frontend-only bundle with managed API integrations later if needed.',
-      needsDatabase ? 'Provision PostgreSQL and attach pooled connection settings.' : 'No database provisioning needed.',
-      needsAuth ? 'Configure auth redirect URLs before launch.' : 'No auth secrets required.'
-    ]
+    deploymentPlan: devopsPlan.deploymentPlan,
+    layoutStructure: frontendPlan.layoutStructure,
+    visionTokens: frontendPlan.visionTokens
   };
 }
 
