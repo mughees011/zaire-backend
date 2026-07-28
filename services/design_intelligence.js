@@ -200,16 +200,24 @@ You must produce a JSON object exactly matching this schema:
       "job": "string (what visitor should do)",
       "reader_state": "string (cold vs warm)",
       "core_message": "string",
-      "section_copy_briefs": [
+      "page_sections": [
         {
-          "section_key": "string (e.g. hero_centered, features_grid, pricing_tiers, faq_accordion, cta_centered)",
-          "headline_intent": "string",
-          "supporting_point": "string",
-          "cta_intent": "string",
-          "items": [{"title": "string", "description": "string", "icon": "string"}],
-          "tiers": [{"name": "string", "price": "string", "period": "string", "features": ["string"], "highlighted": false, "ctaLabel": "string"}],
-          "stats": [{"value": "string", "label": "string"}],
-          "members": [{"name": "string", "role": "string"}]
+          "type": "string (MUST BE: navbar, hero, about, features, pricing, testimonials, social_proof, stats, cta, contact, footer)",
+          "variant": "string (e.g., standard, centered, split, grid, tiers, strip, banner)",
+          "content": {
+            "headline": "string (for hero, if applicable)",
+            "subtext": "string (for hero/contact/cta, if applicable)",
+            "ctaLabel": "string (if applicable)",
+            "ctaHref": "string (if applicable)",
+            "heading": "string (for about/features/cta/contact, if applicable)",
+            "body": "string (for about, if applicable)",
+            "submitLabel": "string (for contact, if applicable)",
+            "logoText": "string (for navbar/footer, if applicable)",
+            "links": [{"label": "string", "href": "string"}],
+            "logos": ["string"],
+            "items": [{"title": "string", "description": "string", "icon": "string", "quote": "string", "author": "string", "role": "string", "value": "string", "label": "string"}],
+            "tiers": [{"name": "string", "price": "string", "features": ["string"], "highlighted": false}]
+          }
         }
       ]
     }
@@ -243,7 +251,21 @@ You must produce a JSON object exactly matching this schema:
 Rules:
 1. "visual_tokens": Must be concrete decisions (e.g., specific colors, fonts like Inter/Playfair), not adjectives.
 2. "content_plan": MUST contain exactly one entry for EVERY page listed in the ARCHITECTURE PLAN (e.g. if there are 5 pages, output 5 content_plan entries). Headlines must describe an outcome for the user, not just describe the product. No generic "Click Here" CTAs. Never restate the project intake verbatim.
-3. "motion_spec": Follow category logic. B2B = minimal, Agency = expressive, Consumer = moderate. Every effect must have a purpose.
+3. "page_sections": You MUST generate a structured sequence of sections for the page. Every entry must use one of the exact type/variant combinations from this list:
+   - navbar / standard (Needs content: { logoText, links: [{label, href}], ctaLabel, ctaHref })
+   - hero / centered (Needs content: { headline, subtext, ctaLabel, ctaHref })
+   - hero / split (Needs content: { headline, subtext, ctaLabel, ctaHref })
+   - about / standard (Needs content: { heading, body })
+   - features / grid (Needs content: { heading, items: [{title, description, icon}] })
+   - pricing / tiers (Needs content: { tiers: [{name, price, features: ["..."], highlighted: true/false}] })
+   - testimonials / grid (Needs content: { items: [{quote, author, role}] })
+   - social_proof / strip (Needs content: { logos: ["...", "..."] })
+   - stats / banner (Needs content: { items: [{value, label}] })
+   - cta / banner (Needs content: { heading, subtext, ctaLabel, ctaHref })
+   - contact / split (Needs content: { heading, subtext, submitLabel })
+   - footer / standard (Needs content: { logoText, links: [{label, href}] })
+   Do not invent types or variants. Do not use any content keys other than the ones specified for that section.
+4. "motion_spec": Follow category logic. B2B = minimal, Agency = expressive, Consumer = moderate. Every effect must have a purpose.
 4. "reference_extractions": When LIVE COMPETITIVE CONTEXT includes DETECTED COLORS/FONTS/LAYOUT/MOTION for a reference site,
    you MUST make an explicit ADOPT / ADOPT_WITH_CHANGE / REJECT call for each notable pattern found — never silently
    copy a detected hex color or font wholesale. State the specific change and why for anything adapted.
