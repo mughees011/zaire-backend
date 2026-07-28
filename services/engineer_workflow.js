@@ -4,6 +4,7 @@ const { selectEffects } = require('./design_dna_extended');
 const { planFrontend } = require('./agents/frontend_agent');
 const { planBackend } = require('./agents/backend_agent');
 const { planDevOps } = require('./agents/devops_agent');
+const memoryAgent = require('./agents/memory_agent');
 
 function normalizeProjectName(value) {
   return (value || 'zaire-builder-core')
@@ -54,7 +55,7 @@ function buildWorkflowPhases() {
   ];
 }
 
-function buildEngineerPlan(intake = {}, visionData = null) {
+function buildEngineerPlan(intake = {}, visionData = null, contextBlock = null) {
   const needsAuth = normalizeBooleanLike(intake.auth);
   const needsDatabase = normalizeBooleanLike(intake.database);
   const needsPayments = normalizeBooleanLike(intake.payments);
@@ -104,7 +105,14 @@ function buildEngineerPlan(intake = {}, visionData = null) {
     deploymentPlan: devopsPlan.deploymentPlan,
     layoutStructure: frontendPlan.layoutStructure,
     visionTokens: frontendPlan.visionTokens,
-    designIntelligence: frontendPlan.designIntelligence
+    designIntelligence: frontendPlan.designIntelligence,
+    // Persistent Memory context injected into the plan for downstream consumption
+    memoryContext: contextBlock ? {
+      hasMemory: contextBlock.hasMemory,
+      memoriesUsed: contextBlock.memories?.length || 0,
+      pastProjectsReferenced: contextBlock.pastProjects?.length || 0,
+      preferences: contextBlock.preferences || {}
+    } : null
   };
 }
 
@@ -974,8 +982,11 @@ Generate the JSON changeset detailing the architectural modifications required t
   return { system: systemPrompt, user: userPrompt };
 }
 
-function buildArchitecturePrompts(intake) {
-  const systemPrompt = `You are an expert AI software architect.
+function buildArchitecturePrompts(intake, contextBlock = null) {
+  const memoryPrompt = contextBlock ? memoryAgent.buildContextPrompt(contextBlock) : '';
+
+  const systemPrompt = `${memoryPrompt}
+You are an expert AI software architect.
 Your task is to generate a dynamic architecture plan for a new project based on the user's intake answers.
 Return ONLY a JSON object with the following structure (no markdown fences, no explanations):
 {

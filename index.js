@@ -41,6 +41,7 @@ const {
 } = require('./services/engineer_workflow');
 const { runVisionAnalysis, buildVisionExtractionPrompt } = require('./services/agents/vision_agent');
 const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
+const memoryAgent = require('./services/agents/memory_agent');
 const {
   qaProject,
   repairError,
@@ -818,7 +819,12 @@ function emitEngineerEvent(req, stage, label, status = 'running', detail = {}) {
 app.post('/engineer/plan', async (req, res) => {
   try {
     emitEngineerEvent(req, 'PLAN_STARTED', 'Initializing architecture plan...', 'running');
-    const intake = req.body?.intake || req.body || {};
+    const userId = req.body?.userId || 'local-user';
+    let rawIntake = req.body?.intake || req.body || {};
+
+    emitEngineerEvent(req, 'PLAN_STARTED', 'Loading your ZAIRE memory...', 'running');
+    const memoryContextBlock = await memoryAgent.loadEngineerContext(userId, pool);
+    const intake = memoryAgent.enrichIntakeFromMemory(rawIntake, memoryContextBlock);
 
     // ── CAPABILITIES GUARD ───────────────────────────────────────────────────
     try {
@@ -868,10 +874,10 @@ app.post('/engineer/plan', async (req, res) => {
     }
 
     emitEngineerEvent(req, 'PLAN_STARTED', 'Generating architecture plan...', 'running');
-    let plan = buildEngineerPlan(intake, visionData);
+    let plan = buildEngineerPlan(intake, visionData, memoryContextBlock);
     
     try {
-      const prompts = buildArchitecturePrompts(intake);
+      const prompts = buildArchitecturePrompts(intake, memoryContextBlock);
       const llmRes = await executeLLMCallWithFailover({
         messages: [
           {role: "system", content: prompts.system},
@@ -888,7 +894,6 @@ app.post('/engineer/plan', async (req, res) => {
     } catch (llmErr) {
       console.warn('[ENGINEER PLAN] LLM failed to generate dynamic plan, using fallback', llmErr.message);
     }
-    const userId = req.body?.userId || 'local-user';
     const existingProjectId = req.body?.projectId;
 
     try {
@@ -972,6 +977,11 @@ app.post('/engineer/plan', async (req, res) => {
       );
 
       emitEngineerEvent(req, 'PLAN_COMPLETE', 'Architecture plan finalized.', 'complete', { projectId });
+
+      // Save new facts to memory (fire-and-forget background task)
+      memoryAgent.saveEngineerMemory(userId, projectId, plan, intake, pool).catch(err => {
+        console.warn('[MEMORY AGENT] Background save error:', err.message);
+      });
 
       res.json({
         success: true,
