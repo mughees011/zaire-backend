@@ -877,6 +877,7 @@ Rules:
 Context: app/layout.tsx (Next.js 14)
 Rules:
 - Valid TSX.
+- CRITICAL: Do NOT add 'use client' to this file. layout.tsx exports metadata — it must remain a Server Component.
 - MUST import fonts via 'next/font/google'. CRITICAL: Use EXACT PascalCase export (e.g. import { Playfair_Display }).
 - Apply font variables to body className.
 - Apply resolved background and text colors from the design brief to the body using CSS variables (e.g. bg-[var(--color-bg)] text-[var(--color-text)]).
@@ -890,7 +891,8 @@ Rules:
       system: BASE_SYSTEM + `
 Context: app/page.tsx (Landing Page)
 Rules:
-- Valid TSX. Start with 'use client'; or imports.
+- CRITICAL: The VERY FIRST LINE of the file MUST be 'use client'; — no exceptions. This is a Next.js App Router requirement for any file using framer-motion, useState, useEffect, or event handlers.
+- Valid TSX.
 - Tailwind CSS exclusively.
 - NO lorem ipsum. Write contextual copy.
 - MUST use \`framer-motion\` (animations) and \`lucide-react\` (icons).
@@ -942,6 +944,7 @@ DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final c
         system: BASE_SYSTEM + `
 Context: app/${slug === 'page' ? '' : slug + '/'}page.tsx (${pageName})
 Rules:
+- CRITICAL: The VERY FIRST LINE of the file MUST be 'use client'; — no exceptions. Next.js App Router requires this for any file using framer-motion, useState, useEffect, or event handlers. Missing it causes a build failure.
 - Valid TSX.
 - MUST implement EVERY component listed in "Planned Components to Build". DO NOT drop sections.
 - MUST use \`framer-motion\` and \`lucide-react\`.
