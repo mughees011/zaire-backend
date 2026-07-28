@@ -312,6 +312,7 @@ async function initDatabase() {
         updated_at      TIMESTAMP DEFAULT NOW()
       );
     `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_memories_user_cat ON memories(user_id, category);`);
     await enableRls('memories');
     console.log('[DATABASE] ✓ memories table checked.');
 

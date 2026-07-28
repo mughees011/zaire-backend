@@ -19,8 +19,8 @@ router.post('/', async (req, res) => {
     const pool = require('../db/db');
     
     await pool.query(
-      `INSERT INTO memories (user_id, content, type, context_tags) VALUES ($1, $2, $3, $4)`,
-      [userId, text, category || 'general', JSON.stringify([])]
+      `INSERT INTO memories (user_id, text, category, importance, source) VALUES ($1, $2, $3, $4, $5)`,
+      [userId, text, category || 'general', importance || 3, 'user_manual']
     );
 
     res.json({ success: true });
