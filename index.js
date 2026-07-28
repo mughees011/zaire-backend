@@ -42,6 +42,8 @@ const {
 const { runVisionAnalysis, buildVisionExtractionPrompt } = require('./services/agents/vision_agent');
 const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
 const memoryAgent = require('./services/agents/memory_agent');
+const repairAgent = require('./services/agents/repair_agent');
+const mockupRenderer = require('./services/agents/mockup_renderer');
 const {
   qaProject,
   repairError,
@@ -52,7 +54,8 @@ const {
 } = require('./services/engineer_qa_repair');
 const {
   deployToVercel,
-  deployToNetlify
+  deployToNetlify,
+  setupVercelCICD
 } = require('./services/deploy_service');
 const {
   scanForSecrets,
@@ -1871,9 +1874,40 @@ app.post('/engineer/repair', async (req, res) => {
     }
     const repairResult = await repairError(projectId, errorText, files);
 
+    // Call LLM to actually write the code fix
+    let directPatches = [];
+    if (repairResult.likelyFile) {
+      emitEngineerEvent(req, 'REPAIR_STARTED', `Asking AI to fix ${repairResult.likelyFile}...`, 'running');
+      try {
+        const fileContent = files.find(f => f.path === repairResult.likelyFile)?.content || '';
+        const repairPrompts = repairAgent.buildRepairPrompt(errorText, fileContent, repairResult.likelyFile);
+        
+        const llmRes = await executeLLMCallWithFailover({
+          messages: [
+            {role: "system", content: repairPrompts.system},
+            {role: "user", content: repairPrompts.user}
+          ],
+          temperature: 0.1,
+          max_tokens: 4000
+        });
+
+        if (llmRes?.choices?.[0]?.message?.content) {
+          const content = llmRes.choices[0].message.content.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
+          const patchJson = JSON.parse(content);
+          if (patchJson.path && patchJson.content) {
+            directPatches.push(patchJson);
+            repairResult.proposedPatch.action = 'ai_fixed';
+            repairResult.proposedPatch.description = patchJson.explanation || 'AI generated fix applied';
+          }
+        }
+      } catch (llmErr) {
+        console.warn('[REPAIR AGENT] LLM failed to generate fix:', llmErr.message);
+      }
+    }
+
     // Apply the patch in the sandbox and re-run QA pipeline automatically
-    emitEngineerEvent(req, 'REPAIR_RETEST', 'Applying patch and re-running QA...', 'running');
-    const verifyResult = await applyAndVerifyRepair(projectId, files, repairResult.actualDiff);
+    emitEngineerEvent(req, 'REPAIR_RETEST', 'Applying AI patch and re-running QA sandbox...', 'running');
+    const verifyResult = await applyAndVerifyRepair(projectId, files, repairResult.actualDiff, directPatches);
 
     const repairStatus = verifyResult.fixed ? 'passed' : 'failed';
     emitEngineerEvent(req, 'REPAIR_COMPLETE', verifyResult.fixed ? 'Repair verified — retest passed.' : 'Repair applied — retest did not fully pass.', repairStatus, {
@@ -2223,7 +2257,45 @@ app.get('/engineer/projects/:id/usage', async (req, res) => {
   }
 });
 
+
+// ─── POST /engineer/preview ──────────────────────────────────────────────────
+// Converts a resolved design brief into a self-contained HTML/CSS mockup.
+// Returns the full HTML string — no external APIs, no image models.
+app.post('/engineer/preview', async (req, res) => {
+  try {
+    const { projectId, designBrief } = req.body;
+    if (!designBrief) {
+      return res.status(400).json({ success: false, error: 'Missing designBrief', code: 'ENGINEER_PREVIEW_MISSING_BRIEF' });
+    }
+
+    emitEngineerEvent(req, 'PREVIEW_GENERATING', 'Rendering HTML/CSS mockup...', 'running');
+
+    const html = mockupRenderer.generateMockup(designBrief);
+
+    // Optionally cache the mockup HTML on the project row
+    if (projectId && !String(projectId).startsWith('local-')) {
+      try {
+        await pool.query(
+          `UPDATE projects SET mockup_html = $1, updated_at = NOW() WHERE id = $2`,
+          [html, projectId]
+        );
+      } catch (dbErr) {
+        // Non-fatal — DB may not have the mockup_html column yet
+        console.warn('[ENGINEER PREVIEW DB]', dbErr.message);
+      }
+    }
+
+    emitEngineerEvent(req, 'PREVIEW_COMPLETE', 'Mockup ready for review.', 'complete');
+
+    res.json({ success: true, html });
+  } catch (error) {
+    console.error('[ENGINEER PREVIEW ERR]', error.message, error.stack);
+    res.status(500).json({ success: false, error: error.message || 'Preview generation failed.', code: 'ENGINEER_PREVIEW_FAILED' });
+  }
+});
+
 app.post('/engineer/deploy', async (req, res) => {
+
   try {
     const { projectId, provider, token } = req.body;
     if (!projectId || !provider || !token) {
@@ -2275,6 +2347,56 @@ app.post('/engineer/deploy', async (req, res) => {
   } catch (error) {
     console.error('[ENGINEER DEPLOY ERR]', error.message, error.stack);
     res.status(500).json({ success: false, error: error.message || 'Deployment failed.', code: 'ENGINEER_DEPLOY_FAILED' });
+  }
+});
+
+app.post('/engineer/deploy/cicd', async (req, res) => {
+  try {
+    const { projectId, githubToken, vercelToken, isPrivate = true } = req.body;
+    if (!projectId || !githubToken || !vercelToken) {
+      return res.status(400).json({ success: false, error: 'Missing projectId, githubToken, or vercelToken', code: 'ENGINEER_CICD_MISSING_PARAMS' });
+    }
+
+    const projectRes = await pool.query(`SELECT name FROM projects WHERE id = $1`, [projectId]);
+    if (!projectRes.rows.length) {
+      return res.status(404).json({ success: false, error: 'Project not found', code: 'ENGINEER_PROJECT_NOT_FOUND' });
+    }
+    const projectName = projectRes.rows[0].name;
+
+    const filesRes = await pool.query(`SELECT path, content FROM project_files WHERE project_id = $1`, [projectId]);
+    let files = filesRes.rows;
+    if (!files.length) {
+      return res.status(400).json({ success: false, error: 'No files to deploy', code: 'ENGINEER_CICD_NO_FILES' });
+    }
+
+    const secretScan = scanForSecrets(files);
+    files = secretScan.files;
+
+    emitEngineerEvent(req, 'CICD_GITHUB', 'Exporting project to GitHub...', 'running');
+    const githubResult = await pushToGitHub(projectName, files, githubToken, isPrivate);
+
+    emitEngineerEvent(req, 'CICD_VERCEL', 'Linking GitHub Repo to Vercel...', 'running', { repoUrl: githubResult.repoUrl });
+    const vercelResult = await setupVercelCICD(projectName, githubResult.owner, githubResult.repoName, vercelToken);
+
+    await pool.query(
+      `UPDATE projects SET current_phase = 'Deployed (CI/CD)', deployment_target = 'vercel-cicd', updated_at = NOW() WHERE id = $1`,
+      [projectId]
+    );
+
+    emitEngineerEvent(req, 'CICD_COMPLETE', 'CI/CD Pipeline established.', 'complete', { 
+      githubUrl: githubResult.repoUrl, 
+      vercelUrl: vercelResult.url || vercelResult.dashboardUrl 
+    });
+
+    res.json({
+      success: true,
+      githubUrl: githubResult.repoUrl,
+      vercelUrl: vercelResult.url,
+      vercelDashboard: vercelResult.dashboardUrl
+    });
+  } catch (error) {
+    console.error('[ENGINEER CICD ERR]', error.message, error.stack);
+    res.status(500).json({ success: false, error: error.message || 'CI/CD setup failed.', code: 'ENGINEER_CICD_FAILED' });
   }
 });
 

@@ -126,7 +126,50 @@ async function deployToNetlify(projectName, files, token) {
   };
 }
 
+/**
+ * Creates a Vercel project linked to a GitHub repository for true CI/CD.
+ */
+async function setupVercelCICD(projectName, githubOwner, githubRepo, vercelToken) {
+  const safeName = String(projectName || 'zaire-project').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  
+  const payload = {
+    name: safeName,
+    framework: 'nextjs',
+    gitRepository: {
+      type: 'github',
+      repo: `${githubOwner}/${githubRepo}`
+    }
+  };
+
+  const response = await fetch('https://api.vercel.com/v9/projects', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${vercelToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Vercel CI/CD setup failed (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  
+  // Vercel automatically creates a deployment when linking a repo.
+  // We can fetch the deployments to get the latest status if needed, 
+  // or simply return the project dashboard URL.
+  return {
+    projectId: data.id,
+    projectName: data.name,
+    url: data.latestDeployments?.[0]?.url ? `https://${data.latestDeployments[0].url}` : null,
+    dashboardUrl: `https://vercel.com/${data.accountId}/${data.name}`
+  };
+}
+
 module.exports = {
   deployToVercel,
-  deployToNetlify
+  deployToNetlify,
+  setupVercelCICD
 };

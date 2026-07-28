@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinTrack Pro — Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f14;
+      color: #f9f9ff;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f0f14; }
+    ::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 3px; }
+    /* ZAIRE Watermark */
+    .zaire-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1a1a24;
+      border: 1px solid #2a2a38;
+      color: #8888aa;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 6px 14px;
+      border-radius: 999px;
+      z-index: 9999;
+      font-family: -apple-system, sans-serif;
+    }
+    .zaire-badge span { color: #6366f1; }
+  </style>
+</head>
+<body>
+
+
+  <nav style="position:sticky;top:0;z-index:100;background:#0f0f14ee;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid #2a2a38;padding:18px 48px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-family:'Inter',sans-serif;font-size:1.3rem;font-weight:800;color:#f9f9ff;letter-spacing:-0.03em">FinTrack Pro</span>
+    <div style="display:flex;gap:32px;align-items:center">
+      <a href="#features" style="color:#f9f9ff;text-decoration:none;font-size:0.9rem;font-weight:500;opacity:0.8;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">Features</a>
+<a href="#pricing" style="color:#f9f9ff;text-decoration:none;font-size:0.9rem;font-weight:500;opacity:0.8;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">Pricing</a>
+<a href="#about" style="color:#f9f9ff;text-decoration:none;font-size:0.9rem;font-weight:500;opacity:0.8;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">About</a>
+      <a href="#cta" style="background:#6366f1;color:#fff;padding:10px 24px;border-radius:999px;text-decoration:none;font-weight:600;font-size:0.88rem;transition:opacity 0.2s" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">Get Started</a>
+    </div>
+  </nav>
+
+
+  <section style="min-height:88vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:100px 32px;animation:fadeUp 0.8s ease both">
+    <p style="color:#6366f1;font-size:0.82rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:20px">Now in Public Beta</p>
+    <h1 style="font-family:'Inter',sans-serif;font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;line-height:1.08;letter-spacing:-0.04em;max-width:860px;margin:0 auto 24px;color:#f9f9ff">Manage Your Finances Like a Pro</h1>
+    <p style="color:#8888aa;font-size:1.15rem;line-height:1.75;max-width:560px;margin:0 auto 44px">Track expenses, set budgets, and hit your savings goals — all in one beautiful dashboard.</p>
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+      <a href="#primary" style="background:#6366f1;color:#fff;padding:15px 40px;border-radius:999px;text-decoration:none;font-weight:700;font-size:1rem">Start Free</a>
+      <a href="#secondary" style="border:1px solid #2a2a38;color:#f9f9ff;padding:15px 40px;border-radius:999px;text-decoration:none;font-weight:500;font-size:1rem">Watch Demo</a>
+    </div>
+  </section>
+
+
+  <section style="padding:60px 48px;border-top:1px solid #2a2a38;border-bottom:1px solid #2a2a38">
+    <div style="max-width:1000px;margin:0 auto">
+      <p style="text-align:center;color:#8888aa;font-size:0.82rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:32px">Trusted by 10,000+ users at</p>
+      <div style="display:flex;justify-content:center;align-items:center;gap:48px;flex-wrap:wrap">
+    <div style="color:#8888aa;font-weight:700;font-size:1rem;opacity:0.5;letter-spacing:-0.02em">Stripe</div>
+
+    <div style="color:#8888aa;font-weight:700;font-size:1rem;opacity:0.5;letter-spacing:-0.02em">Shopify</div>
+
+    <div style="color:#8888aa;font-weight:700;font-size:1rem;opacity:0.5;letter-spacing:-0.02em">Linear</div>
+
+    <div style="color:#8888aa;font-weight:700;font-size:1rem;opacity:0.5;letter-spacing:-0.02em">Vercel</div>
+
+    <div style="color:#8888aa;font-weight:700;font-size:1rem;opacity:0.5;letter-spacing:-0.02em">Figma</div></div>
+    </div>
+  </section>
+
+
+  <section style="padding:100px 48px;max-width:1200px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-family:'Inter',sans-serif;font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:800;color:#f9f9ff;margin-bottom:16px;letter-spacing:-0.03em">Everything You Need to Win</h2>
+      
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+      
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Expense Tracking</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">Log every spend automatically with bank sync.</p>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.1s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Smart Budgets</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">AI-powered budgets that adapt to your lifestyle.</p>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.2s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Savings Goals</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">Set targets and watch your progress in real time.</p>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.30000000000000004s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Tax Ready Reports</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">Export clean reports for tax season in one click.</p>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.4s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Multi-Currency</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">Handle 150+ currencies seamlessly.</p>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.5s ease both">
+      <div style="width:40px;height:40px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="color:#f9f9ff;font-size:1.05rem;font-weight:700;margin-bottom:8px">Encrypted & Secure</h3>
+      <p style="color:#8888aa;font-size:0.92rem;line-height:1.65">Bank-grade AES-256 encryption on all data.</p>
+    </div>
+    </div>
+  </section>
+
+
+  <section style="padding:80px 48px;max-width:1200px;margin:0 auto">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #2a2a38;border-radius:16px;overflow:hidden">
+      
+    <div style="text-align:center;padding:40px 24px;border-right:1px solid #2a2a38">
+      <div style="font-family:'Inter',sans-serif;font-size:3rem;font-weight:900;color:#6366f1;line-height:1;margin-bottom:10px">10K+</div>
+      <div style="color:#8888aa;font-size:0.9rem;font-weight:500">Active Users</div>
+    </div>
+
+    <div style="text-align:center;padding:40px 24px;border-right:1px solid #2a2a38">
+      <div style="font-family:'Inter',sans-serif;font-size:3rem;font-weight:900;color:#6366f1;line-height:1;margin-bottom:10px">$2M+</div>
+      <div style="color:#8888aa;font-size:0.9rem;font-weight:500">Savings Tracked</div>
+    </div>
+
+    <div style="text-align:center;padding:40px 24px;border-right:1px solid #2a2a38">
+      <div style="font-family:'Inter',sans-serif;font-size:3rem;font-weight:900;color:#6366f1;line-height:1;margin-bottom:10px">4.9★</div>
+      <div style="color:#8888aa;font-size:0.9rem;font-weight:500">App Store Rating</div>
+    </div>
+
+    <div style="text-align:center;padding:40px 24px;border-right:1px solid #2a2a38">
+      <div style="font-family:'Inter',sans-serif;font-size:3rem;font-weight:900;color:#6366f1;line-height:1;margin-bottom:10px">99.9%</div>
+      <div style="color:#8888aa;font-size:0.9rem;font-weight:500">Uptime SLA</div>
+    </div>
+    </div>
+  </section>
+
+
+  <section style="padding:100px 48px;max-width:1200px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-family:'Inter',sans-serif;font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:800;color:#f9f9ff;margin-bottom:16px;letter-spacing:-0.03em">Plans for Every Stage</h2>
+      
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;align-items:center">
+      
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:40px;position:relative;">
+      
+      <h3 style="color:#f9f9ff;font-size:1rem;font-weight:700;margin-bottom:8px">Free</h3>
+      <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:24px">
+        <span style="color:#f9f9ff;font-family:'Inter',sans-serif;font-size:2.8rem;font-weight:800">$0</span>
+        <span style="color:#8888aa;font-size:0.9rem">/mo</span>
+      </div>
+      <ul style="list-style:none;padding:0;margin:0 0 32px 0">
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        5 accounts
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Basic budgets
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Email support
+      </li></ul>
+      <a href="#cta" style="display:block;text-align:center;background:#6366f1;color:#fff;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:0.9rem">Get Started</a>
+    </div>
+
+    <div style="background:#6366f1;border:2px solid #6366f1;border-radius:12px;padding:40px;position:relative;transform:scale(1.05);box-shadow:0 20px 60px #6366f144;">
+      <div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#fff;color:#6366f1;font-size:0.75rem;font-weight:800;padding:5px 16px;border-radius:999px;letter-spacing:0.08em">MOST POPULAR</div>
+      <h3 style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:8px">Pro</h3>
+      <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:24px">
+        <span style="color:#fff;font-family:'Inter',sans-serif;font-size:2.8rem;font-weight:800">$12</span>
+        <span style="color:rgba(255,255,255,0.7);font-size:0.9rem">/mo</span>
+      </div>
+      <ul style="list-style:none;padding:0;margin:0 0 32px 0">
+      <li style="display:flex;align-items:center;gap:10px;color:#fff;font-size:0.9rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Unlimited accounts
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#fff;font-size:0.9rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        AI budgets
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#fff;font-size:0.9rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Tax reports
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#fff;font-size:0.9rem;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Priority support
+      </li></ul>
+      <a href="#cta" style="display:block;text-align:center;background:#fff;color:#6366f1;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:0.9rem">Start Free Trial</a>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:40px;position:relative;">
+      
+      <h3 style="color:#f9f9ff;font-size:1rem;font-weight:700;margin-bottom:8px">Business</h3>
+      <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:24px">
+        <span style="color:#f9f9ff;font-family:'Inter',sans-serif;font-size:2.8rem;font-weight:800">$49</span>
+        <span style="color:#8888aa;font-size:0.9rem">/mo</span>
+      </div>
+      <ul style="list-style:none;padding:0;margin:0 0 32px 0">
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Everything in Pro
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Team accounts
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        API access
+      </li>
+      <li style="display:flex;align-items:center;gap:10px;color:#8888aa;font-size:0.9rem;padding:6px 0;border-bottom:1px solid #2a2a38">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Dedicated CSM
+      </li></ul>
+      <a href="#cta" style="display:block;text-align:center;background:#6366f1;color:#fff;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:0.9rem">Contact Sales</a>
+    </div>
+    </div>
+  </section>
+
+
+  <section style="padding:100px 48px;max-width:1200px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-family:'Inter',sans-serif;font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:800;color:#f9f9ff;margin-bottom:16px;letter-spacing:-0.03em">Loved by Thousands</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+      
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0s ease both">
+      <div style="color:#6366f1;font-size:1.6rem;margin-bottom:16px;line-height:1">"</div>
+      <p style="color:#f9f9ff;font-size:0.95rem;line-height:1.75;margin-bottom:24px">FinTrack Pro paid for itself in the first week. I found $300 in subscriptions I forgot about.</p>
+      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #2a2a38;padding-top:20px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#6366f133;display:flex;align-items:center;justify-content:center;color:#6366f1;font-weight:700;font-size:0.9rem">J</div>
+        <div>
+          <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem">James L.</div>
+          <div style="color:#8888aa;font-size:0.8rem">Freelance Designer</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.1s ease both">
+      <div style="color:#6366f1;font-size:1.6rem;margin-bottom:16px;line-height:1">"</div>
+      <p style="color:#f9f9ff;font-size:0.95rem;line-height:1.75;margin-bottom:24px">Finally a budgeting app that doesn't feel like a spreadsheet. Beautiful and powerful.</p>
+      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #2a2a38;padding-top:20px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#6366f133;display:flex;align-items:center;justify-content:center;color:#6366f1;font-weight:700;font-size:0.9rem">M</div>
+        <div>
+          <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem">Maria S.</div>
+          <div style="color:#8888aa;font-size:0.8rem">Startup Founder</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:32px;animation:fadeUp 0.6s 0.2s ease both">
+      <div style="color:#6366f1;font-size:1.6rem;margin-bottom:16px;line-height:1">"</div>
+      <p style="color:#f9f9ff;font-size:0.95rem;line-height:1.75;margin-bottom:24px">The tax export feature alone is worth the Pro plan. Saved me hours this April.</p>
+      <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #2a2a38;padding-top:20px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#6366f133;display:flex;align-items:center;justify-content:center;color:#6366f1;font-weight:700;font-size:0.9rem">D</div>
+        <div>
+          <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem">David K.</div>
+          <div style="color:#8888aa;font-size:0.8rem">Senior Engineer</div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+
+  <section style="padding:100px 48px">
+    <div style="max-width:900px;margin:0 auto;text-align:center;background:linear-gradient(135deg,#6366f122 0%,#6366f108 100%);border:1px solid #6366f144;border-radius:24px;padding:80px 60px">
+      <h2 style="font-family:'Inter',sans-serif;font-size:clamp(2rem,4vw,3rem);font-weight:800;color:#f9f9ff;margin-bottom:20px;letter-spacing:-0.03em">Take Control of Your Money Today</h2>
+      <p style="color:#8888aa;font-size:1.1rem;line-height:1.7;max-width:520px;margin:0 auto 44px">Join 10,000+ people building better financial habits with FinTrack Pro.</p>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+        <a href="#primary" style="background:#6366f1;color:#fff;padding:15px 40px;border-radius:999px;text-decoration:none;font-weight:700;font-size:1rem">Create Free Account</a>
+        
+      </div>
+    </div>
+  </section>
+
+
+  <footer style="border-top:1px solid #2a2a38;padding:64px 48px 40px;margin-top:40px">
+    <div style="max-width:1200px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:48px;margin-bottom:64px">
+        <div>
+          <span style="font-family:'Inter',sans-serif;font-size:1.3rem;font-weight:800;color:#f9f9ff;letter-spacing:-0.03em;display:block;margin-bottom:16px">FinTrack Pro</span>
+          <p style="color:#8888aa;font-size:0.9rem;line-height:1.65;max-width:280px">Building the future, one feature at a time.</p>
+        </div>
+        
+    <div>
+      <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem;margin-bottom:20px;letter-spacing:0.05em;text-transform:uppercase">Product</div>
+      <a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Features</a>
+<a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Pricing</a>
+<a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Changelog</a>
+    </div>
+
+    <div>
+      <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem;margin-bottom:20px;letter-spacing:0.05em;text-transform:uppercase">Company</div>
+      <a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">About</a>
+<a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Blog</a>
+<a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Careers</a>
+    </div>
+
+    <div>
+      <div style="color:#f9f9ff;font-weight:700;font-size:0.88rem;margin-bottom:20px;letter-spacing:0.05em;text-transform:uppercase">Legal</div>
+      <a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Privacy</a>
+<a href="#" style="display:block;color:#8888aa;text-decoration:none;font-size:0.9rem;margin-bottom:10px;transition:color 0.2s" onmouseover="this.style.color='#f9f9ff'" onmouseout="this.style.color='#8888aa'">Terms</a>
+    </div>
+      </div>
+      <div style="border-top:1px solid #2a2a38;padding-top:32px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:#8888aa;font-size:0.84rem">© 2026 Brand. All rights reserved.</span>
+        <span style="color:#8888aa;font-size:0.84rem">Built with <span style="color:#6366f1">ZAIRE</span></span>
+      </div>
+    </div>
+  </footer>
+
+<div class="zaire-badge">Generated by <span>ZAIRE</span></div>
+
+</body>
+</html>
