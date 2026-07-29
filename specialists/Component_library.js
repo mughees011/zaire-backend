@@ -379,7 +379,7 @@ const COMPONENT_LIBRARY = {
 
 function renderSection(type, variant, tokens, content) {
   const entry = COMPONENT_LIBRARY[type]?.[variant];
-  if (!entry) throw new Error(\`No component registered for \${type}/\${variant} — extend COMPONENT_LIBRARY instead of freehanding this section.\`);
+  if (!entry) throw new Error('No component registered for ' + type + '/' + variant + ' — extend COMPONENT_LIBRARY instead of freehanding this section.');
   return entry(tokens, content);
 }
 
