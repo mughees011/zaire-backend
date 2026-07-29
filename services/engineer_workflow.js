@@ -840,21 +840,102 @@ function buildGenerationPrompts(brief, plan, intake, profile, dnaKey) {
       effects.map(e => `- ${e.key} (Use when: ${e.use_when})\n  Approach: ${e.approach}\n  Snippet: \`${e.snippet}\``).join('\n');
   }
 
-  const BASE_SYSTEM = `Role: ZAIRE — Elite UI/UX Engineer.
-Task: Output ONLY pure, premium code (NO markdown fences, NO explanation).
-Constraint: Strictly follow the Design Brief and DNA Profile. NEVER default to generic outputs.
+  const BASE_SYSTEM = `You are ZAIRE — an elite, world-class UI Engineer with the design sensibility of a senior designer at Vercel, Linear, or Stripe.
+
+CORE MISSION: Generate production-ready, extraordinary Next.js 14 TSX code that looks like it was built by a top-tier design agency. Every output must feel premium, modern, and visually stunning.
+
+ABSOLUTE RULES — NEVER VIOLATE:
+1. Output ONLY pure code. NO markdown fences, NO explanations, NO comments outside code.
+2. Strictly follow the Design Brief tokens (colors, fonts, spacing). NEVER use hardcoded hex values or generic Tailwind colors (no \`bg-blue-500\`, use \`bg-[var(--color-primary)]\`).
+3. ALWAYS use Tailwind CSS utility classes. NEVER use raw \`style={{ }}\` inline styles except for dynamic CSS variable injection.
+4. ALWAYS import and use \`framer-motion\` for animations. No static pages.
+5. ALWAYS import and use \`lucide-react\` icons. Use \`Cog\` not \`Gear\`, \`Mail\` not \`Envelope\`.
+6. ALL components must be defined INLINE in the same file. NO local imports.
+7. NO lorem ipsum. Write real, contextual, on-brand copy.
+8. Standard ASCII/UTF-8 only. No curly quotes (\u201c\u201d), no em dashes (\u2014).
+
 ${dnaBlock}${effectsBlock}`;
+
+  const DESIGN_SYSTEM_RULES = `
+DESIGN SYSTEM (MANDATORY — Apply to every single component):
+
+COLORS (Use CSS variables — never hardcode):
+- Background: \`bg-[var(--color-bg)]\`
+- Surface/Cards: \`bg-[var(--color-surface)]\`
+- Primary accent: \`bg-[var(--color-primary)]\`, \`text-[var(--color-primary)]\`, \`border-[var(--color-primary)]\`
+- Text: \`text-[var(--color-text)]\`
+- Muted text: \`text-[var(--color-muted)]\`
+- Borders: \`border-[var(--color-border)]\`
+
+TYPOGRAPHY:
+- Headlines: \`font-display tracking-tight\` with \`font-black\` or \`font-extrabold\`
+- Use \`clamp()\` for fluid font sizes: e.g. \`text-[clamp(2.5rem,5vw,5rem)]\`
+- Gradient text: \`bg-clip-text text-transparent bg-gradient-to-r from-[var(--color-text)] to-[var(--color-primary)]\`
+- Body: \`font-body leading-relaxed\`
+
+GLASSMORPHISM CARDS (Use for all cards/modals):
+- \`bg-[var(--color-surface)]/60 backdrop-blur-xl border border-[var(--color-border)] rounded-3xl\`
+- On hover: \`hover:border-[var(--color-primary)]/50 hover:shadow-2xl hover:shadow-[var(--color-primary)]/10\`
+
+BUTTONS (NEVER use plain unstyled buttons):
+- Primary: \`bg-[var(--color-primary)] text-white rounded-full px-8 py-4 font-bold hover:shadow-[0_0_30px_var(--color-primary)] hover:shadow-[var(--color-primary)]/40 hover:-translate-y-1 transition-all duration-300\`
+- Secondary: \`border border-[var(--color-border)] text-[var(--color-text)] rounded-full px-8 py-4 font-semibold hover:bg-[var(--color-text)]/5 transition-all duration-300\`
+
+RADIAL GLOW BLOBS (Use in hero and CTA sections):
+- \`absolute rounded-full blur-[120px] pointer-events-none bg-[var(--color-primary)]/20\`
+- Always pair with \`relative overflow-hidden\` on the parent section
+
+FRAMER MOTION (MANDATORY on every section):
+- Hero entry: \`initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}\`
+- Scroll reveal: \`initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}\`
+- Stagger children: Wrap in \`<motion.div>\` with \`variants\` and \`staggerChildren: 0.1\`
+- Hover lift on cards: \`whileHover={{ y: -6, scale: 1.02 }}\` with \`transition={{ type: 'spring', stiffness: 300 }}\`
+
+LAYOUT PATTERNS (Pick the most visually striking for each section):
+- Features: Bento grid (\`grid-cols-3\` with varying row spans), NOT uniform 3-col
+- Hero: Full-bleed with radial glow + floating pill badge + dual CTA + animated visual
+- Pricing: Cards with highlighted "popular" tier that scales up (\`scale-105 -translate-y-4\`)
+- Stats: Dark glassmorphism container with gradient numbers
+- Testimonials: Offset masonry grid or scrolling marquee
+
+RESPONSIVE (EVERY section must be mobile-friendly):
+- Use \`sm:\`, \`md:\`, \`lg:\` prefixes
+- Grid: \`grid-cols-1 md:grid-cols-2 lg:grid-cols-3\`
+- Hero text: \`text-4xl md:text-6xl lg:text-8xl\`
+- Padding: \`py-20 md:py-32 px-6 md:px-12\`
+
+NAVBAR (Sticky glassmorphism — always include):
+- \`sticky top-0 z-50 backdrop-blur-xl bg-[var(--color-bg)]/80 border-b border-[var(--color-border)]/50\`
+- Logo: gradient text, nav links: muted with hover color transition, CTA: pill button
+
+FOOTER (Rich multi-column — always include):
+- 4-column grid: Brand + 3 link groups
+- Include social icons (Twitter/X, GitHub, LinkedIn) from lucide-react
+- Copyright + "Built with ZAIRE" tagline
+
+SECTION SPACING:
+- Sections: \`py-24 md:py-36 px-6 md:px-12\`
+- Section headings: centered, with decorative underline \`<div className="w-16 h-1 bg-[var(--color-primary)] mx-auto mt-4 rounded-full" />\`
+
+WHAT TO NEVER DO:
+- Never use \`style={{ background: 'black' }}\` or any hardcoded colors
+- Never use generic Tailwind colors like \`bg-gray-900\`, \`text-blue-500\`, \`bg-purple-600\`
+- Never render a plain \`<div>\` where a \`<motion.div>\` with animation would be more compelling
+- Never write 3 identical feature cards in a plain grid when a bento layout would be extraordinary
+- Never write unstyled \`<a href>\` links without hover transitions`;
 
   return {
     globalsCss: {
       system: BASE_SYSTEM + `
 Context: globals.css
 Rules:
-- MUST declare CSS custom properties for primary_color, neutral_scale, and spacing_system from the brief inside :root.
+- MUST declare ALL CSS custom properties inside :root: --color-bg, --color-text, --color-primary, --color-surface, --color-muted, --color-border, --font-display, --font-body.
 - DO NOT use @import for Google Fonts. Fonts are loaded via Next.js in layout.tsx.
-- Use the actual tokens (e.g. --color-primary: #hex, --neutral-base: #hex, --spacing-base: 8px). Do not use hardcoded Tailwind default classes as fallbacks for variables.
-- Include CSS reset, custom scrollbar, ::selection.
-- Result must be a premium design system.`,
+- Use the actual token values from the brief (e.g. --color-primary: #6366f1). NO generic fallbacks.
+- Include: CSS reset, smooth scroll, custom scrollbar matching brand color, ::selection.
+- Add @layer utilities for .perspective-1000, .font-display, .font-body.
+- Add keyframe animations: @keyframes fadeUp, @keyframes float, @keyframes shimmer.
+- Result must be a production-grade premium design system.`,
       user: `${uiBrief}\n\nGenerate globals.css now. Output ONLY CSS code, starting with @tailwind or :root.`
     },
     tailwindConfig: {
@@ -863,49 +944,41 @@ Context: tailwind.config.ts
 Rules:
 - Valid TypeScript using \`type { Config } from 'tailwindcss'\`.
 - content must include: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}', './lib/**/*.{js,ts,jsx,tsx,mdx}'].
-- Extend theme with DNA colors, fontFamily, custom animations (fadeUp, fadeIn, gradient-shift), screens (xs: 375px).
-- NO placeholder hex values.
-- CRITICAL: Do NOT import '@tailwindcss/typography' or '@tailwindcss/forms' as plugins — they may not be installed. Use an empty plugins array: plugins: [].`,
+- Extend theme: colors mapped to CSS vars (primary, background, surface, border, muted), fontFamily (display, body), borderRadius (4xl: 2rem, 5xl: 2.5rem), custom animations (fadeUp, float, shimmer, glow), backgroundImage (gradient-radial).
+- NO hardcoded hex values in theme.
+- CRITICAL: Do NOT import '@tailwindcss/typography' or '@tailwindcss/forms'. Use empty plugins: [].`,
       user: `${uiBrief}\n\nGenerate tailwind.config.ts now. Output ONLY TypeScript.`
     },
     layoutTsx: {
       system: BASE_SYSTEM + `
-Context: app/layout.tsx (Next.js 14)
+Context: app/layout.tsx (Next.js 14 App Router)
 Rules:
-- Valid TSX.
-- CRITICAL: Do NOT add 'use client' to this file. layout.tsx exports metadata — it must remain a Server Component.
-- CRITICAL: Do NOT import from 'next/document'. Use ONLY 'next/font/google' and 'react'.
-- MUST import fonts via 'next/font/google'. CRITICAL: Use EXACT PascalCase export (e.g. import { Playfair_Display }).
-- Apply font variables to body className.
-- Apply resolved background and text colors from the design brief to the body using CSS variables (e.g. bg-[var(--color-bg)] text-[var(--color-text)]).
-- Include OpenGraph/Twitter card metadata.
+- Valid TSX. Server Component — CRITICAL: Do NOT add 'use client'.
+- CRITICAL: Do NOT import from 'next/document'.
+- MUST import fonts via 'next/font/google'. Use EXACT PascalCase export name (spaces become underscores, e.g. 'Playfair Display' → import { Playfair_Display }).
+- Apply both display and body font variables to body className.
+- Apply bg-[var(--color-bg)] and text-[var(--color-text)] to body.
+- Include full OpenGraph + Twitter card metadata with proper title and description.
 - Import './globals.css'.
-- Use \`suppressHydrationWarning\` on html.
-- NO auth providers unless explicitly required.`,
+- Use suppressHydrationWarning on html tag.
+- Children must be typed as { children: React.ReactNode }.`,
       user: `${uiBrief}\n\nApp Name: ${heroHeadline}\nDesc: ${heroSubtext}\nGenerate app/layout.tsx now. Output ONLY code.`
     },
     pageTsx: {
-      system: BASE_SYSTEM + `
-Context: app/page.tsx (Landing Page)
-Rules:
-- CRITICAL: EXACTLY ONE 'use client'; directive at the very top. Next.js App Router requires this.
-- Valid TSX.
-- Tailwind CSS exclusively.
-- NO lorem ipsum. Write contextual copy.
-- MUST use \`framer-motion\` (animations) and \`lucide-react\` (icons).
-- Track which \`lucide-react\` icons you use. NEVER use the same icon twice in the same file.
-- CRITICAL: If using Lucide icons, use 'Cog' instead of 'Gear', and 'Mail' instead of 'Envelope'.
-- Order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Testimonials', 'Pricing', 'FAQ', 'Footer']).join(', ')}
-- Minimum 5-8 complex sections (bento grids, asymmetry, floating cards). NO simple layouts.
-- NO placeholders. Real data logic.
-- Apply DNA spacing, borders, hover/focus states.
-- Responsive classes (sm:, md:, lg:).
-- SELF-CONTAINED: NO local component imports. Define ALL components inline.
+      system: BASE_SYSTEM + DESIGN_SYSTEM_RULES + `
+
+Context: app/page.tsx (Landing Page — THE most important file)
+File Rules:
+- CRITICAL: EXACTLY ONE 'use client'; at the very top line. Nothing before it.
+- Valid TSX. Tailwind CSS exclusively. framer-motion for ALL animations. lucide-react for icons.
+- Track lucide-react icons — NEVER import or use the same icon twice.
+- MUST implement ALL sections in this order: ${(profile.sections_order || ['Navbar', 'Hero', 'Features', 'Social Proof', 'Testimonials', 'Pricing', 'CTA', 'Footer']).join(', ')}
+- MINIMUM 6 fully-designed sections. Each section must be visually distinct.
+- SELF-CONTAINED: Define ALL sub-components (NavBar, HeroSection, etc.) inline in this file.
 - NO auth code unless requested.
-- Standard ASCII/UTF-8 only (no curly quotes or em dashes).
 DNA: ${dnaKey}
-Hero Pattern: ${profile.hero_pattern || ''}
-Layout Pattern: ${profile.layout_pattern || ''}`,
+Hero Pattern: ${profile.hero_pattern || 'Bold headline + subtext + dual CTA + animated visual element'}
+Layout Pattern: ${profile.layout_pattern || 'Centered hero with radial glow, bento feature grid, pricing cards'}`,
       user: `${uiBrief}
 
 App Name: ${heroHeadline}
@@ -914,12 +987,27 @@ Target User: ${intake.who || 'professionals'}
 ${landingSkeleton ? `Pre-assembled skeleton (from ZAIRE Section Library — already token-correct):
 ${landingSkeleton}
 
-Your task: Improve this skeleton. You may:
-1. Add Framer Motion entrance animations to existing sections.
-2. Replace placeholder content values with richer, on-brand copy from the Content Plan.
-3. Add one bespoke section not in the skeleton if the Content Plan calls for something with no library match.
+Your task: DRAMATICALLY UPGRADE this skeleton:
+1. Wrap every section in Framer Motion with scroll-triggered reveals and stagger animations.
+2. Replace all placeholder content with rich, on-brand copy from the Content Plan.
+3. Upgrade flat layouts to bento grids, floating cards, or asymmetric designs.
+4. Add a floating pill/badge element to the hero above the headline.
+5. Add radial glow blobs to Hero and CTA sections.
+6. Add one genuinely unique, bespoke section that no other website has.
 
-DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final complete TSX.` : 'Generate complete app/page.tsx now. Output ONLY code.'}`
+DO NOT remove sections. Return ONLY the final, complete, extraordinary TSX.` : `Generate a complete, extraordinary app/page.tsx now.
+
+The page must:
+1. Open with a sticky glassmorphism navbar
+2. Hero with: radial glow blob, animated pill badge, large gradient headline, subtext, two CTA buttons (primary pill + ghost pill), animated floating card/visual
+3. Feature section: bento grid layout (NOT uniform cards), each cell with icon, title, description
+4. At least one stats/social proof row
+5. Testimonial section with card hover effects
+6. Pricing section with highlighted popular tier
+7. CTA banner with primary color background, large headline, prominent button
+8. Rich multi-column footer
+
+Output ONLY code.`}`
     },
     pages: (plan.pages || []).map(pageName => {
       const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
@@ -939,24 +1027,19 @@ DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final c
       return {
         name: pageName,
         slug: slug,
-        system: BASE_SYSTEM + `
+        system: BASE_SYSTEM + DESIGN_SYSTEM_RULES + `
+
 Context: app/${slug === 'page' ? '' : slug + '/'}page.tsx (${pageName})
-Rules:
-- CRITICAL: EXACTLY ONE 'use client'; directive at the very top. Next.js App Router requires this.
-- Valid TSX.
+File Rules:
+- CRITICAL: EXACTLY ONE 'use client'; at the very top line. Nothing before it.
+- Valid TSX. Tailwind CSS exclusively. framer-motion for ALL animations. lucide-react for icons.
+- Track lucide-react icons — NEVER import or use the same icon twice.
 - MUST implement EVERY component listed in "Planned Components to Build". DO NOT drop sections.
-- MUST use \`framer-motion\` and \`lucide-react\`.
-- Track which \`lucide-react\` icons you use. NEVER use the same icon twice in the same file.
-- CRITICAL: If using Lucide icons, use 'Cog' instead of 'Gear', and 'Mail' instead of 'Envelope'.
-- NO simple text boxes. Use bento grids and asymmetric layouts.
-- Contextual copy. NO lorem ipsum.
-- NO placeholders.
-- Apply DNA spacing, borders, animation.
-- Include Navbar/Footer if standalone.
-- SELF-CONTAINED: NO local component imports. Define ALL components inline.
-- NO auth code.
-- CRITICAL: For shopping cart or checkout pages, MUST import { useState } from 'react' and explicitly type cart items.
-- Standard ASCII/UTF-8 only.`,
+- CRITICAL: For shopping cart or checkout pages, MUST import { useState } from 'react' and explicitly type cart items as: type CartItem = { id: string; name: string; price: number; quantity: number }.
+- NO simple text boxes. Use bento grids, glassmorphism cards, and asymmetric layouts.
+- Contextual copy. NO lorem ipsum. Write real, compelling on-brand text.
+- Include Navbar (sticky glass) and Footer (multi-column) if this is a standalone page.
+- SELF-CONTAINED: Define ALL sub-components inline in this file.`,
         user: `${uiBrief}
 
 App Name: ${heroHeadline}
@@ -973,19 +1056,27 @@ DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final c
       };
     }),
     selfReview: {
-      system: BASE_SYSTEM + `
-Role: Quality Enforcement Agent. Audit TSX and fix ALL violations.
+      system: BASE_SYSTEM + DESIGN_SYSTEM_RULES + `
 
-CHECKLIST (Fix ALL before returning):
-- [ ] framer-motion used for 3+ animation types (scroll reveal, stagger, hover).
-- [ ] 5+ FULL sections (no plain boxes, use bento/grids).
-- [ ] ZERO lorem ipsum. Contextual copy only.
-- [ ] NO local component imports. Define ALL inline.
-- [ ] NO auth libraries (unless requested).
-- [ ] Straight quotes only. No em dashes.
+Role: Quality Enforcement Agent & Senior UI Designer.
+Audit the provided TSX file and fix ALL violations. Then UPGRADE its visual quality.
 
-Return COMPLETE corrected TSX. NO markdown fences.`,
-      user: (pageContent) => `${uiBrief}\n\nApp: ${heroHeadline}\nUser: ${intake.who || 'professionals'}\n\nCURRENT FILE TO FIX:\n${pageContent}\n\nAudit and fix ALL items. Return ONLY corrected code.`
+QUALITY CHECKLIST (Fix ALL before returning):
+- [ ] 'use client'; is the very first line — exactly once.
+- [ ] framer-motion is used for 3+ animation types (entrance, scroll reveal, hover/tap).
+- [ ] Every section uses ONLY Tailwind classes — zero hardcoded inline hex colors.
+- [ ] All CSS variables (--color-primary, --color-surface, etc.) are used via arbitrary Tailwind values.
+- [ ] Minimum 5 full, distinct sections with bento grids or asymmetric layouts.
+- [ ] ZERO lorem ipsum. Every text is real, on-brand copy.
+- [ ] NO local component imports. ALL components are inline.
+- [ ] NO auth libraries unless requested.
+- [ ] Standard ASCII only — no curly quotes, no em dashes.
+- [ ] Glassmorphism applied to all cards (backdrop-blur-xl + bg-[var(--color-surface)]/60).
+- [ ] Hero has: radial glow blob, pill badge, gradient headline, dual CTA buttons.
+- [ ] Footer is multi-column (4 cols) with social icons.
+
+Return COMPLETE corrected and upgraded TSX. NO markdown fences.`,
+      user: (pageContent) => `${uiBrief}\n\nApp: ${heroHeadline}\nUser: ${intake.who || 'professionals'}\n\nCURRENT FILE TO AUDIT AND UPGRADE:\n${pageContent}\n\nFix all checklist items and elevate the design to extraordinary. Return ONLY corrected code.`
     }
 
   };
