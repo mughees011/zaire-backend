@@ -1007,7 +1007,8 @@ The page must:
 7. CTA banner with primary color background, large headline, prominent button
 8. Rich multi-column footer
 
-Output ONLY code.`}`
+Output ONLY code.`}`,
+      skeleton: landingSkeleton
     },
     pages: (plan.pages || []).map(pageName => {
       const isLanding = /landing|value proposition|^home$/i.test(pageName || '');
@@ -1052,7 +1053,8 @@ Your task: Improve this skeleton. You may:
 2. Replace placeholder content values with richer, on-brand copy from the Content Plan.
 3. Add one bespoke section not in the skeleton if the Content Plan calls for something with no library match.
 
-DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final complete TSX.` : 'Generate complete TSX code. Output ONLY code.'}`
+DO NOT restructure the skeleton. DO NOT remove sections. Output ONLY the final complete TSX.` : 'Generate complete TSX code. Output ONLY code.'}`,
+        skeleton: pageSkeleton
       };
     }),
     selfReview: {
