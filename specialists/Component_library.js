@@ -1,52 +1,69 @@
 /**
- * ZAIRE Section Component Library
+ * ZAIRE Section Component Library (EXTRAORDINARY EDITION)
  *
- * The actual "cheat code": these are pre-written, tested section templates.
- * The generation pipeline's job becomes SELECT a variant + fill in CONTENT +
- * apply TOKENS — never freehand a hero/pricing/testimonials section from
- * scratch. This is what makes output consistently good instead of good on a
- * lucky generation and rough on an unlucky one.
- *
- * Every function takes (tokens, content) and returns a JSX string ready to
- * drop into a page.tsx template — same string-based approach your existing
- * buildPageContent already uses, so this slots in without changing your
- * codegen architecture.
- *
- * tokens shape (matches resolveDesignTokens in engineer_scaffold_support.js):
- *   { primaryColor, neutralScale, displayFont, bodyFont, borderRadius,
- *     spacingSystem, bgColor, surfaceColor, borderColor }
- *
- * 14 components implemented now, covering every category you listed except
- * a few — the pattern below is mechanical to extend. See EXTENDING at the
- * bottom for how to add the remaining ones (banner variants, FAQ accordion,
- * blog/article card, team grid, etc.) following the same shape.
+ * This version replaces basic inline styles with stunning Tailwind CSS utilities,
+ * Framer Motion micro-animations, glassmorphism, and gradient text.
+ * All dynamic colors from the design brief are injected using Tailwind's
+ * arbitrary values syntax (e.g., bg-[${bgColor}]).
  */
 
 // ── NAVBAR ───────────────────────────────────────────────────────────────
 
 function navbarStandard(tokens, content) {
   const { bgColor, textColor = '#fff', displayFont, primaryColor, borderColor } = tokens;
-  const links = content.links.map(l => `<a href="${l.href}" style={{ color: '${textColor}', opacity: 0.8, textDecoration: 'none', fontSize: '0.95rem' }}>${l.label}</a>`).join('\n            ');
+  const links = content.links.map(l => `<a href="${l.href}" className="text-[${textColor}]/70 hover:text-[${primaryColor}] transition-colors duration-300 text-sm font-medium">${l.label}</a>`).join('\n          ');
   return `
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: '${bgColor}', borderBottom: '1px solid ${borderColor}', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: "'${displayFont}', sans-serif", fontSize: '1.25rem', fontWeight: 700, color: '${textColor}' }}>${content.logoText}</span>
-        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
-          ${links}
-          <a href="${content.ctaHref || '#'}" style={{ background: '${primaryColor}', color: '#fff', padding: '10px 24px', borderRadius: '${tokens.borderRadius}', textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem' }}>${content.ctaLabel || 'Get Started'}</a>
+      <nav className="sticky top-0 z-50 w-full backdrop-blur-xl bg-[${bgColor}]/80 border-b border-[${borderColor}]/50 transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <span className="font-display text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[${textColor}] to-[${primaryColor}]" style={{ fontFamily: "'${displayFont}', sans-serif" }}>
+            ${content.logoText}
+          </span>
+          <div className="hidden md:flex items-center gap-8">
+            ${links}
+            <a href="${content.ctaHref || '#'}" className="bg-[${primaryColor}] text-white px-6 py-2.5 rounded-full font-medium text-sm hover:shadow-[0_0_20px_${primaryColor}66] hover:scale-105 transition-all duration-300">
+              ${content.ctaLabel || 'Get Started'}
+            </a>
+          </div>
+          <button className="md:hidden text-[${textColor}]">
+            <Menu size={24} />
+          </button>
         </div>
       </nav>`;
 }
 
-// ── HERO (2 variants — centered and split) ──────────────────────────────
+// ── HERO (2 variants) ───────────────────────────────────────────────────
 
 function heroCentered(tokens, content) {
   const { bgColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, bodyFont } = tokens;
   return `
-      <section style={{ background: '${bgColor}', minHeight: '85vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '120px 32px 80px' }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: 'easeOut' }}>
-          <h1 style={{ fontFamily: "'${displayFont}', serif", fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: 700, lineHeight: 1.1, color: '${textColor}', maxWidth: '820px', marginBottom: '24px' }}>${content.headline}</h1>
-          <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: '${textMuted}', fontSize: '1.15rem', lineHeight: 1.7, maxWidth: '560px', margin: '0 auto 40px' }}>${content.subtext}</p>
-          <a href="${content.ctaHref || '#'}" style={{ background: '${primaryColor}', color: '#fff', padding: '16px 40px', borderRadius: '${tokens.borderRadius}', textDecoration: 'none', fontWeight: 600 }}>${content.ctaLabel}</a>
+      <section className="relative min-h-[90vh] flex flex-col items-center justify-center text-center px-6 overflow-hidden bg-[${bgColor}]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[${primaryColor}]/20 via-[${bgColor}] to-[${bgColor}]"></div>
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ duration: 1, ease: 'easeOut' }}
+          className="relative z-10 max-w-4xl mx-auto"
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2, duration: 0.8 }}
+            className="inline-block mb-6 px-4 py-1.5 rounded-full border border-[${primaryColor}]/30 bg-[${primaryColor}]/10 backdrop-blur-md text-[${primaryColor}] text-sm font-semibold tracking-wide uppercase"
+          >
+            Introducing ZAIRE Mode
+          </motion.div>
+          <h1 className="font-display text-5xl md:text-7xl font-extrabold tracking-tight text-[${textColor}] leading-tight mb-8" style={{ fontFamily: "'${displayFont}', serif" }}>
+            ${content.headline}
+          </h1>
+          <p className="text-xl md:text-2xl text-[${textMuted}] max-w-2xl mx-auto mb-10 leading-relaxed font-light" style={{ fontFamily: "'${bodyFont}', sans-serif" }}>
+            ${content.subtext}
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="${content.ctaHref || '#'}" className="w-full sm:w-auto bg-[${primaryColor}] text-white px-8 py-4 rounded-full font-bold text-lg hover:shadow-[0_0_30px_${primaryColor}80] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2">
+              ${content.ctaLabel} <ArrowRight size={20} />
+            </a>
+            <a href="#demo" className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-lg text-[${textColor}] bg-white/5 border border-[${textColor}]/10 hover:bg-white/10 transition-all duration-300 backdrop-blur-sm">
+              Watch Demo
+            </a>
+          </div>
         </motion.div>
       </section>`;
 }
@@ -54,14 +71,33 @@ function heroCentered(tokens, content) {
 function heroSplit(tokens, content) {
   const { bgColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, bodyFont, surfaceColor } = tokens;
   return `
-      <section style={{ background: '${bgColor}', minHeight: '85vh', display: 'flex', alignItems: 'center', padding: '120px 32px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '64px', maxWidth: '1200px', margin: '0 auto', alignItems: 'center' }}>
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
-            <h1 style={{ fontFamily: "'${displayFont}', serif", fontSize: 'clamp(2rem, 4vw, 3.5rem)', fontWeight: 700, color: '${textColor}', marginBottom: '20px' }}>${content.headline}</h1>
-            <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: '${textMuted}', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '32px' }}>${content.subtext}</p>
-            <a href="${content.ctaHref || '#'}" style={{ background: '${primaryColor}', color: '#fff', padding: '14px 32px', borderRadius: '${tokens.borderRadius}', textDecoration: 'none', fontWeight: 600 }}>${content.ctaLabel}</a>
+      <section className="relative min-h-[90vh] flex items-center px-6 overflow-hidden bg-[${bgColor}]">
+        <div className="absolute top-0 right-0 -translate-y-12 translate-x-1/3 w-96 h-96 bg-[${primaryColor}]/20 blur-[120px] rounded-full pointer-events-none"></div>
+        <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-16 items-center relative z-10 py-20">
+          <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}>
+            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-[${textColor}] leading-[1.1] mb-6" style={{ fontFamily: "'${displayFont}', serif" }}>
+              ${content.headline}
+            </h1>
+            <p className="text-lg md:text-xl text-[${textMuted}] mb-10 leading-relaxed max-w-lg" style={{ fontFamily: "'${bodyFont}', sans-serif" }}>
+              ${content.subtext}
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <a href="${content.ctaHref || '#'}" className="bg-[${primaryColor}] text-white px-8 py-4 rounded-full font-semibold hover:shadow-[0_8px_30px_${primaryColor}66] hover:-translate-y-1 transition-all duration-300">
+                ${content.ctaLabel}
+              </a>
+              <a href="#features" className="px-8 py-4 rounded-full font-semibold text-[${textColor}] border border-[${textColor}]/20 hover:bg-[${textColor}]/5 transition-all duration-300 flex items-center gap-2">
+                <Play size={18} /> See it in action
+              </a>
+            </div>
           </motion.div>
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: 0.15 }} style={{ background: '${surfaceColor}', borderRadius: '${tokens.borderRadius}', aspectRatio: '4/3' }} />
+          <motion.div initial={{ opacity: 0, scale: 0.9, rotateY: 10 }} animate={{ opacity: 1, scale: 1, rotateY: 0 }} transition={{ duration: 1, delay: 0.2 }} className="relative perspective-1000">
+            <div className="aspect-square md:aspect-[4/3] bg-gradient-to-tr from-[${surfaceColor}] to-[${bgColor}] border border-[${primaryColor}]/20 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-xl flex items-center justify-center group">
+              <div className="absolute inset-0 bg-[${primaryColor}]/5 group-hover:bg-[${primaryColor}]/10 transition-colors duration-500"></div>
+              <div className="w-24 h-24 rounded-2xl bg-[${primaryColor}]/20 flex items-center justify-center animate-pulse">
+                <div className="w-12 h-12 rounded-full bg-[${primaryColor}]/40 blur-sm"></div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>`;
 }
@@ -69,12 +105,16 @@ function heroSplit(tokens, content) {
 // ── ABOUT ────────────────────────────────────────────────────────────────
 
 function aboutStandard(tokens, content) {
-  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', displayFont, bodyFont } = tokens;
+  const { bgColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', displayFont, bodyFont } = tokens;
   return `
-      <section style={{ background: '${surfaceColor}', padding: '100px 32px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
-          <h2 style={{ fontFamily: "'${displayFont}', serif", fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, color: '${textColor}', marginBottom: '20px' }}>${content.heading}</h2>
-          <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: '${textMuted}', fontSize: '1.05rem', lineHeight: 1.8 }}>${content.body}</p>
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="font-display text-4xl md:text-5xl font-bold text-[${textColor}] mb-8" style={{ fontFamily: "'${displayFont}', serif" }}>
+            ${content.heading}
+          </motion.h2>
+          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="text-xl text-[${textMuted}] leading-relaxed" style={{ fontFamily: "'${bodyFont}', sans-serif" }}>
+            ${content.body}
+          </motion.p>
         </div>
       </section>`;
 }
@@ -84,16 +124,28 @@ function aboutStandard(tokens, content) {
 function featuresGrid(tokens, content) {
   const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, bodyFont, borderColor } = tokens;
   const cards = content.items.map((item, i) => `
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: ${i} * 0.1 }} style={{ background: '${surfaceColor}', border: '1px solid ${borderColor}', borderRadius: '${tokens.borderRadius}', padding: '32px' }}>
-            <div style={{ color: '${primaryColor}', fontSize: '1.5rem', marginBottom: '16px' }}>${item.icon || '◆'}</div>
-            <h3 style={{ fontFamily: "'${displayFont}', serif", fontSize: '1.15rem', fontWeight: 700, color: '${textColor}', marginBottom: '8px' }}>${item.title}</h3>
-            <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: '${textMuted}', fontSize: '0.95rem', lineHeight: 1.6 }}>${item.description}</p>
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} 
+            whileInView={{ opacity: 1, y: 0 }} 
+            viewport={{ once: true }} 
+            transition={{ delay: ${i} * 0.1, duration: 0.5 }} 
+            className="group relative bg-[${surfaceColor}]/50 backdrop-blur-md border border-[${borderColor}] rounded-3xl p-8 hover:bg-[${surfaceColor}] hover:border-[${primaryColor}]/50 hover:shadow-2xl hover:shadow-[${primaryColor}]/10 transition-all duration-500 overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[${primaryColor}]/5 rounded-full blur-3xl group-hover:bg-[${primaryColor}]/20 transition-colors duration-500"></div>
+            <div className="w-14 h-14 bg-[${primaryColor}]/10 rounded-2xl flex items-center justify-center text-[${primaryColor}] text-2xl mb-6 group-hover:scale-110 transition-transform duration-500">
+              ${item.icon || '<Star size={24} />'}
+            </div>
+            <h3 className="font-display text-2xl font-bold text-[${textColor}] mb-4" style={{ fontFamily: "'${displayFont}', serif" }}>${item.title}</h3>
+            <p className="text-[${textMuted}] leading-relaxed" style={{ fontFamily: "'${bodyFont}', sans-serif" }}>${item.description}</p>
           </motion.div>`).join('\n');
   return `
-      <section style={{ background: '${bgColor}', padding: '100px 32px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'${displayFont}', serif", fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, color: '${textColor}', textAlign: 'center', marginBottom: '48px' }}>${content.heading}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
+      <section className="py-32 px-6 bg-[${bgColor}] relative overflow-hidden">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-20">
+            <h2 className="font-display text-4xl md:text-5xl font-bold text-[${textColor}] tracking-tight mb-6" style={{ fontFamily: "'${displayFont}', serif" }}>${content.heading}</h2>
+            <div className="w-24 h-1 bg-[${primaryColor}] mx-auto rounded-full"></div>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             ${cards}
           </div>
         </div>
@@ -103,20 +155,39 @@ function featuresGrid(tokens, content) {
 // ── PRICING ──────────────────────────────────────────────────────────────
 
 function pricingTiers(tokens, content) {
-  const { surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, bodyFont, borderColor, borderRadius } = tokens;
-  const tiers = content.tiers.map((tier) => `
-          <div style={{ background: '${tier.highlighted ? primaryColor : surfaceColor}', border: '1px solid ${tier.highlighted ? primaryColor : borderColor}', borderRadius: '${borderRadius}', padding: '40px 32px', textAlign: 'center' }}>
-            <h3 style={{ fontFamily: "'${displayFont}', serif", fontSize: '1.25rem', color: '${tier.highlighted ? '#fff' : textColor}', marginBottom: '8px' }}>${tier.name}</h3>
-            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '${tier.highlighted ? '#fff' : textColor}', marginBottom: '24px' }}>${tier.price}</div>
-            <ul style={{ listStyle: 'none', padding: 0, marginBottom: '32px' }}>
-              ${(tier.features || []).map(f => `<li style={{ color: '${tier.highlighted ? 'rgba(255,255,255,0.85)' : textMuted}', fontSize: '0.9rem', marginBottom: '10px' }}>${f}</li>`).join('\n              ')}
+  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, borderColor } = tokens;
+  const tiers = content.tiers.map((tier, i) => `
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: ${i} * 0.15 }}
+            className="relative flex flex-col bg-[${tier.highlighted ? surfaceColor : 'transparent'}] border border-[${tier.highlighted ? primaryColor : borderColor}] rounded-3xl p-8 ${tier.highlighted ? 'md:-translate-y-4 shadow-2xl shadow-[' + primaryColor + ']/20 scale-105 z-10' : 'hover:border-[' + textColor + ']/30'} transition-all duration-300"
+          >
+            ${tier.highlighted ? `<div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[${primaryColor}] text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">Most Popular</div>` : ''}
+            <h3 className="text-xl font-medium text-[${tier.highlighted ? textColor : textMuted}] mb-2">${tier.name}</h3>
+            <div className="font-display text-5xl font-bold text-[${textColor}] mb-8" style={{ fontFamily: "'${displayFont}', serif" }}>
+              ${tier.price} <span className="text-lg text-[${textMuted}] font-normal">/mo</span>
+            </div>
+            <ul className="flex-1 space-y-4 mb-8">
+              ${(tier.features || []).map(f => `
+                <li className="flex items-start gap-3 text-[${tier.highlighted ? textColor : textMuted}]">
+                  <Check size={20} className="text-[${primaryColor}] shrink-0" />
+                  <span>${f}</span>
+                </li>
+              `).join('')}
             </ul>
-            <a href="#" style={{ display: 'block', background: '${tier.highlighted ? '#fff' : primaryColor}', color: '${tier.highlighted ? primaryColor : '#fff'}', padding: '12px', borderRadius: '${borderRadius}', textDecoration: 'none', fontWeight: 600 }}>Choose ${tier.name}</a>
-          </div>`).join('\n');
+            <a href="#" className="block w-full text-center py-4 rounded-xl font-bold transition-all duration-300 ${tier.highlighted ? `bg-[${primaryColor}] text-white hover:shadow-[0_0_20px_${primaryColor}66] hover:scale-[1.02]` : `bg-[${surfaceColor}] text-[${textColor}] hover:bg-[${textColor}]/10 hover:scale-[1.02]`}">
+              Choose ${tier.name}
+            </a>
+          </motion.div>`).join('\n');
   return `
-      <section style={{ padding: '100px 32px' }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
-          ${tiers}
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="font-display text-4xl md:text-5xl font-bold text-[${textColor}] mb-6" style={{ fontFamily: "'${displayFont}', serif" }}>Simple, transparent pricing</h2>
+            <p className="text-[${textMuted}] text-xl max-w-2xl mx-auto">Choose the plan that fits your needs.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto items-center">
+            ${tiers}
+          </div>
         </div>
       </section>`;
 }
@@ -124,73 +195,113 @@ function pricingTiers(tokens, content) {
 // ── TESTIMONIALS ─────────────────────────────────────────────────────────
 
 function testimonialsGrid(tokens, content) {
-  const { surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', displayFont, bodyFont, borderColor, borderRadius } = tokens;
-  const cards = content.items.map((t) => `
-          <div style={{ background: '${surfaceColor}', border: '1px solid ${borderColor}', borderRadius: '${borderRadius}', padding: '28px' }}>
-            <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: '${textColor}', fontSize: '1rem', lineHeight: 1.7, marginBottom: '16px' }}>"${t.quote}"</p>
-            <div style={{ color: '${textMuted}', fontSize: '0.85rem' }}>${t.author}${t.role ? ` — ${t.role}` : ''}</div>
-          </div>`).join('\n');
+  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', displayFont, borderColor } = tokens;
+  const cards = content.items.map((t, i) => `
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: ${i} * 0.1 }} className="bg-[${surfaceColor}] border border-[${borderColor}] rounded-3xl p-8 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div>
+              <div className="flex gap-1 text-yellow-500 mb-6">
+                {[1,2,3,4,5].map(star => <Star key={star} size={16} fill="currentColor" />)}
+              </div>
+              <p className="text-[${textColor}] text-lg leading-relaxed mb-8 italic">"${t.quote}"</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[${borderColor}] to-[${surfaceColor}] border border-[${borderColor}]"></div>
+              <div>
+                <div className="font-bold text-[${textColor}]">${t.author}</div>
+                <div className="text-sm text-[${textMuted}]">${t.role || 'Customer'}</div>
+              </div>
+            </div>
+          </motion.div>`).join('\n');
   return `
-      <section style={{ padding: '100px 32px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-          ${cards}
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="font-display text-4xl md:text-5xl font-bold text-[${textColor}] text-center mb-20" style={{ fontFamily: "'${displayFont}', serif" }}>Don't just take our word for it</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            ${cards}
+          </div>
         </div>
       </section>`;
 }
 
-// ── SOCIAL PROOF (logo strip) ────────────────────────────────────────────
+// ── SOCIAL PROOF ─────────────────────────────────────────────────────────
 
 function socialProofStrip(tokens, content) {
-  const { textMuted = 'rgba(255,255,255,0.4)' } = tokens;
-  const logos = content.logos.map(name => `<span style={{ color: '${textMuted}', fontWeight: 600, fontSize: '1.1rem', opacity: 0.6 }}>${name}</span>`).join('\n          ');
+  const { bgColor, textMuted = 'rgba(255,255,255,0.4)' } = tokens;
+  const logos = content.logos.map(name => `<div className="flex items-center justify-center text-[${textMuted}] hover:text-[${textMuted}]/80 transition-colors grayscale opacity-60 hover:grayscale-0 hover:opacity-100 font-bold text-2xl tracking-tighter cursor-pointer">${name}</div>`).join('\n          ');
   return `
-      <section style={{ padding: '48px 32px', display: 'flex', justifyContent: 'center', gap: '48px', flexWrap: 'wrap' }}>
-        ${logos}
+      <section className="py-12 border-y border-[${textMuted}]/10 bg-[${bgColor}] overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <p className="text-center text-sm font-medium text-[${textMuted}] mb-8 uppercase tracking-widest">Trusted by innovative teams worldwide</p>
+          <div className="flex flex-wrap justify-center items-center gap-x-16 gap-y-8">
+            ${logos}
+          </div>
+        </div>
       </section>`;
 }
 
 // ── STATS BANNER ─────────────────────────────────────────────────────────
 
 function statsBanner(tokens, content) {
-  const { primaryColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', displayFont, surfaceColor } = tokens;
-  const stats = content.items.map(s => `
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: "'${displayFont}', serif", fontSize: '2.5rem', fontWeight: 700, color: '${primaryColor}' }}>${s.value}</div>
-            <div style={{ color: '${textMuted}', fontSize: '0.9rem', marginTop: '4px' }}>${s.label}</div>
-          </div>`).join('\n');
+  const { primaryColor, textMuted = 'rgba(255,255,255,0.6)', displayFont, surfaceColor, bgColor } = tokens;
+  const stats = content.items.map((s, i) => `
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: ${i} * 0.1 }} className="text-center">
+            <div className="font-display text-5xl md:text-6xl font-black text-[${primaryColor}] mb-2 bg-clip-text text-transparent bg-gradient-to-b from-[${primaryColor}] to-[${primaryColor}]/70" style={{ fontFamily: "'${displayFont}', serif" }}>${s.value}</div>
+            <div className="text-[${textMuted}] font-medium text-lg">${s.label}</div>
+          </motion.div>`).join('\n');
   return `
-      <section style={{ background: '${surfaceColor}', padding: '64px 32px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '32px', maxWidth: '900px', margin: '0 auto' }}>
-        ${stats}
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-5xl mx-auto bg-[${surfaceColor}]/50 backdrop-blur-xl border border-[${primaryColor}]/10 rounded-3xl p-16 shadow-2xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+            ${stats}
+          </div>
+        </div>
       </section>`;
 }
 
 // ── CALL TO ACTION BANNER ────────────────────────────────────────────────
 
 function ctaBanner(tokens, content) {
-  const { primaryColor, displayFont, bodyFont } = tokens;
+  const { primaryColor, displayFont, bodyFont, bgColor } = tokens;
   return `
-      <section style={{ background: '${primaryColor}', padding: '80px 32px', textAlign: 'center' }}>
-        <h2 style={{ fontFamily: "'${displayFont}', serif", fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, color: '#fff', marginBottom: '16px' }}>${content.heading}</h2>
-        <p style={{ fontFamily: "'${bodyFont}', sans-serif", color: 'rgba(255,255,255,0.85)', fontSize: '1.05rem', marginBottom: '32px' }}>${content.subtext}</p>
-        <a href="${content.ctaHref || '#'}" style={{ background: '#fff', color: '${primaryColor}', padding: '16px 40px', borderRadius: '${tokens.borderRadius}', textDecoration: 'none', fontWeight: 700 }}>${content.ctaLabel}</a>
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-6xl mx-auto relative overflow-hidden rounded-[3rem] bg-[${primaryColor}] text-white px-6 py-24 text-center shadow-2xl shadow-[${primaryColor}]/20">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="relative z-10 max-w-3xl mx-auto">
+            <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight" style={{ fontFamily: "'${displayFont}', serif" }}>${content.heading}</h2>
+            <p className="text-xl text-white/80 mb-10 leading-relaxed font-light" style={{ fontFamily: "'${bodyFont}', sans-serif" }}>${content.subtext}</p>
+            <a href="${content.ctaHref || '#'}" className="inline-flex items-center justify-center gap-2 bg-white text-[${primaryColor}] px-10 py-4 rounded-full font-bold text-lg hover:shadow-xl hover:scale-105 transition-all duration-300">
+              ${content.ctaLabel} <ArrowUpRight size={20} />
+            </a>
+          </motion.div>
+        </div>
       </section>`;
 }
 
 // ── CONTACT ──────────────────────────────────────────────────────────────
 
 function contactSplit(tokens, content) {
-  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, bodyFont, borderColor, borderRadius } = tokens;
+  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.6)', primaryColor, displayFont, borderColor } = tokens;
   return `
-      <section style={{ background: '${bgColor}', padding: '100px 32px' }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'${displayFont}', serif", fontSize: '2rem', fontWeight: 700, color: '${textColor}', marginBottom: '12px', textAlign: 'center' }}>${content.heading}</h2>
-          <p style={{ color: '${textMuted}', textAlign: 'center', marginBottom: '32px' }}>${content.subtext || ''}</p>
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <input type="text" placeholder="Name" style={{ background: '${surfaceColor}', border: '1px solid ${borderColor}', borderRadius: '${borderRadius}', padding: '14px', color: '${textColor}' }} />
-            <input type="email" placeholder="Email" style={{ background: '${surfaceColor}', border: '1px solid ${borderColor}', borderRadius: '${borderRadius}', padding: '14px', color: '${textColor}' }} />
-            <textarea placeholder="Message" rows={4} style={{ background: '${surfaceColor}', border: '1px solid ${borderColor}', borderRadius: '${borderRadius}', padding: '14px', color: '${textColor}' }} />
-            <button type="submit" style={{ background: '${primaryColor}', color: '#fff', padding: '14px', borderRadius: '${borderRadius}', border: 'none', fontWeight: 600 }}>${content.submitLabel || 'Send Message'}</button>
-          </form>
+      <section className="py-32 px-6 bg-[${bgColor}]">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
+          <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+            <h2 className="font-display text-5xl font-bold text-[${textColor}] mb-6" style={{ fontFamily: "'${displayFont}', serif" }}>${content.heading}</h2>
+            <p className="text-xl text-[${textMuted}] mb-8 leading-relaxed">${content.subtext || 'Get in touch with us to learn more.'}</p>
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 text-[${textColor}]"><div className="w-12 h-12 rounded-full bg-[${surfaceColor}] flex items-center justify-center"><Check size={20} className="text-[${primaryColor}]" /></div> <span>24/7 Priority Support</span></div>
+              <div className="flex items-center gap-4 text-[${textColor}]"><div className="w-12 h-12 rounded-full bg-[${surfaceColor}] flex items-center justify-center"><Check size={20} className="text-[${primaryColor}]" /></div> <span>Enterprise-grade security</span></div>
+            </div>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-[${surfaceColor}]/50 backdrop-blur-xl border border-[${borderColor}] rounded-3xl p-10 shadow-2xl">
+            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><label className="text-sm font-medium text-[${textMuted}]">First Name</label><input type="text" className="w-full bg-transparent border border-[${borderColor}] rounded-xl p-4 text-[${textColor}] focus:outline-none focus:border-[${primaryColor}] focus:ring-1 focus:ring-[${primaryColor}] transition-all" /></div>
+                <div className="space-y-2"><label className="text-sm font-medium text-[${textMuted}]">Last Name</label><input type="text" className="w-full bg-transparent border border-[${borderColor}] rounded-xl p-4 text-[${textColor}] focus:outline-none focus:border-[${primaryColor}] focus:ring-1 focus:ring-[${primaryColor}] transition-all" /></div>
+              </div>
+              <div className="space-y-2"><label className="text-sm font-medium text-[${textMuted}]">Work Email</label><input type="email" className="w-full bg-transparent border border-[${borderColor}] rounded-xl p-4 text-[${textColor}] focus:outline-none focus:border-[${primaryColor}] focus:ring-1 focus:ring-[${primaryColor}] transition-all" /></div>
+              <div className="space-y-2"><label className="text-sm font-medium text-[${textMuted}]">Message</label><textarea rows={4} className="w-full bg-transparent border border-[${borderColor}] rounded-xl p-4 text-[${textColor}] focus:outline-none focus:border-[${primaryColor}] focus:ring-1 focus:ring-[${primaryColor}] transition-all"></textarea></div>
+              <button type="submit" className="w-full bg-[${primaryColor}] text-white font-bold py-4 rounded-xl hover:shadow-[0_0_20px_${primaryColor}66] hover:-translate-y-1 transition-all duration-300">${content.submitLabel || 'Send Message'}</button>
+            </form>
+          </motion.div>
         </div>
       </section>`;
 }
@@ -198,17 +309,59 @@ function contactSplit(tokens, content) {
 // ── FOOTER ───────────────────────────────────────────────────────────────
 
 function footerStandard(tokens, content) {
-  const { bgColor, textMuted = 'rgba(255,255,255,0.5)', borderColor, displayFont } = tokens;
-  const links = (content.links || []).map(l => `<a href="${l.href}" style={{ color: '${textMuted}', textDecoration: 'none', fontSize: '0.9rem' }}>${l.label}</a>`).join('\n          ');
+  const { bgColor, surfaceColor, textColor = '#fff', textMuted = 'rgba(255,255,255,0.5)', borderColor, displayFont, primaryColor } = tokens;
+  const links = (content.links || []).map(l => `<a href="${l.href}" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">${l.label}</a>`).join('\n              ');
   return `
-      <footer style={{ background: '${bgColor}', borderTop: '1px solid ${borderColor}', padding: '40px 32px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-        <span style={{ fontFamily: "'${displayFont}', serif", fontWeight: 700, color: '${textMuted}' }}>${content.logoText}</span>
-        <div style={{ display: 'flex', gap: '24px' }}>${links}</div>
-        <p style={{ color: '${textMuted}', fontSize: '0.85rem' }}>© {new Date().getFullYear()} ${content.logoText}. All rights reserved.</p>
+      <footer className="bg-[${bgColor}] border-t border-[${borderColor}] pt-20 pb-10 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-12 mb-16">
+            <div className="md:col-span-1">
+              <span className="font-display text-2xl font-bold text-[${textColor}] mb-4 block" style={{ fontFamily: "'${displayFont}', serif" }}>${content.logoText}</span>
+              <p className="text-[${textMuted}] text-sm leading-relaxed mb-6">Building the future of digital experiences with state-of-the-art AI technology.</p>
+              <div className="flex gap-4 text-[${textMuted}]">
+                <a href="#" className="hover:text-[${primaryColor}] transition-colors"><Twitter size={20} /></a>
+                <a href="#" className="hover:text-[${primaryColor}] transition-colors"><Github size={20} /></a>
+                <a href="#" className="hover:text-[${primaryColor}] transition-colors"><Linkedin size={20} /></a>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-bold text-[${textColor}] mb-6">Product</h4>
+              <div className="flex flex-col gap-3">
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Features</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Integrations</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Pricing</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Changelog</a>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-bold text-[${textColor}] mb-6">Company</h4>
+              <div className="flex flex-col gap-3">
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">About Us</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Careers</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Blog</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Contact</a>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-bold text-[${textColor}] mb-6">Legal</h4>
+              <div className="flex flex-col gap-3">
+                ${links}
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Privacy Policy</a>
+                <a href="#" className="text-[${textMuted}] hover:text-[${primaryColor}] transition-colors text-sm">Terms of Service</a>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-[${borderColor}] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-[${textMuted}] text-sm">© {new Date().getFullYear()} ${content.logoText}. All rights reserved.</p>
+            <div className="flex items-center gap-2 text-sm text-[${textMuted}]">
+              <span>Designed with</span> <Star size={14} className="text-[${primaryColor}] fill-current" /> <span>by ZAIRE</span>
+            </div>
+          </div>
+        </div>
       </footer>`;
 }
 
-// ── REGISTRY — this is what the model/pipeline actually selects from ──────
+// ── REGISTRY ─────────────────────────────────────────────────────────────
 
 const COMPONENT_LIBRARY = {
   navbar: { standard: navbarStandard },
@@ -226,22 +379,8 @@ const COMPONENT_LIBRARY = {
 
 function renderSection(type, variant, tokens, content) {
   const entry = COMPONENT_LIBRARY[type]?.[variant];
-  if (!entry) throw new Error(`No component registered for ${type}/${variant} — extend COMPONENT_LIBRARY instead of freehanding this section.`);
+  if (!entry) throw new Error(\`No component registered for \${type}/\${variant} — extend COMPONENT_LIBRARY instead of freehanding this section.\`);
   return entry(tokens, content);
 }
 
 module.exports = { COMPONENT_LIBRARY, renderSection };
-
-/**
- * EXTENDING — how to add the remaining 6-16 to reach your 20-30 target,
- * following the exact same shape as every function above:
- *
- * 1. Write a function (tokens, content) => `...jsx string...`
- * 2. Use ONLY tokens.* for colors/fonts/radius — never a hardcoded hex
- * 3. Add it to COMPONENT_LIBRARY under its type/variant key
- *
- * Still to add, same pattern: FAQ accordion, team grid, blog/article card,
- * before/after comparison, timeline/process steps, image gallery, video
- * embed banner, newsletter signup, comparison table, logo cloud (dark vs
- * light variant), announcement bar, 404 page, changelog entry.
- */
