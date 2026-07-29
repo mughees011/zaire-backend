@@ -43,7 +43,7 @@ const { runVisionAnalysis, buildVisionExtractionPrompt } = require('./services/a
 const { buildDesignBriefPrompt, enrichIntakeWithReferences, buildDesignNarrative } = require('./services/design_intelligence');
 const memoryAgent = require('./services/agents/memory_agent');
 const repairAgent = require('./services/agents/repair_agent');
-const mockupRenderer = require('./services/agents/mockup_renderer');
+const mockupRenderer = require('./services/mockup_renderer');
 const clarificationAgent = require('./services/agents/clarification_agent');
 const {
   qaProject,
@@ -2343,7 +2343,7 @@ app.post('/engineer/preview', async (req, res) => {
 
     emitEngineerEvent(req, 'PREVIEW_GENERATING', 'Rendering HTML/CSS mockup...', 'running');
 
-    const html = mockupRenderer.generateMockup(designBrief);
+    const html = mockupRenderer.generateMockupHTML(designBrief);
 
     // Optionally cache the mockup HTML on the project row
     if (projectId && !String(projectId).startsWith('local-')) {

@@ -553,15 +553,53 @@ export default nextConfig;
   files['tailwind.config.js'] = {
     content: `/** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./app/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}', './lib/**/*.{js,ts,jsx,tsx,mdx}'],
+  content: [
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
   theme: {
-    extend: {}
+    extend: {
+      colors: {
+        primary: 'var(--color-primary)',
+        background: 'var(--color-bg)',
+        surface: 'var(--color-surface)',
+        border: 'var(--color-border)',
+        muted: 'var(--color-muted)',
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        '4xl': '2rem',
+        '5xl': '2.5rem',
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+      },
+      animation: {
+        'float': 'float 6s ease-in-out infinite',
+        'glow': 'glow 3s ease-in-out infinite alternate',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-12px)' },
+        },
+        glow: {
+          '0%': { boxShadow: '0 0 20px rgba(99,102,241,0.3)' },
+          '100%': { boxShadow: '0 0 40px rgba(99,102,241,0.7)' },
+        },
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
 `,
     explanation: {
-      what: 'This tells Tailwind where generated UI code lives.',
+      what: 'This tells Tailwind where generated UI code lives and registers design tokens.',
       why: 'Without it, Tailwind classes will not be emitted correctly.',
       edit: 'Add brand colors, fonts, and plugins here.',
       protect: 'Keep content globs aligned with generated folders.'
