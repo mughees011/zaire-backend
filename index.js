@@ -1516,8 +1516,8 @@ app.post('/engineer/scaffold', async (req, res) => {
            */
           const ensureClientDirective = (code) => {
             if (!code || typeof code !== 'string') return code;
-            // Strip any existing use client (may have been added with wrong quotes or extra whitespace)
-            const stripped = code.replace(/^["']use client["'];?\s*/m, '').trimStart();
+            // Strip ALL occurrences of 'use client' (handles duplicate / wrong-quote variants)
+            const stripped = code.replace(/^["']use client["'];?\s*\n?/gm, '').trimStart();
             return `'use client';\n${stripped}`;
           };
 
@@ -1527,21 +1527,49 @@ app.post('/engineer/scaffold', async (req, res) => {
            */
           const sanitizeLayoutTsx = (code) => {
             if (!code || typeof code !== 'string') return code;
-            return code.replace(/^["']use client["'];?\n?/m, '').trimStart();
+            // Remove ALL 'use client' lines (layout.tsx must be a Server Component)
+            let cleaned = code.replace(/^["']use client["'];?\s*\n?/gm, '');
+            // Remove any accidental next/document imports (legacy Pages Router pattern)
+            cleaned = cleaned.replace(/^import.*from\s+["']next\/document["'];?\n?/gm, '');
+            return cleaned.trimStart();
           };
 
 
-          const [globalsCss, twConfig, rawLayoutTsx] = await Promise.all([
+          /**
+           * Strips any tailwind plugin imports that may not be installed (typography, forms, etc.)
+           * to prevent build failures on fresh projects.
+           */
+          const sanitizeTailwindConfig = (code) => {
+            if (!code || typeof code !== 'string') return code;
+            // Remove require() calls for uninstalled plugins
+            let cleaned = code.replace(/require\(['"]@tailwindcss\/(typography|forms|line-clamp)['"]\),?\s*/g, '');
+            // Remove import statements for those plugins
+            cleaned = cleaned.replace(/^import\s+\w+\s+from\s+['"]@tailwindcss\/(typography|forms|line-clamp)['"];?\n?/gm, '');
+            // Ensure content array includes lib/ path
+            cleaned = cleaned.replace(
+              /content:\s*\[(['"]\.\/app[^'"]*['"],?\s*(?:,\s*['"][^'"]*['"])*)\]/,
+              (match) => {
+                if (!match.includes('./lib/')) {
+                  return match.replace(']', ", './lib/**/*.{js,ts,jsx,tsx,mdx}']");
+                }
+                return match;
+              }
+            );
+            return cleaned;
+          };
+
+          const [globalsCss, rawTwConfig, rawLayoutTsx] = await Promise.all([
             executeLlm(prompts.globalsCss, 'globals.css'),
             executeLlm(prompts.tailwindConfig, 'tailwind.config.ts'),
             executeLlm(prompts.layoutTsx, 'layout.tsx')
           ]);
 
+          const twConfig = sanitizeTailwindConfig(rawTwConfig);
           const layoutTsx = sanitizeLayoutTsx(rawLayoutTsx);
 
           const fileMap = {
             'app/globals.css': { content: globalsCss, explanation: { what: 'AI Generated globals.css', why: 'Defines CSS custom properties and resets.', edit: 'Modify variables here.', protect: 'Keep in sync with tailwind config.' } },
-            'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Do not remove standard plugins.' } },
+            'tailwind.config.ts': { content: twConfig, explanation: { what: 'AI Generated tailwind.config.ts', why: 'Injects DNA palette and tokens into Tailwind.', edit: 'Extend theme here.', protect: 'Keep content globs and empty plugins array.' } },
             'app/layout.tsx': { content: layoutTsx, explanation: { what: 'AI Generated layout.tsx', why: 'Next.js App Router root layout.', edit: 'Add providers here.', protect: 'Ensure suppressHydrationWarning is present and no use client directive.' } }
           };
 
