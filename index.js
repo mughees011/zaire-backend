@@ -1164,6 +1164,60 @@ app.post('/engineer/plan/incremental', async (req, res) => {
   }
 });
 
+function buildFallbackDesignBrief(fullIntake, plan) {
+  const designStyle = fullIntake?.designStyle || plan?.designStyle || 'modern premium';
+  const isLight = /light|clean|minimal|white/i.test(designStyle);
+  const isItalic = /italic|serif|editorial/i.test(designStyle);
+  const isPremium = /premium|luxury|elite|high.end/i.test(designStyle);
+  const projectType = fullIntake?.projectType || 'custom';
+
+  let primaryColor = '#6366f1'; // default indigo
+  let bgColor = '#0a0a0a';
+  let textColor = '#ffffff';
+  let surfaceColor = '#111111';
+  if (isLight) { primaryColor = '#6366f1'; bgColor = '#fafafa'; textColor = '#0f0f0f'; surfaceColor = '#f4f4f5'; }
+  if (isPremium && isLight) { primaryColor = '#8b5cf6'; bgColor = '#fefefe'; textColor = '#09090b'; surfaceColor = '#f5f3ff'; }
+  if (projectType === 'portfolio') { primaryColor = '#a78bfa'; bgColor = '#fafafa'; textColor = '#18181b'; surfaceColor = '#f4f4f5'; }
+
+  let displayFont = 'Playfair Display';
+  let bodyFont = 'Inter';
+  if (isItalic || /editorial|luxury/i.test(designStyle)) { displayFont = 'Playfair Display'; bodyFont = 'Lato'; }
+  if (/modern|clean|minimal/i.test(designStyle)) { displayFont = 'Plus Jakarta Sans'; bodyFont = 'Inter'; }
+  if (projectType === 'portfolio') { displayFont = 'Cormorant Garamond'; bodyFont = 'DM Sans'; }
+
+  const who = fullIntake?.who || plan?.who || 'users';
+  const appName = plan?.appName || fullIntake?.projectName || 'Project';
+
+  return {
+    visual_tokens: {
+      primary_color: primaryColor,
+      background_color: bgColor,
+      text_color: textColor,
+      surface_color: surfaceColor,
+      border_radius: isPremium ? '16px' : '8px',
+      typography: { display: displayFont, body: bodyFont }
+    },
+    content_plan: (plan?.pages && plan.pages.length > 0 ? plan.pages : ['landing']).map(page => ({
+      page: page,
+      core_message: "Empowering your workflow with state-of-the-art solutions.",
+      target_audience: who,
+      section_copy_briefs: [{
+        section: 'Hero',
+        headline_intent: `Welcome to ${appName}`,
+        body_intent: "Discover a premium experience tailored to your needs."
+      }]
+    })),
+    page_architecture: [
+      { section: 'Hero', purpose: 'Grab attention and communicate value immediately' },
+      { section: 'About', purpose: 'Introduce the person or product' },
+      { section: projectType === 'portfolio' ? 'Projects' : 'Features', purpose: 'Showcase work or capabilities' },
+      { section: 'Contact', purpose: 'Invite connection or conversion' }
+    ],
+    motion_spec: { easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)', duration: '0.5s' },
+    conversion_checklist: ['Clear value proposition', 'Mobile responsive', 'Fast load time']
+  };
+}
+
 async function generateValidDesignBrief(plan, fullIntake, referenceContext, emitEngineerEvent, req) {
   const prompts = buildDesignBriefPrompt(plan, fullIntake, referenceContext);
   let brief = null;
@@ -1188,6 +1242,11 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
       });
 
       let content = resLlm?.choices?.[0]?.message?.content || '';
+      // Intercept offline fallback string early
+      if (content.includes('ZAIRE Core is online')) {
+        throw new Error("Offline fallback triggered");
+      }
+
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         content = jsonMatch[0];
@@ -1235,13 +1294,13 @@ async function generateValidDesignBrief(plan, fullIntake, referenceContext, emit
       brief.agent_consensus = narrative.agentConsensus;
     } catch (err) {
       lastError = err;
-      if (attempts >= 2) break;
+      if (attempts >= 2 || err.message === "Offline fallback triggered") break;
     }
   }
 
   if (!brief) {
-    console.error('[ENGINEER DESIGN PARSE ERR]', lastError);
-    throw new Error("design brief generation failed, please retry");
+    console.warn('[ENGINEER DESIGN PARSE ERR] LLM failed to generate brief, using True Offline Fallback.', lastError?.message);
+    brief = buildFallbackDesignBrief(fullIntake, plan);
   }
 
   return brief;
@@ -1487,7 +1546,7 @@ app.post('/engineer/scaffold', async (req, res) => {
                  userId: req.body?.userId || 'local-user',
                  projectId: req.body?.projectId,
                  stage: 'scaffold',
-                 provider: res.provider || 'openai', // Fallback if provider isn't passed back
+                 provider: res.provider || 'openai',
                  model: res.model || 'gpt-4o',
                  usage: res.usage
                });
@@ -1495,10 +1554,27 @@ app.post('/engineer/scaffold', async (req, res) => {
              
              const rawContent = res?.choices?.[0]?.message?.content || '';
              
-             // MASSIVE BUG FIX: If we hit the backend fallback mode (no API keys / rate limited),
-             // do NOT write the english fallback message as TSX code into the file.
-             if (rawContent.includes('ZAIRE Core is online in local fallback mode')) {
-               return '[SYSTEM ERROR] AI API keys missing or rate limited.';
+             // TRUE OFFLINE FALLBACK: If LLM fails (no keys/offline), return functional React code
+             if (rawContent.includes('ZAIRE Core is online')) {
+               console.warn(`[OFFLINE FALLBACK] Triggered for ${label}`);
+               if (label === 'globals.css') {
+                 const primary = designBrief?.visual_tokens?.primary_color || '#6366f1';
+                 const bg = designBrief?.visual_tokens?.background_color || '#0a0a0a';
+                 const text = designBrief?.visual_tokens?.text_color || '#ffffff';
+                 const surface = designBrief?.visual_tokens?.surface_color || '#111111';
+                 const displayFont = designBrief?.visual_tokens?.typography?.display || 'Inter';
+                 const bodyFont = designBrief?.visual_tokens?.typography?.body || 'Inter';
+                 return `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n:root {\n  --color-primary: ${primary};\n  --color-bg: ${bg};\n  --color-text: ${text};\n  --color-surface: ${surface};\n  --color-muted: #737373;\n  --color-border: #262626;\n  --font-display: '${displayFont}', sans-serif;\n  --font-body: '${bodyFont}', sans-serif;\n}\n\nhtml, body { background: var(--color-bg); color: var(--color-text); }`;
+               }
+               if (label === 'tailwind.config.ts') {
+                 return `import type { Config } from "tailwindcss";\nexport default {\n  content: ["./app/**/*.{js,ts,jsx,tsx,mdx}"],\n  theme: { extend: {} },\n  plugins: [],\n} satisfies Config;`;
+               }
+               if (label === 'layout.tsx') {
+                 return `import './globals.css';\nexport const metadata = { title: "${plan.appName}" };\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body className="bg-[var(--color-bg)] text-[var(--color-text)]">\n        {children}\n      </body>\n    </html>\n  );\n}`;
+               }
+               // Fallback for pages: Wrap the skeleton in a basic page structure
+               const skeleton = promptPair.skeleton || '<div className="p-20 text-center">Empty Page</div>';
+               return `'use client';\nimport React from 'react';\nimport { motion } from 'framer-motion';\nimport * as lucide from 'lucide-react';\n\nexport default function Page() {\n  return (\n    <main className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] font-body">\n      ${skeleton}\n    </main>\n  );\n}`;
              }
              
              return rawContent.replace(/^```[\w]*\n?|\n?```\s*$/gm, '').trim();
