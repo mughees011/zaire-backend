@@ -4708,6 +4708,48 @@ async function executeLLMCallWithFailover(options) {
             return data;
           }
         }
+
+        // Catch-all for Custom/Unknown OpenAI-compatible endpoints
+        const knownProviders = ['groq', 'siliconflow', 'openai', 'openrouter', 'deepseek', 'mistral', 'google gemini', 'anthropic', 'cohere', 'azure openai'];
+        if (!knownProviders.includes(providerLower)) {
+          let baseUrl = slot.baseUrl || "";
+          if (!baseUrl) throw new Error(`Provider "${slot.provider}" is not recognized and has no Base URL configured.`);
+          
+          const useModel = normalizeProviderModel(slot.provider, slot.model, options.model || 'gpt-3.5-turbo');
+          const reqBody = {
+            model: useModel,
+            messages: options.messages,
+            temperature: options.temperature,
+            max_tokens: options.max_tokens || 300,
+          };
+          if (options.stream) reqBody.stream = true;
+          if (!options.stream && options.tools && options.tools.length > 0) {
+            reqBody.tools = options.tools;
+            if (options.tool_choice) reqBody.tool_choice = options.tool_choice;
+          }
+
+          const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(reqBody)
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errBody}`);
+          }
+
+          console.log(`[FAILOVER] ✓ Successful response from custom provider ${slot.provider}`);
+          if (options.stream) {
+            return parseSSEResponse(response);
+          } else {
+            const data = await response.json();
+            return data;
+          }
+        }
       } catch (err) {
         console.warn(`[FAILOVER] Key fail for ${slot.provider} (index ${keyIdx + 1}): ${err.message}`);
       }

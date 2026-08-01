@@ -1,4 +1,4 @@
-﻿# ====================================================================
+# ====================================================================
 # ZAIRE Sovereign Intelligence Platform - Hardened Distribution Builder
 # ====================================================================
 # Produces runtime-safe distributables by:
@@ -11,13 +11,18 @@
 
 $ErrorActionPreference = "Stop"
 
-$BackendDir = $PSScriptRoot
-if (-not $BackendDir) {
-    $BackendDir = Get-Location
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir) {
+    $ScriptDir = (Get-Location).Path
+}
+if ((Split-Path -Leaf $ScriptDir) -eq 'scripts') {
+    $BackendDir = Split-Path -Parent $ScriptDir
+} else {
+    $BackendDir = $ScriptDir
 }
 
 $FrontendDir = Join-Path (Split-Path -Parent $BackendDir) "frontend-temp"
-$DistDir = Join-Path $BackendDir "dist"
+$DistDir = Join-Path $BackendDir "dist2"
 $RuntimeAssetRoot = Join-Path $BackendDir "release_runtime"
 $NsisStageDir = Join-Path $DistDir "staging"
 
@@ -87,7 +92,7 @@ function Write-ReleaseReadme {
 ZAIRE Runtime Package ($Platform)
 ================================
 
-This package contains only runtime assets required to launch ZAIRE.
+This package contains only compiled runtime assets required to launch ZAIRE.
 
 How to launch
 -------------
@@ -95,17 +100,21 @@ $LaunchCommand
 
 What is included
 ----------------
-- Bundled ZAIRE launcher binary
-- Bundled ZAIRE daemon router binary
-- Bundled Node runtime and Node dependencies
-- Runtime backend routes, middleware, and services
+- Bundled ZAIRE launcher binary (zaire_boot.exe)
+- Bundled ZAIRE daemon router binary (zaire_core.exe)
+- Bundled Node runtime (runtime/node.exe)
+- Compiled, minified backend bundle (bundle.js)
+- Runtime static frontend assets
 
 What is intentionally excluded
 ------------------------------
+- Raw backend JavaScript source files
+- Route, middleware, and service source files
 - Raw Python source
 - Scratch and test files
 - Local logs
 - Secret files such as .env and OAuth client secrets
+- Development node_modules (devDependencies stripped)
 
 Support note
 ------------
@@ -116,52 +125,168 @@ This package assumes your production license endpoint is configured in the launc
     $content | Out-File -FilePath $readmePath -Encoding ASCII
 }
 
-function Get-RuntimeRootJsFiles {
-    param([string]$SourceDir)
+function Assert-StagingIntegrity {
+    param([string]$StageDir)
 
-    Get-ChildItem -LiteralPath $SourceDir -File -Filter *.js |
-        Where-Object {
-            $_.Name -notmatch '\.test\.js$' -and
-            $_.Name -notmatch '^test_.*\.js$' -and
-            $_.Name -notin @(
-                'build_distributions.ps1',
-                'subscription_service2.js'
-            )
+    # Guard 1: No biometric / face-recognition assets
+    $facePatterns = @('master_face.jpg', 'face*.jpg', '*_face.*', '*.face', 'biometric_*', 'enrollment_*.jpg', 'enrollment_*.png')
+    foreach ($pattern in $facePatterns) {
+        $hits = Get-ChildItem -LiteralPath $StageDir -Recurse -Filter $pattern -ErrorAction SilentlyContinue
+        if ($hits) {
+            throw "PACKAGING GUARD [biometric]: Found prohibited file(s) matching '$pattern' in staging output: $($hits.FullName -join ', '). Aborting."
         }
+    }
+
+    # Guard 2: No plaintext sensitive source files in the staging root or its immediate subdirs
+    $sensitiveFiles = @(
+        'auth_middleware.js', 'crypto_utils.js', 'billing_service.js',
+        'db_init.js', 'db.js', 'subscription_service.js', 'vault_service.js',
+        'memory_service.js', 'proactive_service.js', 'vision_service.js',
+        'visual_echo_daemon.js', 'system_tools.js', 'chat_history_service.js'
+    )
+    foreach ($f in $sensitiveFiles) {
+        if (Test-Path (Join-Path $StageDir $f)) {
+            throw "PACKAGING GUARD [source]: Sensitive source file '$f' found in staging root. Bundle step may have been skipped. Aborting."
+        }
+    }
+    # Also confirm no middleware/routes/services source dirs shipped
+    foreach ($dir in @('routes', 'middleware', 'services')) {
+        if (Test-Path (Join-Path $StageDir $dir)) {
+            throw "PACKAGING GUARD [source]: Directory '$dir' (raw source) found in staging output. Aborting."
+        }
+    }
+
+    # Guard 3: No secret files
+    foreach ($secret in @('.env', 'client_secret.json', 'client_secret')) {
+        if (Test-Path (Join-Path $StageDir $secret)) {
+            throw "PACKAGING GUARD [secrets]: Secret file '$secret' found in staging output. Aborting."
+        }
+    }
+
+    # Guard 4: Confirm bundle.js exists
+    if (-not (Test-Path (Join-Path $StageDir 'bundle.js'))) {
+        throw "PACKAGING GUARD [bundle]: bundle.js not found in staging output. esbuild step may have failed. Aborting."
+    }
+
+    Write-Host "Staging integrity checks passed." -ForegroundColor Green
+}
+
+function Bundle-BackendSource {
+    param([string]$StageDir)
+
+    # Resolve esbuild — prefer local devDependency, fall back to global
+    $esbuildLocal = Join-Path $BackendDir 'node_modules\.bin\esbuild.cmd'
+    $esbuildCmd   = if (Test-Path $esbuildLocal) { $esbuildLocal } else { 'esbuild' }
+
+    $entryPoint = Join-Path $BackendDir 'index.js'
+    $outFile    = Join-Path $StageDir 'bundle.js'
+
+    if (-not (Test-Path $entryPoint)) {
+        throw "Backend entry point not found: $entryPoint"
+    }
+
+    Write-Host "Bundling backend source with esbuild (minified)..." -ForegroundColor Cyan
+
+    # Packages that use native addons, dynamic require, or are too large to inline:
+    # ship these via the production node_modules alongside bundle.js.
+    $externals = @(
+        'pg', 'pg-native', 'bufferutil', 'utf-8-validate',
+        'socket.io', 'socket.io-client', 'engine.io',
+        'multer', 'busboy',
+        'googleapis', 'google-auth-library',
+        'msedge-tts', 'node-edge-tts',
+        'fsevents', 'cpu-features', 'ssh2',
+        'yahoo-finance2'
+    )
+    $externalFlags = ($externals | ForEach-Object { "--external:$_" }) -join ' '
+
+    $esbuildArgs = @(
+        $entryPoint,
+        '--bundle',
+        '--minify',
+        '--platform=node',
+        '--format=cjs',
+        "--outfile=$outFile"
+    ) + ($externals | ForEach-Object { "--external:$_" })
+
+    & $esbuildCmd @esbuildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "esbuild failed with exit code $LASTEXITCODE. Ensure esbuild is installed (npm install --save-dev esbuild)."
+    }
+
+    if (-not (Test-Path $outFile)) {
+        throw "esbuild completed but bundle.js was not created at $outFile"
+    }
+
+    $bundleSize = (Get-Item $outFile).Length
+    Write-Host "bundle.js created ($([math]::Round($bundleSize / 1KB, 0)) KB)" -ForegroundColor Gray
 }
 
 function Copy-BackendRuntimePayload {
     param([string]$StageDir)
 
+    # Copy only non-sensitive, non-source static files
     $rootFiles = @(
-        'index.js',
         'package.json',
         'package-lock.json',
-        'LICENSE.txt',
-        'master_face.jpg'
+        'LICENSE'
     )
 
     foreach ($file in $rootFiles) {
         Copy-FileSafe -Source (Join-Path $BackendDir $file) -Destination (Join-Path $StageDir $file)
     }
 
-    foreach ($file in (Get-RuntimeRootJsFiles -SourceDir $BackendDir)) {
-        Copy-FileSafe -Source $file.FullName -Destination (Join-Path $StageDir $file.Name)
-    }
+    # Patch the staged package.json so node resolves bundle.js as the entry point
+    $stagedPkgPath = Join-Path $StageDir 'package.json'
+    $pkg = Get-Content $stagedPkgPath -Raw | ConvertFrom-Json
+    $pkg.main = 'bundle.js'
+    $pkg | ConvertTo-Json -Depth 10 | Out-File -FilePath $stagedPkgPath -Encoding UTF8
 
-    foreach ($dirName in @('routes', 'middleware', 'services')) {
-        Copy-DirectorySafe -Source (Join-Path $BackendDir $dirName) -Destination (Join-Path $StageDir $dirName)
-    }
-
+    # Runtime scaffold directories (contents populated at runtime, not shipped as source)
     Ensure-Directory -Path (Join-Path $StageDir 'memory')
     Ensure-Directory -Path (Join-Path $StageDir 'uploads')
 
-    if (-not (Test-Path (Join-Path $BackendDir 'node_modules'))) {
-        throw "node_modules is missing in backend. Run npm install before packaging."
+    # Bundle sensitive source into a single minified file instead of copying raw .js
+    Bundle-BackendSource -StageDir $StageDir
+
+    # Install production-only node_modules into staging (clean, no devDeps, no duplicates)
+    Write-Host "Installing production node_modules (npm ci --omit=dev)..." -ForegroundColor Cyan
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
+        throw "Node.js is required to install production node_modules."
+    }
+    $npmCmd = Join-Path (Split-Path $nodeCmd.Source) 'npm.cmd'
+    if (-not (Test-Path $npmCmd)) {
+        $npmCmd = 'npm'
     }
 
-    Write-Host "Bundling Node runtime dependencies..." -ForegroundColor Gray
-    Copy-DirectorySafe -Source (Join-Path $BackendDir 'node_modules') -Destination (Join-Path $StageDir 'node_modules')
+    # Copy only package manifests to a temp dir, run ci there, then move result
+    $tempNmDir = Join-Path $env:TEMP 'zaire_nm_clean'
+    if (Test-Path $tempNmDir) { Remove-Item -LiteralPath $tempNmDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $tempNmDir -Force | Out-Null
+    Copy-Item (Join-Path $BackendDir 'package.json')       (Join-Path $tempNmDir 'package.json')
+    Copy-Item (Join-Path $BackendDir 'package-lock.json')  (Join-Path $tempNmDir 'package-lock.json')
+
+    Push-Location $tempNmDir
+    try {
+        $oldError = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & $npmCmd ci --omit=dev --prefer-offline 2>&1 | Write-Host
+        $ErrorActionPreference = $oldError
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm ci --omit=dev failed with exit code $LASTEXITCODE"
+        }
+    } finally {
+        Pop-Location
+    }
+
+    $cleanNmSrc  = Join-Path $tempNmDir 'node_modules'
+    $cleanNmDest = Join-Path $StageDir  'node_modules'
+    Write-Host "Copying clean production node_modules to staging..." -ForegroundColor Gray
+    Copy-DirectorySafe -Source $cleanNmSrc -Destination $cleanNmDest
+
+    # Clean up temp dir
+    Remove-Item -LiteralPath $tempNmDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 function Copy-FrontendRuntimePayload {
@@ -276,7 +401,12 @@ setlocal
 cd /d "%~dp0"
 
 if not exist "%~dp0runtime\node.exe" (
-  echo [ZAIRE] Bundled Node runtime missing.
+  echo [ZAIRE] ERROR: Bundled Node runtime missing.
+  echo.
+  echo Did you run this directly from inside the ZIP file?
+  echo Windows cannot run the app from inside the ZIP viewer.
+  echo Please EXTRACT the entire folder first, then run launch_zaire.bat.
+  echo.
   pause
   exit /b 1
 )
@@ -448,6 +578,9 @@ Compile-WindowsPythonBinaries -OutputDir $WindowsStageDir
 Copy-WindowsNodeRuntime -StageDir $WindowsStageDir
 Write-WindowsLauncher -StageDir $WindowsStageDir
 Write-ReleaseReadme -Platform 'Windows' -StageDir $WindowsStageDir -LaunchCommand 'Double-click launch_zaire.bat'
+
+# Integrity gate — must pass before any zip is created
+Assert-StagingIntegrity -StageDir $WindowsStageDir
 
 $WindowsZip = Join-Path $DistDir 'ZAIRE_Setup.zip'
 New-ZipFromStage -StageDir $WindowsStageDir -ZipPath $WindowsZip

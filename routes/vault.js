@@ -121,8 +121,8 @@ function validateKeyFormat(provider = '', rawKey = '') {
   }
 
   // Providers without a fixed prefix (OpenRouter, Gemini, DeepSeek, Mistral, Cohere, SiliconFlow)
-  // — only validate that the key is non-trivially long.
-  if (k.length < 16) {
+  // and custom providers. We'll enforce a small minimum length to catch empty/obvious errors, but allow short keys like 'ollama'.
+  if (k.length < 3) {
     return { valid: false, reason: `The key for ${provider} looks too short. Please paste the full API key from your provider's dashboard.` };
   }
   return { valid: true };
@@ -226,14 +226,8 @@ router.post(['/ai-vault/test', '/api/vault/test'], requireAuth, async (req, res)
       return res.status(400).json({ success: false, error: 'Choose an active provider before testing.', code: 'VAULT_TEST_PROVIDER_REQUIRED' });
     }
 
-    if (!isSupportedProvider(provider)) {
-      return res.status(400).json({
-        success: false,
-        error: `"${provider}" is not a recognised provider. Supported providers: Groq, OpenAI, Anthropic, OpenRouter, Google Gemini, DeepSeek, Mistral, Cohere, SiliconFlow, Azure OpenAI.`,
-        code: 'VAULT_TEST_PROVIDER_UNSUPPORTED'
-      });
-    }
-
+    // We no longer strictly reject unknown providers here.
+    // As long as there is a base URL configured, the backend will treat it as an OpenAI-compatible custom provider.
     // Validate key format if a raw key was provided
     if (rawKey) {
       const formatCheck = validateKeyFormat(provider, rawKey);

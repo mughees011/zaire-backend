@@ -146,3 +146,14 @@ vite.config.ts.timestamp-*
 
 
 client_secret
+
+# Biometric enrollment and face-recognition assets — must never be committed or shipped
+master_face.jpg
+face*.jpg
+*_face.*
+*_face.jpg
+*_face.png
+*.face
+biometric_*
+enrollment_*.jpg
+enrollment_*.png

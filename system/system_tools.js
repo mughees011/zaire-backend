@@ -1,6 +1,5 @@
 const { exec, spawn } = require('child_process');
 const path = require('path');
-const open = require('open');
 const fetch = require('node-fetch');
 
 const SIDECAR_URL = 'http://127.0.0.1:3002';
@@ -27,13 +26,33 @@ async function sidecar(endpoint, body = {}) {
  */
 async function openWebsites(urls) {
     if (!Array.isArray(urls)) urls = [urls];
-    const opener = require('open');
-    const openFn = opener.default || opener;
-
-    for (const url of urls) {
+    
+    for (let url of urls) {
         try {
-            console.log(`[SYSTEM] Opening website: ${url}`);
-            await openFn(url);
+            // Sanitize LLM-provided URLs that might miss the protocol
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                // If it looks like a domain, prepend https://
+                if (url.includes('.')) {
+                    url = 'https://' + url;
+                } else {
+                    url = 'https://www.' + url + '.com';
+                }
+            }
+            console.log(`[SYSTEM] Opening website via PowerShell: ${url}`);
+            
+            // Execute start command for Windows using PowerShell
+            await new Promise((resolve, reject) => {
+                const psCommand = `Start-Process -FilePath "${url}"`;
+                exec(`powershell -Command "${psCommand}"`, (error) => {
+                    if (error) {
+                        console.error(`[SYSTEM] PowerShell open failed for ${url}:`, error);
+                        reject(error);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+
             await new Promise(resolve => setTimeout(resolve, 800));
         } catch (err) {
             console.error(`[SYSTEM] Failed to open ${url}:`, err);

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "pip install -r requirements.txt --quiet || pip3 install -r requirements.txt --quiet || true",
-    "start": "node index.js"
+    "start": "node index.js",
+    "build:bundle": "esbuild index.js --bundle --minify --platform=node --format=cjs --external:pg --external:pg-native --external:bufferutil --external:utf-8-validate --external:socket.io --external:socket.io-client --external:engine.io --external:multer --external:busboy --external:googleapis --external:google-auth-library --external:msedge-tts --external:node-edge-tts --external:fsevents --external:cpu-features --external:ssh2 --external:yahoo-finance2 --outfile=dist/bundle.js"
   },
   "keywords": [],
   "author": "",
@@ -40,5 +41,8 @@
     "socket.io": "^4.8.3",
     "yahoo-finance2": "^3.14.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

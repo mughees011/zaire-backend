@@ -30,8 +30,9 @@ function validateKeyFormatOnSave(provider, rawKey) {
     }
   }
 
-  // For all other providers, enforce a minimum length to catch obvious pastes.
-  if (k.length < 16) {
+  // For all other providers, enforce a small minimum length to catch empty/obvious pastes, 
+  // but allow short keys for local/custom providers (e.g. 'ollama').
+  if (k.length < 3) {
     throw new Error(
       `The key for ${provider} looks too short (${k.length} chars). ` +
       `Please paste the full API key from your provider's dashboard.`
