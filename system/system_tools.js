@@ -25,7 +25,7 @@ async function sidecar(endpoint, body = {}) {
  * Open multiple website URLs with a staggered delay.
  */
 async function openWebsites(urls) {
-    if (!Array.isArray(urls)) urls = [urls];
+if (!Array.isArray(urls)) urls = [urls];
     
     for (let url of urls) {
         try {

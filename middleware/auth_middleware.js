@@ -6,6 +6,7 @@ require('dotenv').config();
 // Clerk JWKS Client configuration (fetches Clerk's public signing keys dynamically)
 // Clerk's standard JWKS endpoint is derived from the Frontend API URL or set globally
 const CLERK_JWKS_URI = process.env.CLERK_JWKS_URI || `https://trusting-gnat-21.clerk.accounts.dev/.well-known/jwks.json`;
+// const CLERK_JWKS_URI = process.env.CLERK_JWKS_URI || `https://api.clerk.com/v1/jwks`;
 
 const client = jwksClient({
   jwksUri: CLERK_JWKS_URI,
@@ -40,6 +41,7 @@ function licenseToUserId(licenseKey) {
  *  1. x-clerk-user-id header shortcut (dev/staging only)
  *  2. x-zaire-license header  — local/desktop app auth (no JWT needed)
  *  3. Clerk JWT Bearer token   — web app with signed-in user
+ * Express middleware to enforce secure Clerk JWT authorization
  */
 async function requireAuth(req, res, next) {
   // 1. Local Staging/Testing Shortcut (highly useful for CLI/cURL testing)
@@ -63,6 +65,7 @@ async function requireAuth(req, res, next) {
   }
 
   // 3. Extract Bearer Token from Authorization Header
+  // 2. Extract Bearer Token from Authorization Header
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: Missing or invalid Authorization header' });
@@ -83,6 +86,7 @@ async function requireAuth(req, res, next) {
         id: decoded.sub, // 'sub' claim holds Clerk's User ID
         email: decoded.email || decoded.user_email || null,
         authMethod: 'clerk'
+        // email: decoded.email || decoded.user_email || null,
       };
 
       next();
