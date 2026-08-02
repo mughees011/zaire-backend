@@ -1,11 +1,5 @@
 [
   {
-    "type": "UNLOCK",
-    "detail": "PC unlocked by face recognition.",
-    "snapshot": "",
-    "time": "2026-05-14T16:43:25.178967"
-  },
-  {
     "type": "INTRUDER",
     "detail": "Unknown face detected and captured.",
     "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\Mughees-Tony\\backend\\memory\\intruder_snapshots\\intruder_20260514_164327.jpg",
@@ -1198,5 +1192,11 @@
     "detail": "Unknown face detected and captured.",
     "snapshot": "C:\\Users\\Mughees Siddiqui\\Pictures\\ZAIRE_full\\Zaire_webapp\\backend\\memory\\intruder_snapshots\\intruder_20260522_141427.jpg",
     "time": "2026-05-22T14:14:27.948277"
+  },
+  {
+    "type": "AUTO_START",
+    "detail": "Vision loop auto-started on daemon launch.",
+    "snapshot": "",
+    "time": "2026-08-02T22:32:28.162658"
   }
 ]

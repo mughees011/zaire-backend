@@ -1,3 +1,4 @@
+import sys
 """
 ZAIRE Face Security Daemon — Tier 5 Security
 Flask sidecar on port 3011
@@ -45,7 +46,7 @@ try:
     CV2_OK = True
 except ImportError:
     CV2_OK = False
-    print("[SECURITY] ⚠ OpenCV not found. Run: pip install opencv-python")
+    print("[SECURITY]  OpenCV not found. Run: pip install opencv-python")
 
 # ── face_recognition ─────────────────────────────────────────────────────────
 try:
@@ -53,68 +54,7 @@ try:
     FR_OK = True
 except ImportError:
     FR_OK = False
-    print("[SECURITY] ⚠ face_recognition not found. Run: pip install face-recognition")
-
-# ── Pillow (for image saving fallback) ───────────────────────────────────────
-try:
-    from PIL import Image
-    PIL_OK = True
-"""
-ZAIRE Face Security Daemon — Tier 5 Security
-Flask sidecar on port 3011
-
-Feature 17 — Face-Lock Mode:
-  - Runs a continuous webcam loop
-  - If Mughees walks away (no master face for N seconds) → locks the PC
-  - When master face re-appears → sends unlock signal → PC unlocks
-
-Feature 18 — Intruder Snapshot:
-  - Unknown face detected → saves timestamped photo
-  - Sends Pushbullet push notification with the image file
-  - Optionally locks the PC and speaks an alert via ZAIRE
-
-Architecture:
-  - Pure Flask REST API (no tkinter, no FastAPI dependency clash)
-  - Shares master_face.jpg with observer_daemon.py
-  - Can run standalone or be started by index.js
-  - All state persisted to memory/security_log.json
-"""
-
-import os
-import sys
-import json
-import time
-import base64
-import threading
-import subprocess
-import io
-from datetime import datetime
-from pathlib import Path
-
-# ── Flask ────────────────────────────────────────────────────────────────────
-try:
-    from flask import Flask, request, jsonify
-    from flask_cors import CORS
-except ImportError:
-    print("[SECURITY] pip install flask flask-cors")
-    sys.exit(1)
-
-# ── OpenCV ───────────────────────────────────────────────────────────────────
-try:
-    import cv2
-    import numpy as np
-    CV2_OK = True
-except ImportError:
-    CV2_OK = False
-    print("[SECURITY] ⚠ OpenCV not found. Run: pip install opencv-python")
-
-# ── face_recognition ─────────────────────────────────────────────────────────
-try:
-    import face_recognition
-    FR_OK = True
-except ImportError:
-    FR_OK = False
-    print("[SECURITY] ⚠ face_recognition not found. Run: pip install face-recognition")
+    print("[SECURITY]  face_recognition not found. Run: pip install face-recognition")
 
 # ── Pillow (for image saving fallback) ───────────────────────────────────────
 try:
@@ -237,7 +177,7 @@ def _load_master_encoding():
             _master_encoding = encodings[0]
             _log(f"✓ Master biometric loaded ({MASTER_FACE_PATH.name})")
         else:
-            _log("⚠ No face detected in master_face.jpg — please re-register.")
+            _log(" No face detected in master_face.jpg — please re-register.")
     except Exception as e:
         _log(f"Error loading master face: {e}")
 
@@ -317,7 +257,7 @@ def _send_pushbullet_alert(snapshot_path: str):
         from pushbullet import Pushbullet
         pb  = Pushbullet(pb_token)
         ts  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        title = "⚠️ ZAIRE SECURITY ALERT"
+        title = "️ ZAIRE SECURITY ALERT"
         body  = f"Unknown face detected at your PC — {ts}"
 
         if snapshot_path and Path(snapshot_path).exists():
@@ -343,7 +283,7 @@ def _send_telegram_alert(snapshot_path: str):
     try:
         import requests
         ts    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        caption = f"⚠️ ZAIRE SECURITY — Unknown face at PC\n{ts}"
+        caption = f"️ ZAIRE SECURITY — Unknown face at PC\n{ts}"
 
         if snapshot_path and Path(snapshot_path).exists():
             with open(snapshot_path, "rb") as photo:
@@ -432,7 +372,7 @@ def _vision_loop():
     # Haar Cascade fallback when face_recognition is not available
     _haar_cascade = None
     if not FR_OK:
-        _log("⚠ face_recognition not found. Using Haar Cascade fallback — any face = Master.")
+        _log(" face_recognition not found. Using Haar Cascade fallback — any face = Master.")
         _haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     if FR_OK:
@@ -469,7 +409,7 @@ def _vision_loop():
         ret, frame = cap.read()
         if not ret or frame is None:
             _consecutive_lost += 1
-            _log(f"⚠ Camera frame lost ({_consecutive_lost}). Retrying...")
+            _log(f" Camera frame lost ({_consecutive_lost}). Retrying...")
             
             # If we lose many frames, try re-initializing the handle
             if _consecutive_lost > 5:
@@ -628,6 +568,22 @@ def _vision_loop():
                 _trigger_intruder_response(frame)
                 intruder_found = True
 
+# ─────────────────────────── AUTO-START ─────────────────────────────────────
+
+def _auto_start():
+    """
+    Called 2s after startup. Starts the vision loop automatically so the camera
+    turns on as soon as ZAIRE launches — no manual trigger needed.
+    """
+    global _vision_thread, _stop_event
+    if not state["running"]:
+        _log("[AUTO-START] Activating vision loop on startup...")
+        _stop_event.clear()
+        _vision_thread = threading.Thread(target=_vision_loop, daemon=True)
+        _vision_thread.start()
+        _append_log("AUTO_START", "Vision loop auto-started on daemon launch.")
+
+
 @app.route("/security/start", methods=["POST"])
 def start_face_lock():
     """Enable Face-Lock mode and start the vision loop."""
@@ -764,17 +720,19 @@ def get_status():
         "absent_lock_delay":  state.get("current_lock_delay", ABSENT_LOCK_SECONDS),
         "snapshot_dir":       str(SNAPSHOT_DIR),
     })
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    print("\n══════════════════════════════════════════════════════")
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+    print("\n======================================================")
     print("  ZAIRE Face Security Daemon")
-    print(f"  Flask server on port 3011")
+    print("  Flask server on port 3011")
     print(f"  Lock delay:  {ABSENT_LOCK_SECONDS}s | Camera: {CAMERA_INDEX}")
     print(f"  cv2={CV2_OK}  face_recognition={FR_OK}")
-    print("══════════════════════════════════════════════════════\n")
+    print("======================================================\n")
 
-    # Auto-start vision if master face exists
+    # Auto-start vision loop 2s after flask starts
     threading.Timer(2.0, _auto_start).start()
 
     app.run(host="127.0.0.1", port=3011, debug=False, use_reloader=False, threaded=True)
