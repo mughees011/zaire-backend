@@ -1,7 +1,7 @@
-client_secret
-
+# Node & Secrets
 node_modules/
-
+.env*
+client_secret*
 
 # Biometric enrollment and face-recognition assets — must never be committed or shipped
 master_face.jpg
@@ -13,3 +13,22 @@ face*.jpg
 biometric_*
 enrollment_*.jpg
 enrollment_*.png
+
+# Application Data & Local State
+logs/
+memory/
+db/
+uploads/
+scratch/
+weekly_briefing_assets/
+
+# Build & Compiled output
+build/
+dist2/
+bundle.js
+__pycache__/
+*.py[cod]
+
+# OS / Tooling
+.DS_Store
+npm-debug.log*
