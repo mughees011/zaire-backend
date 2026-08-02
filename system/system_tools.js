@@ -25,8 +25,10 @@ async function sidecar(endpoint, body = {}) {
  * Open multiple website URLs with a staggered delay.
  */
 async function openWebsites(urls) {
-if (!Array.isArray(urls)) urls = [urls];
+    if (!Array.isArray(urls)) urls = [urls];
     
+    const { execFile } = require('child_process');
+
     for (let url of urls) {
         try {
             // Sanitize LLM-provided URLs that might miss the protocol
@@ -38,17 +40,25 @@ if (!Array.isArray(urls)) urls = [urls];
                     url = 'https://www.' + url + '.com';
                 }
             }
-            console.log(`[SYSTEM] Opening website via PowerShell: ${url}`);
+            console.log(`[SYSTEM] Opening website: ${url}`);
             
-            // Execute start command for Windows using PowerShell
+            // Execute start command for Windows using robust execFile instead of exec
             await new Promise((resolve, reject) => {
-                const psCommand = `Start-Process -FilePath "${url}"`;
-                exec(`powershell -Command "${psCommand}"`, (error) => {
-                    if (error) {
-                        console.error(`[SYSTEM] PowerShell open failed for ${url}:`, error);
-                        reject(error);
-                    } else {
+                // First try rundll32 which avoids shell parsing problems entirely
+                execFile('rundll32.exe', ['url.dll,FileProtocolHandler', url], (error) => {
+                    if (!error) {
                         resolve();
+                    } else {
+                        console.warn(`[SYSTEM] rundll32 failed, falling back to cmd.exe for ${url}:`, error.message);
+                        // Fallback to cmd.exe
+                        execFile('cmd.exe', ['/c', 'start', '""', url], (cmdErr) => {
+                            if (cmdErr) {
+                                console.error(`[SYSTEM] Website open failed for ${url}:`, cmdErr);
+                                reject(cmdErr);
+                            } else {
+                                resolve();
+                            }
+                        });
                     }
                 });
             });

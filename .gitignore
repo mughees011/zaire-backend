@@ -1,6 +1,7 @@
 # Node & Secrets
 node_modules/
 .env*
+.env
 client_secret*
 
 # Biometric enrollment and face-recognition assets — must never be committed or shipped

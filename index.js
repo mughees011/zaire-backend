@@ -3705,6 +3705,7 @@ function startBaselineDaemons() {
   startPythonSidecar();
   startProcessMonitor();
   startSysHealth();
+  startFaceSecurity(); // Always start face security on boot
 }
 
 async function ensureServiceRunning(name, timeoutMs = 15000) {

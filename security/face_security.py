@@ -59,6 +59,67 @@ except ImportError:
 try:
     from PIL import Image
     PIL_OK = True
+"""
+ZAIRE Face Security Daemon — Tier 5 Security
+Flask sidecar on port 3011
+
+Feature 17 — Face-Lock Mode:
+  - Runs a continuous webcam loop
+  - If Mughees walks away (no master face for N seconds) → locks the PC
+  - When master face re-appears → sends unlock signal → PC unlocks
+
+Feature 18 — Intruder Snapshot:
+  - Unknown face detected → saves timestamped photo
+  - Sends Pushbullet push notification with the image file
+  - Optionally locks the PC and speaks an alert via ZAIRE
+
+Architecture:
+  - Pure Flask REST API (no tkinter, no FastAPI dependency clash)
+  - Shares master_face.jpg with observer_daemon.py
+  - Can run standalone or be started by index.js
+  - All state persisted to memory/security_log.json
+"""
+
+import os
+import sys
+import json
+import time
+import base64
+import threading
+import subprocess
+import io
+from datetime import datetime
+from pathlib import Path
+
+# ── Flask ────────────────────────────────────────────────────────────────────
+try:
+    from flask import Flask, request, jsonify
+    from flask_cors import CORS
+except ImportError:
+    print("[SECURITY] pip install flask flask-cors")
+    sys.exit(1)
+
+# ── OpenCV ───────────────────────────────────────────────────────────────────
+try:
+    import cv2
+    import numpy as np
+    CV2_OK = True
+except ImportError:
+    CV2_OK = False
+    print("[SECURITY] ⚠ OpenCV not found. Run: pip install opencv-python")
+
+# ── face_recognition ─────────────────────────────────────────────────────────
+try:
+    import face_recognition
+    FR_OK = True
+except ImportError:
+    FR_OK = False
+    print("[SECURITY] ⚠ face_recognition not found. Run: pip install face-recognition")
+
+# ── Pillow (for image saving fallback) ───────────────────────────────────────
+try:
+    from PIL import Image
+    PIL_OK = True
 except ImportError:
     PIL_OK = False
 
@@ -67,9 +128,10 @@ CORS(app)
 
 # ─────────────────────────── CONFIG ──────────────────────────────────────────
 BACKEND_URL       = "http://127.0.0.1:3001"
-MASTER_FACE_PATH  = Path(__file__).parent / "master_face.jpg"
-SECURITY_LOG      = Path(__file__).parent / "memory" / "security_log.json"
-SNAPSHOT_DIR      = Path(__file__).parent / "memory" / "intruder_snapshots"
+# master_face.jpg lives in the backend root so ALL daemons share it
+MASTER_FACE_PATH  = Path(__file__).parent.parent / "master_face.jpg"
+SECURITY_LOG      = Path(__file__).parent.parent / "memory" / "security_log.json"
+SNAPSHOT_DIR      = Path(__file__).parent.parent / "memory" / "intruder_snapshots"
 SECURITY_LOG.parent.mkdir(parents=True, exist_ok=True)
 SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -357,16 +419,24 @@ def _vision_loop():
     """
     Main camera + face recognition loop.
     Runs in a daemon thread. Controlled by _stop_event.
+    Uses face_recognition if available, falls back to OpenCV Haar Cascade.
     """
     global _last_frame, _master_encoding
 
-    if not (CV2_OK and FR_OK):
-        _log("Vision disabled — missing cv2 or face_recognition.")
+    if not CV2_OK:
+        _log("Vision disabled — OpenCV (cv2) not installed.")
         state["camera_ok"] = False
         state["running"]   = False
         return
 
-    _load_master_encoding()
+    # Haar Cascade fallback when face_recognition is not available
+    _haar_cascade = None
+    if not FR_OK:
+        _log("⚠ face_recognition not found. Using Haar Cascade fallback — any face = Master.")
+        _haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+    if FR_OK:
+        _load_master_encoding()
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
@@ -463,8 +533,14 @@ def _vision_loop():
             rgb_full    = cv2.cvtColor(working_frame, cv2.COLOR_BGR2RGB)
             rgb_full    = np.ascontiguousarray(rgb_full, dtype=np.uint8)
 
-            locations_small = face_recognition.face_locations(rgb_small, model="hog")
-            locations_full  = [(t*2, r*2, b*2, l*2) for (t, r, b, l) in locations_small]
+            if FR_OK:
+                locations_small = face_recognition.face_locations(rgb_small, model="hog")
+                locations_full  = [(t*2, r*2, b*2, l*2) for (t, r, b, l) in locations_small]
+            else:
+                # Haar Cascade fallback
+                gray_small = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                faces_raw  = _haar_cascade.detectMultiScale(gray_small, 1.1, 5)
+                locations_full = [(y*2, (x+w)*2, (y+h)*2, x*2) for (x, y, w, h) in faces_raw]
         except Exception as e:
             _log(f"Detection error: {e}")
             time.sleep(1)
@@ -502,24 +578,28 @@ def _vision_loop():
             continue
 
         # ── Faces Found — Identify ────────────────────────────────────────────
-        try:
-            encodings = face_recognition.face_encodings(rgb_full, locations_full)
-        except Exception as e:
-            _log(f"Encoding error: {e}")
-            time.sleep(0.5)
-            continue
-
         master_found   = False
         intruder_found = False
 
-        for enc in encodings:
-            if _master_encoding is not None:
-                dynamic_tolerance = MATCH_TOLERANCE_DARK if avg_brightness < MIN_BRIGHTNESS_FOR_BRIGHT_TOL else MATCH_TOLERANCE_BRIGHT
-                match = face_recognition.compare_faces(
-                    [_master_encoding], enc, tolerance=dynamic_tolerance
-                )
-                if match[0]:
-                    master_found = True
+        if not FR_OK:
+            # Haar Cascade fallback: any detected face is treated as Master
+            master_found = len(locations_full) > 0
+        else:
+            try:
+                encodings = face_recognition.face_encodings(rgb_full, locations_full)
+            except Exception as e:
+                _log(f"Encoding error: {e}")
+                time.sleep(0.5)
+                continue
+
+            for enc in encodings:
+                if _master_encoding is not None:
+                    dynamic_tolerance = MATCH_TOLERANCE_DARK if avg_brightness < MIN_BRIGHTNESS_FOR_BRIGHT_TOL else MATCH_TOLERANCE_BRIGHT
+                    match = face_recognition.compare_faces(
+                        [_master_encoding], enc, tolerance=dynamic_tolerance
+                    )
+                    if match[0]:
+                        master_found = True
         # ── Master Detected ───────────────────────────────────────────────────
         if master_found:
             state["last_seen_master"] = time.time()
@@ -536,6 +616,18 @@ def _vision_loop():
                     _append_log("UNLOCK", "Master face confirmed — presence restored.")
 
                     # If PC was locked by face-lock, send unlock signal
+                    if state["face_lock_enabled"] and state["pc_locked"]:
+                        _unlock_pc()
+                        state["pc_locked"] = False
+                        _append_log("UNLOCK", "PC auto-unlocked.")
+
+        # ── Intruder Detected ────────────────────────────────────────────────
+        elif not master_found and not state["master_present"]:
+            # Only count as intruder if master is not currently at the desk
+            if not intruder_found:
+                _trigger_intruder_response(frame)
+                intruder_found = True
+
 @app.route("/security/start", methods=["POST"])
 def start_face_lock():
     """Enable Face-Lock mode and start the vision loop."""
@@ -672,127 +764,6 @@ def get_status():
         "absent_lock_delay":  state.get("current_lock_delay", ABSENT_LOCK_SECONDS),
         "snapshot_dir":       str(SNAPSHOT_DIR),
     })
-
-
-@app.route("/security/snapshots", methods=["GET"])
-def list_snapshots():
-    """List all intruder snapshots with base64 thumbnails."""
-    snaps = sorted(SNAPSHOT_DIR.glob("*.jpg"), reverse=True)[:20]
-    results = []
-    for s in snaps:
-        try:
-            with open(s, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode("utf-8")
-            results.append({
-                "filename": s.name,
-                "path":     str(s),
-                "size_kb":  round(s.stat().st_size / 1024, 1),
-                "thumb_b64": b64[:30000],  # cap at ~30KB base64
-            })
-        except Exception:
-            pass
-    return jsonify({"success": True, "snapshots": results, "count": len(results)})
-
-
-@app.route("/security/log", methods=["GET"])
-def get_security_log():
-    """Return recent security events."""
-    n       = int(request.args.get("n", 50))
-    events  = _load_security_log()
-    return jsonify({"success": True, "events": events[-n:], "total": len(events)})
-
-
-@app.route("/security/lock_now", methods=["POST"])
-def lock_now():
-    """Manually lock PC immediately."""
-    ok = _lock_pc()
-    if ok:
-        state["pc_locked"] = True
-        _append_log("MANUAL_LOCK", "PC manually locked via API.")
-    return jsonify({"success": ok, "message": "PC locked, sir." if ok else "Lock command failed."})
-
-
-@app.route("/security/test_intruder", methods=["POST"])
-def test_intruder():
-    """Debug endpoint: manually trigger an intruder alert (uses last frame or blank)."""
-    with _frame_lock:
-        frame = _last_frame.copy() if _last_frame is not None else None
-    if frame is None and CV2_OK:
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(frame, "TEST INTRUDER", (80, 240),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 4)
-    if frame is not None:
-        _trigger_intruder_response(frame)
-        return jsonify({"success": True, "message": "Test intruder alert triggered."})
-    return jsonify({"success": False, "error": "No frame available."})
-
-
-@app.route("/security/video_feed")
-def video_feed():
-    """MJPEG stream for the frontend HUD."""
-    def generate():
-        while True:
-            frame_to_send = None
-            with _frame_lock:
-                if _last_frame is not None:
-                    try:
-                        # Resize for stream efficiency
-                        small = cv2.resize(_last_frame, (480, 270))
-                        ret, jpeg = cv2.imencode('.jpg', small, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                        if ret:
-                            frame_to_send = jpeg.tobytes()
-                    except Exception:
-                        pass
-
-            if frame_to_send:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_to_send + b'\r\n\r\n')
-            else:
-                # Fallback "Standby" or "Signal Lost" frame if no camera frame available
-                try:
-                    blank = np.zeros((270, 480, 3), dtype=np.uint8)
-                    cv2.putText(blank, "SIGNAL LOST", (140, 135),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    _, jpeg = cv2.imencode('.jpg', blank)
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
-                except Exception:
-                    pass
-            
-            time.sleep(0.1)  # 10 FPS
-    return app.response_class(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({
-        "status":            "ok",
-        "service":           "zaire-face-security",
-        "face_lock_enabled": state["face_lock_enabled"],
-        "camera_ok":         state["camera_ok"],
-        "master_present":    state["master_present"],
-        "cv2":               CV2_OK,
-        "face_recognition":  FR_OK,
-    })
-
-
-# ─── Startup: auto-start vision loop if master face already registered ────────
-
-def _auto_start():
-    """If master_face.jpg already exists, start vision loop immediately."""
-    if MASTER_FACE_PATH.exists() and CV2_OK and FR_OK:
-        _log("Master face found on startup — auto-starting vision loop.")
-        state["face_lock_enabled"] = True
-        t = threading.Thread(target=_vision_loop, daemon=True)
-        t.start()
-    else:
-        _log("Standby. Call /security/register to enable Face-Lock.")
-
-
-# ─────────────────────────── ENTRY POINT ─────────────────────────────────────
-
-if __name__ == "__main__":
-    if sys.platform == "win32":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
