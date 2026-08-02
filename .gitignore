@@ -1,5 +1,8 @@
 client_secret
 
+node_modules/
+
+
 # Biometric enrollment and face-recognition assets — must never be committed or shipped
 master_face.jpg
 face*.jpg

@@ -323,12 +323,8 @@ def launch_zaire_runtime():
             return True, None
         return False, "ZAIRE was already running, but the app window could not be opened."
 
-    runtime_dir = app_runtime_dir()
-<<<<<<< HEAD
+runtime_dir = app_runtime_dir()
     backend_entry = os.path.join(runtime_dir, "bundle.js")
-=======
-    backend_entry = os.path.join(runtime_dir, "index.js")
->>>>>>> 7d6b48d6b6d4e72be51664f70b2146c3c784ec0e
 
     if not os.path.exists(backend_entry):
         return False, "ZAIRE runtime entry was not found."
