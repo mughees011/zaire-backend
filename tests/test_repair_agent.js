@@ -1,5 +1,5 @@
-const { qaProject, repairError, applyAndVerifyRepair } = require('./services/engineer_qa_repair');
-const repairAgent = require('./services/agents/repair_agent');
+const { qaProject, repairError, applyAndVerifyRepair } = require('../services/engineer_qa_repair');
+const repairAgent = require('../services/agents/repair_agent');
 
 async function testRepair() {
   console.log('--- STARTING REPAIR AGENT TESTS ---');

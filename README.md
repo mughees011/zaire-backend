@@ -117,18 +117,33 @@ The server runs at `http://localhost:5000` by default.
 backend/
 ├── index.js                          # Main Express app and route definitions
 ├── agent_daemon.py                   # Python FastAPI sidecar (specialist agents)
+├── routes/                           # API route handlers
 ├── services/
 │   ├── engineer_workflow.js          # Engineer Mode scaffold generation and prompts
 │   ├── engineer_scaffold_support.js  # API route and support file builders
 │   ├── engineer_qa_repair.js         # QA, repair, export, and materialize logic
 │   ├── design_intelligence.js        # Design Brief LLM prompts and narrative generation
 │   └── ...
+├── specialists/
+│   ├── design_dna.js                 # Aesthetic DNA profiles and design laws
+│   ├── component_library.js          # Registered section templates
+│   ├── generation_quality_gate.js    # Post-generation validation pass
+│   └── ...
 ├── middleware/
+│   ├── auth_middleware.js
 │   └── license_enforcement.js        # License gate middleware
+├── security/                         # Auth/crypto/security-adjacent modules
+├── db/                               # Database init/schema
+├── daemons/                          # Background/scheduled processes
+├── system/                           # OS/computer-control utilities
+├── scripts/                          # Build/ops scripts
+├── tests/                            # Test files and fixtures
 ├── memory/
 │   ├── chats/                        # Persisted chat sessions
 │   └── tasks.json                    # Task memory
 ├── generated_projects/               # Materialized Engineer Mode project outputs
+├── logs/                             # Runtime logs (gitignored)
+├── docs/                             # Internal working docs
 └── requirements.txt                  # Python dependencies
 ```
 

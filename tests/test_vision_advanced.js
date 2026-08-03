@@ -2,8 +2,8 @@
  * Test script for the Advanced Vision Agent
  * Simulates what runVisionAnalysis produces and verifies the full plan merge.
  */
-const { buildEngineerPlan } = require('./services/engineer_workflow');
-const { mergeVisionPayload } = require('./services/agents/vision_agent');
+const { buildEngineerPlan } = require('../services/engineer_workflow');
+const { mergeVisionPayload } = require('../services/agents/vision_agent');
 
 // Simulate what the 7 LLM stages would return
 const mockStageResults = {

@@ -1,4 +1,4 @@
-const { buildEngineerPlan } = require('./services/engineer_workflow');
+const { buildEngineerPlan } = require('../services/engineer_workflow');
 
 const mockIntake = {
   projectType: 'portfolio',

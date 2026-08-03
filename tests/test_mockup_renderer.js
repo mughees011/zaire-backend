@@ -1,4 +1,4 @@
-const { generateMockup, resolveTokens } = require('./services/agents/mockup_renderer');
+const { generateMockup, resolveTokens } = require('../services/agents/mockup_renderer');
 
 const sampleBrief = {
   app_name: 'FinTrack Pro',

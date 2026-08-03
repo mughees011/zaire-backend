@@ -8,9 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- `specialists/design_dna.js` — Node port of aesthetic DNA profiles and universal design laws, with `selectDnaKey()` and `buildDnaSystemBlock()` for use in generation prompts
+- `specialists/component_library.js` — registry of tested, token-driven section templates (navbar, hero ×2, about, features, pricing, testimonials, social proof, stats, CTA, contact, footer) selected via `renderSection(type, variant, tokens, content)` instead of freehand JSX
+- `design_intelligence.js` schema now includes `page_sections: [{ type, variant, content }]`, constrained to registered `COMPONENT_LIBRARY` keys, replacing free-text section descriptions
+- `specialists/generation_quality_gate.js` — post-generation validation pass (import resolution, `'use client'` enforcement, default export checks, package-import validation) intended to run before `PACKAGE`
+- Reorganized `backend/` root into `daemons/`, `db/`, `security/`, `system/`, `scripts/`, `tests/`, `logs/`, `docs/`, alongside existing `routes/`, `services/`, `middleware/`, `memory/`, `specialists/`
+
+### Fixed
+- `buildPageContent` no longer falls back to raw intake text (`intake.what`, `intake.who`) as user-facing hero copy — content is now sourced from the design brief's `page_sections`
+- `buildEngineerScaffold` previously generated only `app/page.tsx` regardless of `plan.pages` size — now generates a route file per planned page
+- Contrast-safety guard (`ensureReadablePrimary`) added — a design brief resolving a near-invisible accent color (e.g. `#F7F7F7` on a `#fafafa` background) now falls back to a readable default instead of shipping unreadable text
+- Escaped-newline bug in `buildPageContent`'s import string (`\\n` instead of `\n`) that produced invalid generated TSX
+- Multiple stale `require()`/`import` paths left over from the backend reorg (`machine_id`, `crypto_utils`, `subscription_service`, `vault_service`, `memory_service`, `billing_service`, `system_tools`, `chat_history_service`, `db`)
+
+### Security
+- Removed `client_secret.json` and `.env` from full git history via `git filter-repo`; force-pushed rewritten history
+- Removed `dist2/` packaged build artifacts (including compiled `.exe` binaries) from tracking
+- **Pending confirmation:** production `ENCRYPTION_KEY` fallback-secret behavior, login rate limiting, vault key masking, and chat-history IDOR checks — tracked, not yet verified fixed
+
 ### In Progress
 - Engineer Mode path traversal hardening — tracking a recurring backslash defect in generated `api/<X>\<Y>` folder names
 - Content generation quality pass for `buildGenerationPrompts` — enforcing use of `competitive_analysis` as a hard constraint instead of background context
+- Per-page `content_plan` generation (currently only the landing page gets a full brief; other planned pages still receive stub content)
+- Capabilities Guard — intercepts and rescopes out-of-capability requests (e.g. 3D/WebGL) before generation begins
 
 ---
 
