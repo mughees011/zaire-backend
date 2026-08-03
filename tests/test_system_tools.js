@@ -1,4 +1,4 @@
-const { openWebsites } = require('../system/system_tools.js');
+const { openWebsites } = require('./system/system_tools.js');
 
 async function test() {
     console.log("Testing openWebsites function...");

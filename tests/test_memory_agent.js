@@ -1,5 +1,5 @@
-const pool = require('../db/db');
-const memoryAgent = require('../services/agents/memory_agent');
+const pool = require('./db/db');
+const memoryAgent = require('./services/agents/memory_agent');
 
 async function runTests() {
   console.log('--- STARTING MEMORY AGENT TESTS ---');

@@ -1,4 +1,4 @@
-const { evaluateAmbiguity } = require('../services/agents/clarification_agent');
+const { evaluateAmbiguity } = require('./services/agents/clarification_agent');
 
 async function runTests() {
   console.log('--- CLARIFICATION AGENT TESTS ---\n');
