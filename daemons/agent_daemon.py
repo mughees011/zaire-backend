@@ -602,9 +602,9 @@ _active_task: dict = {
     "step_num": 0
 }
 
-VISION_MODEL     = os.getenv("ZAIRE_VISION_MODEL", "Auto")  # multimodal
-FAST_MODEL_TOOL  = os.getenv("ZAIRE_FAST_MODEL", "Auto")
-MAX_STEPS        = 12   # safety limit — max autonomous actions per task
+# Re-use VISION_MODEL defined at top of file; FAST_MODEL_TOOL can fall back to the same
+FAST_MODEL_TOOL = os.getenv("ZAIRE_FAST_MODEL", "Auto")
+MAX_STEPS       = 12   # safety limit — max autonomous actions per task
 
 # ── Vision + Decision ────────────────────────────────────────────────
 
@@ -629,25 +629,52 @@ def _call_vision(task: str, screenshot_b64: str, step_history: list) -> dict:
         for i, s in enumerate(step_history[-4:])  # last 4 steps only
     )
 
-    import base64
-    system_prompt = base64.b64decode(b'WW91IGFyZSB0aGUgWkFJUkUgQXV0b25vbW91cyBDb21wdXRlciBBZ2VudC4KWW91IGNvbnRyb2wgYSBXaW5kb3dzIFBDIHZpYSBtb3VzZSBhbmQga2V5Ym9hcmQuCkFuYWx5emUgdGhlIHNjcmVlbnNob3QgYW5kIGRlY2lkZSB0aGUgTkVYVCBzaW5nbGUgYWN0aW9uIHRvIGNvbXBsZXRlIHRoZSB0YXNrLgoKUmVzcG9uZCBPTkxZIHdpdGggYSB2YWxpZCBKU09OIG9iamVjdCBpbiB0aGlzIGV4YWN0IGZvcm1hdDoKewogICJhY3Rpb24iOiAiY2xpY2siIHwgInR5cGUiIHwgImhvdGtleSIgfCAic2Nyb2xsIiB8ICJ3YWl0IiB8ICJkb25lIiwKICAicmVhc29uaW5nIjogIndoeSB0aGlzIGFjdGlvbiIsCiAgInBhcmFtcyI6IHsKICAgICJ4IjogNTAwLCAgICAgICAgICAvLyBmb3IgY2xpY2sgKHJlcXVpcmVkKQogICAgInkiOiAzMDAsICAgICAgICAgIC8vIGZvciBjbGljayAocmVxdWlyZWQpCiAgICAidGV4dCI6ICIuLi4iLCAgICAgLy8gZm9yIHR5cGUKICAgICJrZXlzIjogWyJjdHJsIiwiYyJdLCAvLyBmb3IgaG90a2V5CiAgICAiYW1vdW50IjogMywgICAgICAgLy8gZm9yIHNjcm9sbCAocG9zaXRpdmU9dXAsIG5lZ2F0aXZlPWRvd24pCiAgICAic2Vjb25kcyI6IDEgICAgICAgLy8gZm9yIHdhaXQKICB9Cn0KClJ1bGVzOgotIElmIHRoZSB0YXNrIGlzIGNvbXBsZXRlLCB1c2UgYWN0aW9uICJkb25lIgotIEJlIHByZWNpc2Ugd2l0aCBjb29yZGluYXRlcyDigJQgdGhleSBtdXN0IG1hdGNoIHZpc2libGUgVUkgZWxlbWVudHMKLSBOZXZlciByZXBlYXQgdGhlIHNhbWUgZmFpbGVkIGFjdGlvbgotIFByZWZlciBrZXlib2FyZCBzaG9ydGN1dHMgb3ZlciBjbGlja3Mgd2hlbiBwb3NzaWJsZQo=').decode('utf-8')
-
-    # NOTE: AI Vault lane is text-first here. We pass visual context summary marker
-    # while keeping the sidecar provider-agnostic with no hardcoded provider API.
-    user_prompt = (
-        f"TASK: {task}\n\n"
-        f"PREVIOUS STEPS:\n{history_str or 'None yet'}\n\n"
-        f"SCREENSHOT_AVAILABLE_BASE64_LEN: {len(screenshot_b64)}\n"
-        "What is the next single action? Return JSON only."
+    system_prompt = (
+        "You are the ZAIRE Autonomous Computer Agent.\n"
+        "You control a Windows PC via mouse and keyboard.\n"
+        "Analyze the screenshot and decide the NEXT single action to complete the task.\n\n"
+        "Respond ONLY with a valid JSON object in this exact format:\n"
+        "{\n"
+        "  \"action\": \"click\" | \"type\" | \"hotkey\" | \"scroll\" | \"wait\" | \"done\",\n"
+        "  \"reasoning\": \"why this action\",\n"
+        "  \"params\": {\n"
+        "    \"x\": 500,         // for click (required)\n"
+        "    \"y\": 300,         // for click (required)\n"
+        "    \"text\": \"...\",   // for type\n"
+        "    \"keys\": [\"ctrl\",\"c\"], // for hotkey\n"
+        "    \"amount\": 3,      // for scroll (positive=up, negative=down)\n"
+        "    \"seconds\": 1      // for wait\n"
+        "  }\n"
+        "}\n\n"
+        "Rules:\n"
+        "- If the task is complete, use action \"done\"\n"
+        "- Be precise with coordinates — they must match visible UI elements\n"
+        "- Never repeat the same failed action\n"
+        "- Prefer keyboard shortcuts over clicks when possible"
     )
+
+    user_content = [
+        {
+            "type": "text",
+            "text": (
+                f"TASK: {task}\n\n"
+                f"PREVIOUS STEPS:\n{history_str or 'None yet'}\n\n"
+                "Analyze the screenshot below and return the next action as JSON only."
+            )
+        },
+        {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}
+        }
+    ]
 
     try:
         raw = call_llm_sync(
             [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user",   "content": user_content}
             ],
-            model=FAST_MODEL_TOOL,
+            model=VISION_MODEL,      # use the multimodal vision model
             temperature=0.1,
             max_tokens=300
         ).strip()
@@ -772,7 +799,7 @@ def _run_autonomous_task(task: str):
     print(f"[AUTONOMOUS] Session ended. Total steps: {len(step_history)}")
 
 
-@app.post('/task/run')
+
 class TaskRunData(BaseModel):
     task: str
 

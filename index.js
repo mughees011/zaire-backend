@@ -3958,7 +3958,7 @@ function startObserverDaemon() {
   });
 }
 
-// startObserverDaemon(); // Disabled in favor of Tier 5 face_security.py
+startObserverDaemon(); // Disabled in favor of Tier 5 face_security.py
 
 // ─── Tier 1: Vector Memory Sidecar ───────────────────────────────────────────
 let vectorMemoryReady = false;
@@ -5464,6 +5464,26 @@ const TOOLS = [
         properties: {}
       }
     }
+  },
+
+  // ── System Health & Diagnostics ──
+  {
+    type: "function",
+    function: {
+      name: "check_system_health",
+      description: "Get a real-time snapshot of system health: CPU usage and temperature, RAM, disk, GPU, battery, and the top resource-hogging processes. Use this whenever the user asks why their PC or laptop is hot, slow, lagging, or running out of RAM/battery. Also use it to proactively diagnose performance problems.",
+      parameters: {
+        type: "object",
+        properties: {
+          focus: {
+            type: "string",
+            enum: ["all", "cpu", "ram", "gpu", "disk", "battery", "processes", "network"],
+            description: "Which aspect of system health to check. Use 'all' for a full diagnostic."
+          }
+        },
+        required: ["focus"]
+      }
+    }
   }
 ];
 
@@ -6062,7 +6082,7 @@ io.on('connection', (socket) => {
 
       try {
         const agentUrl = userText.includes('screen')
-          ? 'http://127.0.0.1:3012/agent/vision'  // computer_use.py on port 3012
+          ? 'http://127.0.0.1:3002/agent/vision'  // agent_daemon.py on port 3002 (FIXED: was 3012)
           : 'http://127.0.0.1:3002/agent/chat';   // agent_daemon.py on port 3002
 
         console.log(`[DEBUG] Final Agent URL: ${agentUrl}`);
@@ -6921,6 +6941,52 @@ io.on('connection', (socket) => {
               _pushAction(`Optimized System`);
             } catch (err) {
               result = `Optimization failed: ${err.message}`;
+            }
+
+            // ── TIER 8: SYSTEM HEALTH & DIAGNOSTICS ──────────────────────────────────
+          } else if (name === "check_system_health") {
+            try {
+              const HEALTH_URL = 'http://127.0.0.1:3009';
+              const focus = args.focus || 'all';
+              let healthData = {};
+
+              if (focus === 'all') {
+                // Fetch full summary + top processes in parallel
+                const [summaryRes, procRes] = await Promise.all([
+                  fetch(`${HEALTH_URL}/health/summary`),
+                  fetch(`${HEALTH_URL}/health/processes`)
+                ]);
+                const summary = await summaryRes.json();
+                const procs   = await procRes.json();
+                healthData = { ...summary, top_processes: procs.top_processes };
+              } else if (focus === 'cpu') {
+                const res = await fetch(`${HEALTH_URL}/health/cpu`);
+                healthData = await res.json();
+              } else if (focus === 'ram') {
+                const res = await fetch(`${HEALTH_URL}/health/ram`);
+                healthData = await res.json();
+              } else if (focus === 'gpu') {
+                const res = await fetch(`${HEALTH_URL}/health/gpu`);
+                healthData = await res.json();
+              } else if (focus === 'disk') {
+                const res = await fetch(`${HEALTH_URL}/health/disk`);
+                healthData = await res.json();
+              } else if (focus === 'battery') {
+                const res = await fetch(`${HEALTH_URL}/health/battery`);
+                healthData = await res.json();
+              } else if (focus === 'processes') {
+                const res = await fetch(`${HEALTH_URL}/health/processes`);
+                healthData = await res.json();
+              } else if (focus === 'network') {
+                const res = await fetch(`${HEALTH_URL}/health/network`);
+                healthData = await res.json();
+              }
+
+              result = JSON.stringify(healthData);
+              socket.emit('neural_log', { content: `🌡 System Health: Diagnostic pulse complete (focus: ${focus}).` });
+            } catch (err) {
+              // Health daemon may not be running — give a graceful fallback
+              result = `System health daemon is offline, sir. Error: ${err.message}. The health sidecar (system_health.py) may still be starting on port 3009.`;
             }
           }
 

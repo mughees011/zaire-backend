@@ -1,0 +1,59 @@
+[33mcommit 0799eb7f76757c9e6d69439ee48a424a0cca9de7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Mon Aug 3 02:32:05 2026 +0500
+
+    deleted some unnessory files
+
+[33mcommit 5ee108637725b14140a549f6303afcea6ba8774e[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Sun Aug 2 22:09:52 2026 +0500
+
+    merge remote changes
+
+[33mcommit 73f3aa11c3ee7f69cb564fea44d53205ddac0b81[m
+Author: Mughees Siddiqui <mugheessiddiqui202@gmail.com>
+Date:   Sun Aug 2 20:46:27 2026 +0500
+
+    Delete .env
+
+[33mcommit 571069a25c13cb541b2d464ed47b2362dd824ddd[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Sun Aug 2 20:33:01 2026 +0500
+
+    Fixed Zaire facial, and web bugs
+
+[33mcommit 7553c876a4b3a71fc3f8c87a4c19a0cce17b7ed3[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Fri Jul 24 15:06:02 2026 +0500
+
+    stop tracking client_secret.json
+
+[33mcommit a1ed81a026dde2046b040ba45f7d4c75ccf32f86[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Fri Jul 24 15:06:02 2026 +0500
+
+    stop tracking client_secret.json
+
+[33mcommit 6ab4ab8c09a96ac09670358044d2df717829a728[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Mon May 18 09:15:55 2026 +0500
+
+    Remove env secrets from repository
+
+[33mcommit 05e97e59c553dad78ef131bae33a6cd9b7638e8f[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Mon May 18 09:15:55 2026 +0500
+
+    Remove env secrets from repository
+
+[33mcommit 1078d669b0a0644ad7813903622febf90f655bb4[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Mon May 18 08:59:57 2026 +0500
+
+    Initial ZAIRE backend production setup
+
+[33mcommit 35c5e42b68810daa8b515b6d430287a9126528a6[m
+Author: mughees011 <mugheessiddiqui202@gmail.com>
+Date:   Mon May 18 08:59:57 2026 +0500
+
+    Initial ZAIRE backend production setup
