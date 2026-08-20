@@ -1,5 +1,5 @@
 const http = require('http');
-const { app, pool } = require('./index');
+const { app, pool } = require('../index');
 
 async function runTests() {
   console.log('--- CLARIFICATION ROUTE TESTS ---\n');

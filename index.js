@@ -5690,7 +5690,113 @@ app.post('/smart/control', (req, res) => _smartProxy('/control', 'POST', req.bod
 app.post('/smart/scene', (req, res) => _smartProxy('/scene', 'POST', req.body, res));
 
 
+// ─── ZAIRE Trader Mode — Yahoo Finance Market Data API ──────────────────────
+
+const YahooFinanceTrader = require('yahoo-finance2').default;
+const _yahooTrader = new YahooFinanceTrader({ suppressNotices: ['yahooSurvey'] });
+
+// 30-second in-memory cache
+let _traderMarketCache = { data: null, timestamp: 0 };
+const TRADER_CACHE_TTL = 30 * 1000; // 30 seconds
+
+const HALAL_SCREENED = new Set([
+  // Known non-halal tickers — extend as needed
+  'LVS', 'MGM', 'WYNN', 'BUD', 'STZ', 'DEO', 'MO', 'PM', 'BTI', 'LMT', 'RTX', 'NOC', 'GD', 'BA'
+]);
+
+const DEFAULT_TRADER_SYMBOLS = [
+  'BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'ARB11841-USD',
+  'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOG',
+  'GC=F',  // Gold futures
+  'SI=F',  // Silver futures
+  'TSLA'
+];
+
+app.get('/api/trader/market-data', async (req, res) => {
+  try {
+    const now = Date.now();
+    // Serve from cache if fresh
+    if (_traderMarketCache.data && (now - _traderMarketCache.timestamp) < TRADER_CACHE_TTL) {
+      return res.json({ ok: true, cached: true, data: _traderMarketCache.data, updatedAt: _traderMarketCache.timestamp });
+    }
+
+    const rawSymbols = req.query.symbols || DEFAULT_TRADER_SYMBOLS.join(',');
+    const symbols = rawSymbols.split(',').map(s => s.trim()).filter(Boolean);
+
+    const results = await Promise.allSettled(
+      symbols.map(symbol =>
+        _yahooTrader.quoteSummary(symbol, { modules: ['price'] }).then(r => ({ symbol, r }))
+      )
+    );
+
+    const data = results
+      .filter(r => r.status === 'fulfilled')
+      .map(({ value: { symbol, r } }) => {
+        const p = r.price || {};
+        const baseSymbol = symbol.replace('-USD', '').replace('=F', '');
+        return {
+          symbol,
+          displaySymbol: baseSymbol,
+          name: p.shortName || p.longName || baseSymbol,
+          price: p.regularMarketPrice ?? null,
+          change: p.regularMarketChange ?? null,
+          changePercent: p.regularMarketChangePercent ?? null,
+          high: p.regularMarketDayHigh ?? null,
+          low: p.regularMarketDayLow ?? null,
+          volume: p.regularMarketVolume ?? null,
+          marketCap: p.marketCap ?? null,
+          currency: p.currency || 'USD',
+          isHalal: !HALAL_SCREENED.has(baseSymbol),
+          isCrypto: symbol.includes('-USD'),
+          isCommodity: symbol.includes('=F'),
+        };
+      });
+
+    _traderMarketCache = { data, timestamp: now };
+    res.json({ ok: true, cached: false, data, updatedAt: now });
+  } catch (err) {
+    console.error('[TRADER] Market data fetch error:', err.message);
+    // Return cached data if available, even if stale
+    if (_traderMarketCache.data) {
+      return res.json({ ok: true, cached: true, stale: true, data: _traderMarketCache.data, updatedAt: _traderMarketCache.timestamp });
+    }
+    res.status(500).json({ ok: false, error: 'Market data unavailable', message: err.message });
+  }
+});
+
+// Single quote lookup for Markets page
+app.get('/api/trader/quote/:symbol', async (req, res) => {
+  try {
+    const symbol = req.params.symbol;
+    const result = await _yahooTrader.quoteSummary(symbol, { modules: ['price', 'summaryDetail'] });
+    const p = result.price || {};
+    const d = result.summaryDetail || {};
+    res.json({
+      ok: true,
+      symbol,
+      name: p.shortName || p.longName || symbol,
+      price: p.regularMarketPrice,
+      change: p.regularMarketChange,
+      changePercent: p.regularMarketChangePercent,
+      high: p.regularMarketDayHigh,
+      low: p.regularMarketDayLow,
+      open: p.regularMarketOpen,
+      volume: p.regularMarketVolume,
+      marketCap: p.marketCap,
+      fiftyTwoWeekHigh: d.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: d.fiftyTwoWeekLow,
+      pe: d.trailingPE,
+      currency: p.currency || 'USD',
+    });
+  } catch (err) {
+    console.error(`[TRADER] Quote error for ${req.params.symbol}:`, err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
 // ─── Vector Memory REST Proxy ──────────────────────────────────────────────
+
 
 // Allows the frontend to interact with ChromaDB via the Node.js server
 
