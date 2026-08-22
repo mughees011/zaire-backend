@@ -1234,7 +1234,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
         if alpaca_key and alpaca_secret:
             self._connect_alpaca(alpaca_key, alpaca_secret)
 
-    # ── TASK 5: Immortal daemon loop — never dies on single API failure ──────
+    # ── Immortal daemon loop — never dies on single API failure ─────────────
     def _apex_daemon_loop(self):
         """
         Background thread: autonomous hedge-fund-style execution engine.
@@ -1246,13 +1246,15 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
           • A periodic heartbeat is logged every 5 minutes so operators can
             externally verify the daemon is still alive.
           • The loop only terminates when self.apex_active is set to False.
+          • NO randomness in the decision path. Every BUY/SELL/HOLD is fully
+            determined by RSI (from _calculate_ta) and the F&G bias.
         """
-        import random
+        # No `import random` — randomness has no place in live execution.
 
         print("[TRADER APEX] Daemon thread started. ZAIRE is now watching 24/7.")
-        last_heartbeat_time = time.time()   # tracks 5-min heartbeat
-        HEARTBEAT_INTERVAL  = 300           # seconds (5 minutes)
-        CYCLE_SLEEP         = 15            # seconds between decision cycles
+        last_heartbeat_time = time.time()
+        HEARTBEAT_INTERVAL  = 300    # seconds (5 minutes)
+        CYCLE_SLEEP         = 15     # seconds between decision cycles
 
         while self.apex_active:
             # ── Periodic heartbeat ────────────────────────────────────────
@@ -1269,7 +1271,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
 
             # ── Main cycle body — fully guarded ──────────────────────────
             try:
-                # ── Step 1: Refresh Fear & Greed (TASK 4 integration) ────
+                # ── Step 1: Refresh Fear & Greed ─────────────────────────
                 try:
                     fng = fetch_fear_and_greed()
                     if fng["value"] is not None:
@@ -1279,13 +1281,14 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                     # F&G API is down — log and continue; don't die
                     print(f"[TRADER APEX][WARN] Fear & Greed fetch failed: {fng_err}. Using cached value.")
 
-                # ── Step 2: Compute composite signal ─────────────────────
-                # Fear & Greed contributes a sentiment bias:
-                #   Extreme Fear (≤25)  → bias toward BUY  (+1)
-                #   Fear         (≤45)  → mild BUY bias    (+0.5)
-                #   Neutral             → no bias          (0)
-                #   Greed        (≤75)  → mild SELL bias   (-0.5)
-                #   Extreme Greed(>75)  → bias toward SELL (-1)
+                # ── Step 2: Compute F&G bias (sentiment input only) ───────
+                # This is ONE ingredient — RSI from _calculate_ta is the other.
+                # Together they gate BUY/SELL. Neither alone is sufficient.
+                #   Extreme Fear (≤25)  → +1.0  (sentiment favors BUY)
+                #   Fear         (≤45)  → +0.5
+                #   Neutral      (≤55)  →  0.0  (no sentiment pressure)
+                #   Greed        (≤75)  → -0.5  (sentiment favors SELL)
+                #   Extreme Greed(>75)  → -1.0
                 fng_v = self.fear_greed_value
                 if fng_v is None:
                     fng_bias = 0.0
@@ -1300,49 +1303,110 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                 else:
                     fng_bias = -1.0
 
-                # Technicals bias (simple price-vs-MA proxy from live pulse)
-                # If live pulse is empty, skip this cycle's trade decision
+                # If live pulse is empty there is no price context — skip.
+                # IMPORTANT: _get_simulated_pulse() is NEVER called in this
+                # loop. It exists solely for the UI HUD (get_hud_data) and
+                # must never be used as a price source for real trade decisions.
                 if not self.live_pulse:
                     time.sleep(CYCLE_SLEEP)
                     continue
 
-                # ── Step 3: Attempt to find a trade setup ────────────────
-                if random.random() < 0.10:  # 10% probability per cycle (simulation)
-                    asset = random.choice(["BTC", "ETH", "SOL", "LINK", "AVAX"])
+                # ── Step 3: Stop-Loss enforcement (check every open position)
+                # Runs before new signals so we always protect capital first.
+                positions_to_close = []
+                for held_asset, pos_data in list(self.open_positions.items()):
+                    current_price = self.live_pulse.get(held_asset, {}).get("price", 0)
+                    stop_price    = pos_data.get("stop_loss", 0)
+                    if current_price > 0 and stop_price > 0 and current_price <= stop_price:
+                        print(
+                            f"[TRADER APEX][STOP-LOSS] {held_asset} price ${current_price:,.2f} "
+                            f"<= stop ${stop_price:,.2f}. Closing position."
+                        )
+                        positions_to_close.append(held_asset)
 
-                    # Decide direction using composite signal
-                    # fng_bias > 0 → lean BUY, < 0 → lean SELL, = 0 → coin-flip
-                    rand_factor = random.uniform(-1, 1)
-                    composite   = fng_bias + rand_factor
-                    side        = "BUY" if composite >= 0 else "SELL"
-
+                for held_asset in positions_to_close:
+                    qty = self.open_positions[held_asset].get("qty", 0)
                     try:
-                        price = self.live_pulse.get(asset, {}).get("price", 50000)
                         if self.paper_trading:
                             self.handle_action("EXECUTE_TRADE", {
-                                "symbol": asset, "side": side, "qty": 0.05,
-                                "reason": f"Apex auto-signal. F&G={fng_v}({self.fear_greed_label})"
+                                "symbol": held_asset, "side": "SELL", "qty": qty,
+                                "reason": "Stop-loss triggered"
                             })
-                            print(f"[TRADER APEX] Paper {side} 0.05 {asset} @ ${price:,.2f} "
-                                  f"| F&G bias={fng_bias:+.1f}")
+                        elif self.binance_connected:
+                            self.execute_trade(held_asset, "SELL", qty)
                         else:
-                            # ── Live Binance ─────────────────────────────
+                            print(f"[TRADER APEX][STOP-LOSS] Cannot close {held_asset} — no live connection.")
+                    except Exception as sl_err:
+                        print(f"[TRADER APEX][STOP-LOSS][WARN] Error closing {held_asset}: {sl_err}")
+
+                # ── Step 4: Signal evaluation — every asset, every cycle ──
+                # Decision rules (zero randomness):
+                #   BUY  → RSI < 30  AND fng_bias > 0    (oversold + market fear)
+                #   SELL → RSI > 70  AND fng_bias < 0    AND position is held
+                #   HOLD → everything else — log it, do nothing
+                ASSETS_UNIVERSE = ["BTC", "ETH", "SOL", "LINK", "AVAX"]
+
+                for asset in ASSETS_UNIVERSE:
+                    price = self.live_pulse.get(asset, {}).get("price")
+                    if not price:
+                        continue   # no live price for this asset this cycle
+
+                    # Fetch real RSI via the shared _calculate_ta helper.
+                    # Both this loop and _get_btc_ta_brief use the same function —
+                    # there is one source of truth for the RSI number.
+                    try:
+                        ta = self._calculate_ta(f"{asset}-USD")
+                    except Exception as ta_err:
+                        print(f"[TRADER APEX][WARN] TA fetch failed for {asset}: {ta_err}. Skipping.")
+                        continue
+
+                    if ta is None:
+                        continue   # yfinance returned empty — skip this asset
+
+                    rsi          = ta["rsi"]
+                    has_position = asset in self.open_positions
+
+                    # Apply explicit, auditable rules — no coin-flip, no rand_factor
+                    if rsi < 30 and fng_bias > 0:
+                        action = "BUY"
+                        reason = (f"RSI={rsi:.1f} (<30 oversold) AND F&G bias={fng_bias:+.1f} (>0 fear). "
+                                  f"F&G={fng_v}({self.fear_greed_label})")
+                    elif rsi > 70 and fng_bias < 0 and has_position:
+                        action = "SELL"
+                        reason = (f"RSI={rsi:.1f} (>70 overbought) AND F&G bias={fng_bias:+.1f} (<0 greed). "
+                                  f"F&G={fng_v}({self.fear_greed_label})")
+                    else:
+                        # No signal strong enough — log it and move on
+                        print(
+                            f"[TRADER APEX][HOLD] {asset} RSI={rsi:.1f} | "
+                            f"F&G bias={fng_bias:+.1f} | has_pos={has_position} → HOLD/WAIT"
+                        )
+                        continue
+
+                    qty = 0.05
+                    try:
+                        if self.paper_trading:
+                            self.handle_action("EXECUTE_TRADE", {
+                                "symbol": asset, "side": action, "qty": qty,
+                                "reason": reason
+                            })
+                            print(f"[TRADER APEX] Paper {action} {qty} {asset} @ ${price:,.2f} | {reason}")
+                        else:
+                            # ── Live Binance ──────────────────────────────
                             try:
                                 if self.binance_connected:
-                                    self.execute_trade(asset, side, 0.01)
-                                    print(f"[TRADER APEX] Live Binance {side} 0.01 {asset} @ ${price:,.2f}")
+                                    self.execute_trade(asset, action, qty)
+                                    print(f"[TRADER APEX] Live Binance {action} {qty} {asset} @ ${price:,.2f} | {reason}")
                                 else:
                                     print("[TRADER APEX] Binance not connected — skipping live trade.")
                             except Exception as binance_err:
                                 print(f"[TRADER APEX][WARN] Binance trade error: {binance_err}. Loop continues.")
 
                             # ── Live Alpaca (stocks) ──────────────────────
-                            # Alpaca executes on a different universe; we pick
-                            # a tech stock to shadow the crypto signal.
                             if self.alpaca_connected:
                                 try:
                                     stock_map = {
-                                        "BTC": "MSTR",  # MicroStrategy — BTC proxy, halal-screen required
+                                        "BTC": "MSTR",
                                         "ETH": "COIN",
                                         "SOL": "HOOD",
                                         "LINK": "COIN",
