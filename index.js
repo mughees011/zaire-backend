@@ -410,6 +410,26 @@ app.get('/api/internal/trader/keys', (req, res) => {
     res.status(500).json({ error: 'Failed to hydrate vault keys' });
   }
 });
+
+// trader.py POSTs every BUY/SELL/HOLD decision here → we Socket.IO-emit it instantly
+app.post('/api/internal/trader/signal', (req, res) => {
+  if (req.ip !== '127.0.0.1' && req.ip !== '::1' && req.ip !== '::ffff:127.0.0.1') {
+    return res.status(403).json({ error: 'Localhost access only' });
+  }
+  try {
+    const signal = req.body;
+    if (!signal || !signal.action || !signal.asset) {
+      return res.status(400).json({ error: 'Missing required fields: action, asset' });
+    }
+    // Broadcast to all connected frontend clients
+    io.emit('trader_signal', signal);
+    // Also emit an updated TRADER_STATUS so the mode badge stays in sync
+    io.emit('TRADER_STATUS', { paper_trading: signal.mode !== 'LIVE' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Signal broadcast failed' });
+  }
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 const healthRoutes = require('./routes/health');
@@ -5928,39 +5948,20 @@ app.get('/tts/voices', (req, res) => {
 
 
 // ─── Chat History Endpoints ────────────────────────────────────────────────
-// ── TRADER DAEMON SIGNAL WATCHER ─────────────────────────────────────────────
-const SIGNALS_PATH = path.join(__dirname, 'memory', 'signals.json');
-let lastSignalTime = 0;
-
-try {
-  if (!fs.existsSync(path.dirname(SIGNALS_PATH))) fs.mkdirSync(path.dirname(SIGNALS_PATH), { recursive: true });
-  if (!fs.existsSync(SIGNALS_PATH)) fs.writeFileSync(SIGNALS_PATH, '[]', 'utf-8');
-
-  fs.watch(SIGNALS_PATH, (eventType) => {
-    if (eventType === 'change') {
-      try {
-        const raw = fs.readFileSync(SIGNALS_PATH, 'utf-8');
-        const signals = JSON.parse(raw);
-        if (Array.isArray(signals) && signals.length > 0) {
-          const latest = signals[0]; // trader.py inserts at index 0
-          const signalTime = new Date(latest.timestamp).getTime();
-          if (signalTime > lastSignalTime) {
-            lastSignalTime = signalTime;
-            io.emit('APEX_SIGNAL', latest);
-          }
-        }
-      } catch (e) {
-        // file might be locked or partially written, ignore
-      }
-    }
-  });
-} catch (e) {
-  console.warn('[TRADER] Failed to init signals watcher:', e.message);
-}
-// ─────────────────────────────────────────────────────────────────────────────
+// NOTE: trader signals are now pushed in real-time via POST /api/internal/trader/signal
+// (see the endpoint registered near line 412). The old fs.watch approach has been removed
+// because file watchers are unreliable on Windows with short write intervals.
 
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
+
+  // Push trading mode immediately so the PAPER/LIVE badge shows on first load
+  try {
+    const traderVaultKeys = hydrateTraderVault();
+    socket.emit('TRADER_STATUS', { paper_trading: traderVaultKeys.paperTrading !== false });
+  } catch (_e) {
+    socket.emit('TRADER_STATUS', { paper_trading: true }); // safe default
+  }
 
   // RESET BRAIN: Start each session with a fresh conversation history to save tokens
   let conversationHistory = [

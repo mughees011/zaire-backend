@@ -33,13 +33,22 @@ def _load_trader_vault_keys():
         print(f"[TRADER] Vault key load warning: {e}")
         return {}
 
-# ── Socket emitter — will be injected by index.js via _set_socket_emitter() ──
-_SOCKET_EMITTER = None   # type: callable | None
+# ── Internal signal endpoint for live frontend updates ────────────────────────
+_INTERNAL_BASE = "http://127.0.0.1:10000"
 
-def _set_socket_emitter(fn):
-    """Called once by index.js to wire up a function that does socket.emit()."""
-    global _SOCKET_EMITTER
-    _SOCKET_EMITTER = fn
+def _post_signal(signal: dict):
+    """POST a decision to the Node.js internal endpoint so it can Socket.IO-emit it.
+    Non-blocking: uses a daemon thread so a slow/offline Node doesn't stall the loop."""
+    def _send():
+        try:
+            requests.post(
+                f"{_INTERNAL_BASE}/api/internal/trader/signal",
+                json=signal,
+                timeout=2
+            )
+        except Exception:
+            pass  # Node offline or busy — next signal will retry; loop must never die
+    threading.Thread(target=_send, daemon=True).start()
 
 
 # ── Optional Alpaca import — graceful if not installed ──────────────────────
@@ -946,12 +955,8 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
         except Exception as e:
             print(f"[TRADER] Signal persist error: {e}")
 
-        # ── Emit live to frontend via Socket.IO ──────────────────────────────
-        try:
-            if _SOCKET_EMITTER is not None:
-                _SOCKET_EMITTER("APEX_SIGNAL", signal)
-        except Exception as e:
-            print(f"[TRADER] Socket emit error: {e}")
+        # ── Emit live to frontend via HTTP → Node.js → Socket.IO ─────────────
+        _post_signal(signal)
 
         return signal
 
