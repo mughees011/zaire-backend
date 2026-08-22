@@ -716,33 +716,79 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
 
       if not self.binance_connected or not self.binance:
         return "Cannot execute trade, sir. Binance is not connected."
+        
+      # Enforce Max 20% Position Size Limit
+      try:
+          asset = symbol.replace("USDT", "")
+          price = self.live_pulse.get(asset, {}).get("price", 0)
+          if price > 0:
+              # Get total balance (approx) - Mocking for now if we can't fetch easily, but let's try to get USDT balance
+              try:
+                  balance_info = self.binance.get_asset_balance(asset='USDT')
+                  total_capital = float(balance_info['free']) + float(balance_info['locked'])
+              except:
+                  total_capital = 100000.0 # fallback
+              
+              trade_value = quantity * price
+              max_allowed = total_capital * 0.20
+              if trade_value > max_allowed:
+                  capped_qty = max_allowed / price
+                  print(f"[TRADER] RISK ENFORCEMENT: Order size {quantity} {asset} (${trade_value:.2f}) exceeds 20% limit (${max_allowed:.2f}). Capping to {capped_qty:.4f}")
+                  quantity = capped_qty
+      except Exception as e:
+          print(f"[TRADER] Position size check failed: {e}")
 
       try:
         symbol_pair = symbol if "USDT" in symbol else f"{symbol}USDT"
         if side.upper() == "BUY":
           order = self.binance.order_market_buy(symbol=symbol_pair, quantity=quantity)
+          # Store stop-loss for BUY
+          asset = symbol.replace("USDT", "")
+          entry_price = self.live_pulse.get(asset, {}).get("price", 0)
+          if entry_price > 0:
+              self.open_positions[asset] = {"qty": quantity, "side": "BUY", "stop_loss": entry_price * 0.95}
         elif side.upper() == "SELL":
           order = self.binance.order_market_sell(symbol=symbol_pair, quantity=quantity)
+          asset = symbol.replace("USDT", "")
+          if asset in self.open_positions:
+              del self.open_positions[asset]
         else:
           return f"Invalid side: {side}"
 
         self._append_trade_log({"timestamp": datetime.now().isoformat(), "symbol": symbol_pair, "side": side.upper(), "quantity": quantity, "order_id": order.get("orderId"), "status": order.get("status")})
-        return f"Order executed, sir. {side.upper()} {quantity} {symbol} — Status: {order.get('status')}."
+        return f"Order executed, sir. {side.upper()} {quantity} {symbol} - Status: {order.get('status')}."
       except Exception as e:
         return f"Trade failed, sir. Error: {str(e)}"
 
     def execute_stock_trade(self, ticker: str, side: str, qty: int) -> str:
         """Execute a stock trade via Alpaca (paper or live, governed by self.paper_trading)."""
-        # Step 1 — Halal screen
+        # Step 1 - Halal screen
         screen_result = screen_stock_halal(ticker)
         if screen_result == "NOT_HALAL":
             return f"STOCK TRADE BLOCKED, sir. {ticker} failed the Halal screen."
         if screen_result == "NOT_SCREENED":
-            return (f"STOCK TRADE BLOCKED, sir. {ticker} could not be screened — "
+            return (f"STOCK TRADE BLOCKED, sir. {ticker} could not be screened - "
                     "insufficient financial data. Trading an unscreened stock is not permitted.")
 
         if not self.alpaca_connected or not self.alpaca:
             return "Cannot execute stock trade, sir. Alpaca is not connected."
+            
+        # Enforce Max 20% Position Size Limit
+        try:
+            import yfinance as yf
+            price = yf.Ticker(ticker).info.get('regularMarketPrice', 0)
+            if price == 0: price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+            account = self.alpaca.get_account()
+            total_capital = float(account.equity)
+            trade_value = qty * price
+            max_allowed = total_capital * 0.20
+            if trade_value > max_allowed:
+                capped_qty = int(max_allowed / price)
+                print(f"[TRADER] RISK ENFORCEMENT: Order size {qty} {ticker} (${trade_value:.2f}) exceeds 20% limit (${max_allowed:.2f}). Capping to {capped_qty}")
+                qty = capped_qty
+                if qty <= 0: return f"TRADE BLOCKED: 20% limit restricts order to 0 shares."
+        except Exception as e:
+            print(f"[TRADER] Alpaca Position size check failed: {e}")
 
         try:
             if _ALPACA_LEGACY:
@@ -764,6 +810,11 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                 order = self.alpaca.submit_order(req)
                 status = order.status
 
+            if side.upper() == "BUY":
+                self.open_positions[ticker] = {"qty": qty, "side": "BUY", "stop_loss": price * 0.95}
+            elif side.upper() == "SELL" and ticker in self.open_positions:
+                del self.open_positions[ticker]
+
             self._append_trade_log({
                 "timestamp": datetime.now().isoformat(),
                 "symbol": ticker,
@@ -772,7 +823,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                 "status": str(status),
                 "venue": "ALPACA_PAPER" if self.paper_trading else "ALPACA_LIVE",
             })
-            return f"Stock order placed, sir. {side.upper()} {qty} {ticker} — Status: {status}."
+            return f"Stock order placed, sir. {side.upper()} {qty} {ticker} - Status: {status}."
         except Exception as e:
             return f"Stock trade failed, sir. Error: {str(e)}"
 
@@ -934,22 +985,40 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
       if action == "EXECUTE_TRADE":
         symbol = payload.get("symbol", "BTCUSDT")
         side   = payload.get("side", "BUY")
-        qty    = payload.get("qty", 1.0)
+        qty    = float(payload.get("qty", 1.0))
+        asset = symbol.replace("USDT", "")
 
         portfolio_path = os.path.join("memory", "mock_portfolio.json")
         os.makedirs("memory", exist_ok=True)
-
         portfolio = {}
         if os.path.exists(portfolio_path):
           with open(portfolio_path, "r") as f: portfolio = json.load(f)
-
-        asset = symbol.replace("USDT", "")
+          
+        live_price = self.live_pulse.get(asset, {}).get("price", 60000)
+        usdt_balance = portfolio.get("USDT", 100000.0)
+        total_equity = usdt_balance
+        for p_asset, p_qty in portfolio.items():
+            if p_asset != "USDT":
+                p_price = self.live_pulse.get(p_asset, {}).get("price", 0)
+                total_equity += p_qty * p_price
+                
+        # Enforce 20% risk limit
+        trade_value = qty * live_price
+        max_allowed = total_equity * 0.20
+        if trade_value > max_allowed:
+            capped_qty = max_allowed / live_price
+            print(f"[TRADER] RISK ENFORCEMENT (PAPER): Order size {qty} {asset} (${trade_value:.2f}) exceeds 20% limit (${max_allowed:.2f}). Capping to {capped_qty:.4f}")
+            qty = capped_qty
+            
         if side == "BUY":
-          portfolio[asset] = portfolio.get(asset, 0) + float(qty)
-          portfolio["USDT"] = portfolio.get("USDT", 100000) - (float(qty) * 60000)
+          portfolio[asset] = portfolio.get(asset, 0.0) + qty
+          portfolio["USDT"] = usdt_balance - (qty * live_price)
+          self.open_positions[asset] = {"qty": portfolio[asset], "side": "BUY", "stop_loss": live_price * 0.95}
         else:
-          portfolio[asset] = portfolio.get(asset, 0) - float(qty)
-          portfolio["USDT"] = portfolio.get("USDT", 100000) + (float(qty) * 60000)
+          portfolio[asset] = portfolio.get(asset, 0.0) - qty
+          portfolio["USDT"] = usdt_balance + (qty * live_price)
+          if asset in self.open_positions:
+              del self.open_positions[asset]
 
         with open(portfolio_path, "w") as f: json.dump(portfolio, f, indent=2)
         live_price = self.live_pulse.get(asset, {}).get("price", 60000)
@@ -1025,12 +1094,12 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
         except:
             return "Global market context unavailable"
 
-    def _get_btc_ta_brief(self) -> str:
-        """Calculate basic TA indicators for BTC."""
+    @staticmethod
+    def _calculate_ta(ticker: str) -> dict:
         import yfinance as yf
         try:
-            df = yf.Ticker("BTC-USD").history(period="30d")
-            if df.empty: return "TA Data Unavailable"
+            df = yf.Ticker(ticker).history(period="30d")
+            if df.empty: return None
 
             delta = df['Close'].diff()
             gain  = (delta.where(delta > 0, 0)).rolling(window=14).mean()
@@ -1041,13 +1110,21 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
             current_rsi = rsi.iloc[-1]
             ma_20 = df['Close'].rolling(window=20).mean().iloc[-1]
             price = df['Close'].iloc[-1]
-
-            trend    = "Bullish (Above 20MA)" if price > ma_20 else "Bearish (Below 20MA)"
-            momentum = "Overbought" if current_rsi > 70 else "Oversold" if current_rsi < 30 else "Neutral"
-
-            return f"BTC RSI: {current_rsi:.1f} ({momentum}) | Price vs 20MA: {trend}"
+            return {"rsi": current_rsi, "ma_20": ma_20, "price": price}
         except:
-            return "Technical analysis computation failed"
+            return None
+
+    def _get_btc_ta_brief(self) -> str:
+        """Calculate basic TA indicators for BTC."""
+        ta = self._calculate_ta("BTC-USD")
+        if not ta:
+            return "TA Data Unavailable"
+        current_rsi = ta["rsi"]
+        ma_20 = ta["ma_20"]
+        price = ta["price"]
+        trend    = "Bullish (Above 20MA)" if price > ma_20 else "Bearish (Below 20MA)"
+        momentum = "Overbought" if current_rsi > 70 else "Oversold" if current_rsi < 30 else "Neutral"
+        return f"BTC RSI: {current_rsi:.1f} ({momentum}) | Price vs 20MA: {trend}"
 
     # ── TASK 3: Real Fear & Greed sentiment report ───────────────────────────
     def initiate_quantum_sentiment(self, message):
