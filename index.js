@@ -25,7 +25,8 @@ const { bootstrapUser } = require('./services/user_bootstrap');
 const {
   readSystemConfig,
   hydrateRuntimeProviders,
-  mergeAndSaveSystemConfig
+  mergeAndSaveSystemConfig,
+  hydrateTraderVault
 } = require('./services/system_config_service');
 const {
   forwardSpecialistAction,
@@ -395,6 +396,22 @@ app.use('/', vaultRouter);
 
 const customModesRouter = require('./routes/custom_modes');
 app.use('/api', customModesRouter);
+
+// ── Internal API for Python Sidecar ──────────────────────────────────────────
+// trader.py hits this on startup to securely load decrypted API keys
+app.get('/api/internal/trader/keys', (req, res) => {
+  if (req.ip !== '127.0.0.1' && req.ip !== '::1' && req.ip !== '::ffff:127.0.0.1') {
+    return res.status(403).json({ error: 'Localhost access only' });
+  }
+  try {
+    const keys = hydrateTraderVault();
+    res.json({ keys });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to hydrate vault keys' });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const memoryRoutes = require('./routes/memory');
@@ -5911,6 +5928,37 @@ app.get('/tts/voices', (req, res) => {
 
 
 // ─── Chat History Endpoints ────────────────────────────────────────────────
+// ── TRADER DAEMON SIGNAL WATCHER ─────────────────────────────────────────────
+const SIGNALS_PATH = path.join(__dirname, 'memory', 'signals.json');
+let lastSignalTime = 0;
+
+try {
+  if (!fs.existsSync(path.dirname(SIGNALS_PATH))) fs.mkdirSync(path.dirname(SIGNALS_PATH), { recursive: true });
+  if (!fs.existsSync(SIGNALS_PATH)) fs.writeFileSync(SIGNALS_PATH, '[]', 'utf-8');
+
+  fs.watch(SIGNALS_PATH, (eventType) => {
+    if (eventType === 'change') {
+      try {
+        const raw = fs.readFileSync(SIGNALS_PATH, 'utf-8');
+        const signals = JSON.parse(raw);
+        if (Array.isArray(signals) && signals.length > 0) {
+          const latest = signals[0]; // trader.py inserts at index 0
+          const signalTime = new Date(latest.timestamp).getTime();
+          if (signalTime > lastSignalTime) {
+            lastSignalTime = signalTime;
+            io.emit('APEX_SIGNAL', latest);
+          }
+        }
+      } catch (e) {
+        // file might be locked or partially written, ignore
+      }
+    }
+  });
+} catch (e) {
+  console.warn('[TRADER] Failed to init signals watcher:', e.message);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
 

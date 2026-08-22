@@ -1,7 +1,12 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth_middleware');
 const { saveUserKeys, getKeyStatus, getUserKeys } = require('../services/vault_service');
-const { mergeAndSaveSystemConfig } = require('../services/system_config_service');
+const {
+  mergeAndSaveSystemConfig,
+  persistTraderVault,
+  hydrateTraderVault,
+  readSystemConfig
+} = require('../services/system_config_service');
 
 const router = express.Router();
 
@@ -257,6 +262,129 @@ router.post(['/ai-vault/test', '/api/vault/test'], requireAuth, async (req, res)
     res.status(200).json({ success: true, message: `${provider} is configured and ready for runtime use.` });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to connect to provider.', code: 'VAULT_TEST_FAILED' });
+  }
+});
+
+
+/**
+ * POST /trading-vault
+ * Save encrypted Binance + Alpaca API keys and paper/live toggle.
+ * No auth token required — uses same local encryption as external APIs.
+ */
+router.post(['/trading-vault', '/api/vault/trading/save'], async (req, res) => {
+  try {
+    const {
+      binanceApiKey = '',
+      binanceSecretKey = '',
+      alpacaApiKey = '',
+      alpacaSecretKey = '',
+      paperTrading = true,
+      hasBinanceApi = false,
+      hasBinanceSecret = false,
+      hasAlpacaApi = false,
+      hasAlpacaSecret = false
+    } = req.body || {};
+
+    const result = mergeAndSaveSystemConfig({
+      traderVault: {
+        binanceApiKey,
+        binanceSecretKey,
+        alpacaApiKey,
+        alpacaSecretKey,
+        paperTrading: Boolean(paperTrading),
+        hasBinanceApi: Boolean(hasBinanceApi) || Boolean(binanceApiKey),
+        hasBinanceSecret: Boolean(hasBinanceSecret) || Boolean(binanceSecretKey),
+        hasAlpacaApi: Boolean(hasAlpacaApi) || Boolean(alpacaApiKey),
+        hasAlpacaSecret: Boolean(hasAlpacaSecret) || Boolean(alpacaSecretKey)
+      }
+    });
+
+    if (!result.ok) throw new Error('Failed to save trading vault.');
+
+    const savedVault = result.next?.traderVault || {};
+    console.log('[VAULT] Trading keys secured successfully.');
+
+    res.status(200).json({
+      success: true,
+      message: 'Trading credentials secured.',
+      traderVault: {
+        hasBinanceApi: Boolean(savedVault.hasBinanceApi),
+        hasBinanceSecret: Boolean(savedVault.hasBinanceSecret),
+        hasAlpacaApi: Boolean(savedVault.hasAlpacaApi),
+        hasAlpacaSecret: Boolean(savedVault.hasAlpacaSecret),
+        binanceApiKeyMask: savedVault.binanceApiKeyMask || (savedVault.hasBinanceApi ? 'Saved Locally' : ''),
+        binanceSecretKeyMask: savedVault.binanceSecretKeyMask || (savedVault.hasBinanceSecret ? 'Saved Locally' : ''),
+        alpacaApiKeyMask: savedVault.alpacaApiKeyMask || (savedVault.hasAlpacaApi ? 'Saved Locally' : ''),
+        alpacaSecretKeyMask: savedVault.alpacaSecretKeyMask || (savedVault.hasAlpacaSecret ? 'Saved Locally' : ''),
+        paperTrading: Boolean(savedVault.paperTrading ?? true)
+      }
+    });
+  } catch (err) {
+    console.error('[VAULT ROUTE ERR] Trading vault save failed:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to secure trading credentials.', code: 'TRADER_VAULT_SAVE_FAILED' });
+  }
+});
+
+/**
+ * GET /trading-vault/status
+ * Returns masked status of Binance + Alpaca keys.
+ */
+router.get(['/trading-vault/status', '/api/vault/trading/status'], async (req, res) => {
+  try {
+    const cfg = readSystemConfig();
+    const tv = cfg?.traderVault || {};
+    res.status(200).json({
+      success: true,
+      traderVault: {
+        hasBinanceApi: Boolean(tv.hasBinanceApi),
+        hasBinanceSecret: Boolean(tv.hasBinanceSecret),
+        hasAlpacaApi: Boolean(tv.hasAlpacaApi),
+        hasAlpacaSecret: Boolean(tv.hasAlpacaSecret),
+        binanceApiKeyMask: tv.binanceApiKeyMask || (tv.hasBinanceApi ? 'Saved Locally' : ''),
+        binanceSecretKeyMask: tv.binanceSecretKeyMask || (tv.hasBinanceSecret ? 'Saved Locally' : ''),
+        alpacaApiKeyMask: tv.alpacaApiKeyMask || (tv.hasAlpacaApi ? 'Saved Locally' : ''),
+        alpacaSecretKeyMask: tv.alpacaSecretKeyMask || (tv.hasAlpacaSecret ? 'Saved Locally' : ''),
+        paperTrading: Boolean(tv.paperTrading ?? true)
+      }
+    });
+  } catch (err) {
+    console.error('[VAULT ROUTE ERR] Trading vault status failed:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to read trading vault status.', code: 'TRADER_VAULT_STATUS_FAILED' });
+  }
+});
+
+/**
+ * DELETE /trading-vault/clear
+ * Clears a specific trading key or all trading keys.
+ */
+router.delete(['/trading-vault/clear', '/api/vault/trading/clear'], async (req, res) => {
+  try {
+    const { field } = req.body || {};
+    const cfg = readSystemConfig();
+    const tv = cfg?.traderVault || {};
+
+    const clearMap = {
+      binanceApiKey:    { hasBinanceApi: false,   binanceApiKeyMask: '' },
+      binanceSecretKey: { hasBinanceSecret: false, binanceSecretKeyMask: '' },
+      alpacaApiKey:     { hasAlpacaApi: false,     alpacaApiKeyMask: '' },
+      alpacaSecretKey:  { hasAlpacaSecret: false,  alpacaSecretKeyMask: '' },
+    };
+
+    const patch = field && clearMap[field]
+      ? { ...tv, [field]: '', ...clearMap[field] }
+      : {
+          binanceApiKey: '', hasBinanceApi: false, binanceApiKeyMask: '',
+          binanceSecretKey: '', hasBinanceSecret: false, binanceSecretKeyMask: '',
+          alpacaApiKey: '', hasAlpacaApi: false, alpacaApiKeyMask: '',
+          alpacaSecretKey: '', hasAlpacaSecret: false, alpacaSecretKeyMask: '',
+          paperTrading: Boolean(tv.paperTrading ?? true)
+        };
+
+    mergeAndSaveSystemConfig({ traderVault: patch });
+    res.status(200).json({ success: true, message: field ? `${field} cleared.` : 'All trading keys cleared.' });
+  } catch (err) {
+    console.error('[VAULT ROUTE ERR] Trading vault clear failed:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to clear trading credentials.', code: 'TRADER_VAULT_CLEAR_FAILED' });
   }
 });
 

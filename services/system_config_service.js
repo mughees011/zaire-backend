@@ -76,6 +76,82 @@ function sanitizeApiSlots(slots = []) {
     });
 }
 
+
+function normalizeTraderVault(traderVault = {}) {
+  return {
+    binanceApiKey: String(traderVault.binanceApiKey || '').trim(),
+    binanceSecretKey: String(traderVault.binanceSecretKey || '').trim(),
+    alpacaApiKey: String(traderVault.alpacaApiKey || '').trim(),
+    alpacaSecretKey: String(traderVault.alpacaSecretKey || '').trim(),
+    paperTrading: Boolean(traderVault.paperTrading ?? true),
+    hasBinanceApi: Boolean(traderVault.hasBinanceApi),
+    hasBinanceSecret: Boolean(traderVault.hasBinanceSecret),
+    hasAlpacaApi: Boolean(traderVault.hasAlpacaApi),
+    hasAlpacaSecret: Boolean(traderVault.hasAlpacaSecret)
+  };
+}
+
+function persistTraderVault(traderVault = {}) {
+  const clean = normalizeTraderVault(traderVault);
+  const secrets = loadSecrets();
+  if (!secrets.traderVault) secrets.traderVault = {};
+  
+  const processKey = (keyName, hasKeyName) => {
+     if (clean[keyName]) {
+       try {
+         secrets.traderVault[keyName] = encryptStoredSecret(clean[keyName]);
+         clean[hasKeyName] = true;
+       } catch (err) {
+         console.error('[SECRETS] Trader vault encrypt failed:', err.message);
+         delete secrets.traderVault[keyName];
+       }
+     } else if (!clean[hasKeyName]) {
+       delete secrets.traderVault[keyName];
+     } else if (secrets.traderVault[keyName]) {
+       clean[hasKeyName] = true;
+     }
+     
+     // Apply masking pattern from vault_service.js
+     if (clean[hasKeyName]) {
+         clean[keyName + 'Mask'] = 'Saved Locally';
+     }
+     clean[keyName] = ''; 
+  };
+
+  processKey('binanceApiKey', 'hasBinanceApi');
+  processKey('binanceSecretKey', 'hasBinanceSecret');
+  processKey('alpacaApiKey', 'hasAlpacaApi');
+  processKey('alpacaSecretKey', 'hasAlpacaSecret');
+
+  saveSecrets(secrets);
+  return clean;
+}
+
+function hydrateTraderVault() {
+  const cfg = readSystemConfig();
+  const tv = normalizeTraderVault(cfg?.traderVault || {});
+  const secrets = loadSecrets();
+
+  const loadKey = (keyName) => {
+    const enc = secrets.traderVault?.[keyName];
+    if (enc) {
+      try { return decryptStoredSecret(enc); } catch(e) {}
+    }
+    return '';
+  };
+
+  tv.binanceApiKey = loadKey('binanceApiKey');
+  tv.binanceSecretKey = loadKey('binanceSecretKey');
+  tv.alpacaApiKey = loadKey('alpacaApiKey');
+  tv.alpacaSecretKey = loadKey('alpacaSecretKey');
+  
+  tv.hasBinanceApi = Boolean(tv.binanceApiKey);
+  tv.hasBinanceSecret = Boolean(tv.binanceSecretKey);
+  tv.hasAlpacaApi = Boolean(tv.alpacaApiKey);
+  tv.hasAlpacaSecret = Boolean(tv.alpacaSecretKey);
+  return tv;
+}
+
 function normalizeExternalApiEntries(entries = []) {
   return (Array.isArray(entries) ? entries : [])
     .slice(0, 24)
@@ -399,6 +475,11 @@ function mergeAndSaveSystemConfig(config = {}) {
     next.externalApis = persistExternalApiEntries(config.externalApis);
   }
 
+  if (config?.traderVault) {
+    next.traderVault = persistTraderVault(config.traderVault);
+  }
+
+
   const ok = writeSystemConfig(next);
   return { ok, next };
 }
@@ -412,6 +493,9 @@ module.exports = {
   normalizeExternalApiEntries,
   persistAiVaultSlots,
   persistExternalApiEntries,
+  normalizeTraderVault,
+  persistTraderVault,
+  hydrateTraderVault,
   hydrateRuntimeProviders,
   hydrateExternalApiEntries,
   mergeAndSaveSystemConfig

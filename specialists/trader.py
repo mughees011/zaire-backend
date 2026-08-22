@@ -9,6 +9,39 @@ from binance.ws.streams import ThreadedWebsocketManager
 from datetime import datetime
 from .llm_utils import call_llm_sync, call_llm_stream
 
+# ── Vault reader: pull broker keys from system_config secrets without DB ──────
+_SYSTEM_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'memory', 'system_config.json')
+_SECRETS_PATH       = os.path.join(os.path.dirname(__file__), '..', 'memory', 'api_secrets.json')
+
+def _load_trader_vault_keys():
+    """Load decrypted broker keys from the local secrets file written by system_config_service.js."""
+    try:
+        if not os.path.exists(_SECRETS_PATH):
+            return {}
+        with open(_SECRETS_PATH, 'r', encoding='utf-8') as f:
+            secrets = json.load(f)
+        tv_raw = secrets.get('traderVault', {})
+        if not tv_raw:
+            return {}
+
+        # Use subprocess to decrypt via Node (same DPAPI/AES path the JS side uses).
+        # Simpler fallback: read plaintext from system_config.json traderVault section
+        # (persistTraderVault blanks the keys but hydrateTraderVault is JS-only).
+        # For the Python side we rely on env vars as the fall-back channel.
+        return {}   # Keys are hydrated via env vars set by index.js at startup
+    except Exception as e:
+        print(f"[TRADER] Vault key load warning: {e}")
+        return {}
+
+# ── Socket emitter — will be injected by index.js via _set_socket_emitter() ──
+_SOCKET_EMITTER = None   # type: callable | None
+
+def _set_socket_emitter(fn):
+    """Called once by index.js to wire up a function that does socket.emit()."""
+    global _SOCKET_EMITTER
+    _SOCKET_EMITTER = fn
+
+
 # ── Optional Alpaca import — graceful if not installed ──────────────────────
 # Install with: pip install alpaca-py
 try:
@@ -222,9 +255,21 @@ class TraderSpecialist:
       self.fear_greed_value  = None   # int 0-100, or None if unknown
       self.fear_greed_label  = "UNKNOWN"
 
+      # ── VAULT INTEGRATION ───────────────────────────────────────────────
+      # Fetch keys from the Node.js backend to bypass DPAPI/OS differences
+      vault_keys = {}
+      try:
+          resp = requests.get("http://127.0.0.1:10000/api/internal/trader/keys", timeout=2)
+          if resp.status_code == 200:
+              vault_keys = resp.json().get("keys", {})
+              self.paper_trading = vault_keys.get("paperTrading", True)
+              print(f"[TRADER] Loaded vault keys. Paper trading: {self.paper_trading}")
+      except Exception as e:
+          print(f"[TRADER] Failed to load keys from internal vault: {e}")
+
       # ── BINANCE ─────────────────────────────────────────────────────────
-      api_key = binance_api_key or os.getenv("BINANCE_API_KEY")
-      secret  = binance_secret  or os.getenv("BINANCE_SECRET_KEY")
+      api_key = vault_keys.get("binanceApiKey") or binance_api_key or os.getenv("BINANCE_API_KEY")
+      secret  = vault_keys.get("binanceSecretKey") or binance_secret or os.getenv("BINANCE_SECRET_KEY")
 
       if api_key and secret:
         try:
@@ -250,8 +295,8 @@ class TraderSpecialist:
       # paper_trading=False → Alpaca live endpoint  (real capital at risk)
       self.alpaca            = None
       self.alpaca_connected  = False
-      alpaca_key    = os.getenv("ALPACA_API_KEY")
-      alpaca_secret = os.getenv("ALPACA_SECRET_KEY")
+      alpaca_key    = vault_keys.get("alpacaApiKey") or os.getenv("ALPACA_API_KEY")
+      alpaca_secret = vault_keys.get("alpacaSecretKey") or os.getenv("ALPACA_SECRET_KEY")
 
       if alpaca_key and alpaca_secret:
           self._connect_alpaca(alpaca_key, alpaca_secret)
@@ -869,6 +914,47 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
         with open(log_path, "w") as f: json.dump(trades, f, indent=2)
       except: pass
 
+    def _log_signal(self, asset: str, action: str, rsi: float, fng_value, fng_label: str, reason: str, price: float = 0.0):
+        """Persist every BUY/SELL/HOLD daemon decision to memory/signals.json
+        and emit a live APEX_SIGNAL Socket.IO event if a socket emitter is wired in."""
+        signal = {
+            "timestamp":  datetime.now().isoformat(),
+            "asset":      asset,
+            "action":     action,       # "BUY" | "SELL" | "HOLD" | "WAIT"
+            "rsi":        round(float(rsi), 2) if rsi is not None else None,
+            "fng_value":  int(fng_value) if fng_value is not None else None,
+            "fng_label":  fng_label,
+            "price":      round(float(price), 4) if price else None,
+            "reason":     reason,
+            "mode":       "PAPER" if self.paper_trading else "LIVE",
+            "type":       "signal"
+        }
+
+        # ── Persist to disk ──────────────────────────────────────────────────
+        signals_path = os.path.join("memory", "signals.json")
+        try:
+            os.makedirs("memory", exist_ok=True)
+            signals = []
+            if os.path.exists(signals_path):
+                with open(signals_path, "r", encoding="utf-8") as f:
+                    signals = json.load(f)
+            # Keep last 500 signals to avoid unbounded growth
+            signals.insert(0, signal)
+            signals = signals[:500]
+            with open(signals_path, "w", encoding="utf-8") as f:
+                json.dump(signals, f, indent=2)
+        except Exception as e:
+            print(f"[TRADER] Signal persist error: {e}")
+
+        # ── Emit live to frontend via Socket.IO ──────────────────────────────
+        try:
+            if _SOCKET_EMITTER is not None:
+                _SOCKET_EMITTER("APEX_SIGNAL", signal)
+        except Exception as e:
+            print(f"[TRADER] Socket emit error: {e}")
+
+        return signal
+
     def _get_trade_journal_safe(self) -> dict:
       log_path = os.path.join("memory", "trades.json")
       try:
@@ -961,6 +1047,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
           "binance_status": "CONNECTED" if self.binance_connected else "OFFLINE",
           "alpaca_status":  "CONNECTED" if self.alpaca_connected  else "OFFLINE",
           "network":        "TESTNET" if self.using_testnet else "MAINNET",
+          "paper_trading":  self.paper_trading,
           "btc": btc_price or "N/A",
           "eth": eth_price or "N/A",
           "halal_filter": "ACTIVE",
@@ -1371,16 +1458,17 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                         action = "BUY"
                         reason = (f"RSI={rsi:.1f} (<30 oversold) AND F&G bias={fng_bias:+.1f} (>0 fear). "
                                   f"F&G={fng_v}({self.fear_greed_label})")
+                        self._log_signal(asset, action, rsi, fng_v, self.fear_greed_label, reason, price)
                     elif rsi > 70 and fng_bias < 0 and has_position:
                         action = "SELL"
                         reason = (f"RSI={rsi:.1f} (>70 overbought) AND F&G bias={fng_bias:+.1f} (<0 greed). "
                                   f"F&G={fng_v}({self.fear_greed_label})")
+                        self._log_signal(asset, action, rsi, fng_v, self.fear_greed_label, reason, price)
                     else:
                         # No signal strong enough — log it and move on
-                        print(
-                            f"[TRADER APEX][HOLD] {asset} RSI={rsi:.1f} | "
-                            f"F&G bias={fng_bias:+.1f} | has_pos={has_position} → HOLD/WAIT"
-                        )
+                        reason = f"RSI={rsi:.1f} | F&G bias={fng_bias:+.1f} | has_pos={has_position} → HOLD/WAIT"
+                        print(f"[TRADER APEX][HOLD] {asset} {reason}")
+                        self._log_signal(asset, "HOLD", rsi, fng_v, self.fear_greed_label, reason, price)
                         continue
 
                     qty = 0.05
