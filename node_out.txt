@@ -1,20 +1,14 @@
-◇ injected env (21) from .env // tip: ⌘ enable debugging { debug: true }
-◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
-◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+◇ injected env (21) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
 [BRIEFING] Restored last briefing time: 5/17/2026, 7:58:56 PM
-◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
 [GOOGLE] Existing tokens loaded and client ready.
 [DATABASE] Starting database migration check...
 [OBSERVER] Starting ZAIRE Observer Daemon (Vision & HUD)...
 ZAIRE backend running on port 10000
-[OBSERVER] [OBSERVER] Warning: face_recognition not found. Identification disabled.
-[OBSERVER] [VISION] Standing by. Dependencies not ready yet.
 [CORE] Starting local ZAIRE daemons...
 [CLEANUP] Inspecting for orphaned sidecars...
-[OBSERVER] INFO:     Started server process [22864]
-[OBSERVER] INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:3003 (Press CTRL+C to quit)
 [CLEANUP] Python sidecars purged.
 [CORE] Initialization sequence starting with compact worker profile...
 [AGENT] Starting Gemma 4 Agent Daemon...
@@ -36,10 +30,12 @@ INFO:     Uvicorn running on http://127.0.0.1:3003 (Press CTRL+C to quit)
   ZAIRE System Health Monitor
   Flask server on port 3009
 ==============================================
-[SYS_HEALTH] [HEALTH] Background sampler started (2s interval).
-[SYS_HEALTH] * Serving Flask app 'system_health'
+
+[HEALTH] Background sampler started (2s interval).
+ * Serving Flask app 'system_health'
  * Debug mode: off
 [TRADER DAEMON] [TRADER] Starting standalone daemon mode (via run_trader.py)...
+[TRADER DAEMON] [TRADER] Loaded vault keys. Paper trading: True
 [SECURITY] [SECURITY]  face_recognition not found. Run: pip install face-recognition
 [SECURITY] Ready on port 3011
 [SECURITY] ======================================================
@@ -48,40 +44,22 @@ INFO:     Uvicorn running on http://127.0.0.1:3003 (Press CTRL+C to quit)
   Lock delay:  15s | Camera: 0
   cv2=True  face_recognition=False
 ======================================================
-[SECURITY] * Serving Flask app 'face_security'
+
+ * Serving Flask app 'face_security'
  * Debug mode: off
-[TRADER DAEMON] [TRADER] Loaded vault keys. Paper trading: True
-[AGENT] [TRADER] Loaded vault keys. Paper trading: True
 [TRADER DAEMON] [TRADER] Binance connected — TESTNET mode
-[AGENT] [TRADER] Binance connected — TESTNET mode
 [TRADER DAEMON] [TRADER] Stark Pulse Active — Streaming 8 live assets.
-[TRADER] No Alpaca keys provided — stocks analysis-only mode
-[TRADER DAEMON] [TRADER APEX] Daemon thread started. ZAIRE is now watching 24/7.
-[AGENT] [TRADER] Stark Pulse Active — Streaming 8 live assets.
-[AGENT] [TRADER] No Alpaca keys provided — stocks analysis-only mode
-[SECURITY] [SECURITY 16:30:24] [AUTO-START] Activating vision loop on startup...
-[SECURITY] [SECURITY 16:30:24]  face_recognition not found. Using Haar Cascade fallback — any face = Master.
-[SECURITY] [SECURITY 16:30:26] 📷 Camera 0 opened. Security loop active.
+[TRADER DAEMON] [TRADER] No Alpaca keys provided — stocks analysis-only mode
+[TRADER APEX] Daemon thread started. ZAIRE is now watching 24/7.
 [OBSERVER] Starting ZAIRE Observer Daemon (Vision & HUD)...
-[OBSERVER] [OBSERVER] Warning: face_recognition not found. Identification disabled.
-[OBSERVER] [VISION] Standing by. Dependencies not ready yet.
-[OBSERVER] 
-[OBSERVER] INFO:     Started server process [10560]
+[SECURITY] [SECURITY 16:59:11] [AUTO-START] Activating vision loop on startup...
+[SECURITY] [SECURITY 16:59:11]  face_recognition not found. Using Haar Cascade fallback — any face = Master.
+[OBSERVER] INFO:     Started server process [12376]
 [OBSERVER] INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:3003 (Press CTRL+C to quit)
-[TRADER DAEMON] [TRADER APEX][HEARTBEAT] Daemon alive (PAUSED). Positions=0 | F&G=UNKNOWN | Mode=PAPER | 16:30:30
-[TRADER DAEMON] [TRADER APEX][HEARTBEAT] Daemon alive (PAUSED). Positions=0 | F&G=UNKNOWN | Mode=PAPER | 16:30:36
-[SECURITY] [SECURITY 16:30:37] Auto-registration error: name 'face_recognition' is not defined
-[TRADER DAEMON] [TRADER APEX][HOLD] BTC RSI=82.5 | F&G bias=-0.5 | has_pos=False → HOLD/WAIT
-[TRADER DAEMON] [TRADER APEX][HOLD] ETH RSI=82.6 | F&G bias=-0.5 | has_pos=False → HOLD/WAIT
-[TRADER DAEMON] [TRADER APEX][HOLD] SOL RSI=89.5 | F&G bias=-0.5 | has_pos=False → HOLD/WAIT
-[TRADER DAEMON] [TRADER APEX][HOLD] LINK RSI=85.2 | F&G bias=-0.5 | has_pos=False → HOLD/WAIT
-[TRADER DAEMON] [TRADER APEX][HOLD] AVAX RSI=74.2 | F&G bias=-0.5 | has_pos=False → HOLD/WAIT
-[SECURITY] [SECURITY 16:30:49] Auto-registration error: name 'face_recognition' is not defined
-[TRADER DAEMON] [TRADER APEX][HEARTBEAT] Daemon alive (PAUSED). Positions=0 | F&G=66(Greed) | Mode=PAPER | 16:30:50
-[TRADER] Exited with code 4294967295. Restarting in 5s... (Crash 1/5 in last 10m)
-[TRADER] Starting Trader Daemon...
-[TRADER DAEMON] [TRADER] Starting standalone daemon mode (via run_trader.py)...
-[TRADER DAEMON] [TRADER] Loaded vault keys. Paper trading: True
-[TRADER DAEMON] [TRADER] Binance connected — TESTNET mode
+[OBSERVER] INFO:     Uvicorn running on http://127.0.0.1:3003 (Press CTRL+C to quit)
+[AGENT] [TRADER] Loaded vault keys. Paper trading: True
+[TRADER] Binance connected — TESTNET mode
+[TRADER] Stark Pulse Active — Streaming 8 live assets.
+[TRADER] No Alpaca keys provided — stocks analysis-only mode
+[SECURITY] [SECURITY 16:59:13] 📷 Camera 0 opened. Security loop active.

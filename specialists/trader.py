@@ -858,6 +858,84 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
         except Exception as e:
             return f"Stock trade failed, sir. Error: {str(e)}"
 
+    def _get_portfolio_safe(self) -> str:
+      if not self.binance_connected: return "Not connected"
+      try:
+        account = self.binance.get_account()
+        balances = [f"{b['asset']}: {b['free']}" for b in account['balances'] if float(b['free']) > 0]
+        return "\n".join(balances[:10])
+      except: return "Portfolio data unavailable"
+
+    def _sync_real_portfolio(self):
+        """Fetch actual Alpaca and Binance portfolio and save to real_portfolio.json."""
+        portfolio = {
+            "timestamp": datetime.now().isoformat(),
+            "crypto": {"status": "Not connected", "assets": [], "totalValue": 0.0},
+            "stocks": {"status": "Not connected", "assets": [], "totalValue": 0.0},
+            "totalNav": 0.0
+        }
+        
+        # Crypto (Binance)
+        if self.binance_connected:
+            try:
+                account = self.binance.get_account()
+                assets = []
+                total_val = 0.0
+                prices = {}
+                try: prices = self.binance.get_all_tickers()
+                except: pass
+                
+                for b in account['balances']:
+                    qty = float(b['free']) + float(b['locked'])
+                    if qty > 0:
+                        asset = b['asset']
+                        val = qty
+                        if asset != "USDT":
+                            pair = f"{asset}USDT"
+                            if pair in prices: val = qty * float(prices[pair])
+                            else: val = 0.0 # Unknown value
+                        assets.append({"asset": asset, "quantity": qty, "usdValue": val})
+                        total_val += val
+                        
+                portfolio["crypto"] = {"status": "Connected", "assets": assets, "totalValue": total_val}
+                portfolio["totalNav"] += total_val
+            except Exception as e:
+                portfolio["crypto"]["status"] = f"Error: {str(e)}"
+                
+        # Stocks (Alpaca)
+        if self.alpaca_connected and self.alpaca:
+            try:
+                account = self.alpaca.get_account()
+                equity = float(account.equity)
+                portfolio["stocks"]["status"] = "Connected"
+                portfolio["stocks"]["totalValue"] = equity
+                portfolio["totalNav"] += equity
+                
+                # Fetch positions
+                if _ALPACA_LEGACY:
+                    positions = self.alpaca.list_positions()
+                    portfolio["stocks"]["assets"] = [
+                        {"asset": p.symbol, "quantity": float(p.qty), "usdValue": float(p.market_value)}
+                        for p in positions
+                    ]
+                else:
+                    # new alpaca-py uses get_all_positions
+                    positions = self.alpaca.get_all_positions()
+                    portfolio["stocks"]["assets"] = [
+                        {"asset": p.symbol, "quantity": float(p.qty), "usdValue": float(p.market_value)}
+                        for p in positions
+                    ]
+            except Exception as e:
+                portfolio["stocks"]["status"] = f"Error: {str(e)}"
+                
+        # Write out
+        try:
+            os.makedirs("memory", exist_ok=True)
+            with open(os.path.join("memory", "real_portfolio.json"), "w") as f:
+                json.dump(portfolio, f, indent=2)
+        except:
+            pass
+
     def _shariah_analysis(self, symbol: str, original_message: str):
       analysis_prompt = f"""
       The user asked about {symbol} which is NOT on the
@@ -1351,6 +1429,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                       f"Mode={'PAPER' if self.paper_trading else 'LIVE'} | "
                       f"{datetime.now().strftime('%H:%M:%S')}")
                 last_heartbeat_time = now
+                self._sync_real_portfolio()
             
             if not self.apex_active:
                 time.sleep(CYCLE_SLEEP)

@@ -1,11 +1,5 @@
 [
   {
-    "type": "LOCK",
-    "detail": "PC auto-locked after 16s absence.",
-    "snapshot": "",
-    "time": "2026-05-14T16:45:50.150490"
-  },
-  {
     "type": "UNLOCK",
     "detail": "Master face confirmed \u2014 presence restored.",
     "snapshot": "",
@@ -1198,5 +1192,11 @@
     "detail": "Vision loop auto-started on daemon launch.",
     "snapshot": "",
     "time": "2026-08-23T16:30:24.867319"
+  },
+  {
+    "type": "AUTO_START",
+    "detail": "Vision loop auto-started on daemon launch.",
+    "snapshot": "",
+    "time": "2026-08-23T16:59:11.690932"
   }
 ]

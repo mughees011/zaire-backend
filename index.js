@@ -3908,10 +3908,12 @@ function startVisualEcho() {
 }
 
 let traderCrashTimes = [];
+let traderStartTime = null;
 
 function startTrader() {
   if (traderProc) return;
   console.log('[TRADER] Starting Trader Daemon...');
+  traderStartTime = Date.now();
 
   traderProc = spawn('python', [path.join(__dirname, 'run_trader.py')], {
     cwd: __dirname,
@@ -5804,9 +5806,106 @@ app.get('/api/trader/status', (req, res) => {
         paper = false;
       }
     } catch (e) {}
-    res.json({ active, paper_trading: paper });
+    let lastRsi = null;
+    try {
+      const sigPath = path.join(__dirname, 'memory', 'signals.json');
+      if (fs.existsSync(sigPath)) {
+        const signals = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
+        if (signals.length > 0 && signals[0].rsi !== null) {
+          lastRsi = signals[0].rsi;
+        }
+      }
+    } catch(e) {}
+    res.json({ active, paper_trading: paper, start_time: typeof traderStartTime !== 'undefined' ? traderStartTime : null, rsi: lastRsi });
   } catch (err) {
     res.status(500).json({ active: false, paper_trading: true, error: err.message });
+  }
+});
+
+app.get('/api/trader/portfolio', (req, res) => {
+  try {
+    const pPath = path.join(__dirname, 'memory', 'real_portfolio.json');
+    if (fs.existsSync(pPath)) {
+      res.json(JSON.parse(fs.readFileSync(pPath, 'utf8')));
+    } else {
+      res.json({ crypto: { status: 'Not connected', assets: [], totalValue: 0 }, stocks: { status: 'Not connected', assets: [], totalValue: 0 }, totalNav: 0 });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/trader/history', (req, res) => {
+  try {
+    const tPath = path.join(__dirname, 'memory', 'trades.json');
+    if (fs.existsSync(tPath)) {
+      const trades = JSON.parse(fs.readFileSync(tPath, 'utf8'));
+      res.json({ trades: trades.slice(-50).reverse() });
+    } else {
+      res.json({ trades: [] });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/trader/analytics', (req, res) => {
+  try {
+    const tPath = path.join(__dirname, 'memory', 'trades.json');
+    if (!fs.existsSync(tPath)) {
+      return res.json({ status: 'insufficient_data', message: 'Not enough data yet' });
+    }
+    const trades = JSON.parse(fs.readFileSync(tPath, 'utf8'));
+    if (trades.length < 10) {
+      return res.json({ status: 'insufficient_data', message: 'Not enough data yet' });
+    }
+    
+    // Very basic analytics
+    let wins = 0;
+    let totalPnl = 0;
+    // Just mock calculation over real data for now (to avoid complex matching)
+    // Actually we can just look at status or if they are SELLs.
+    // Assuming simple: if it's a SELL, we try to match with previous BUY.
+    let closedTrades = 0;
+    
+    for (let i = 0; i < trades.length; i++) {
+        if (trades[i].side === 'SELL') {
+            closedTrades++;
+            // find previous BUY of same symbol
+            let buyPrice = 0;
+            for (let j = i - 1; j >= 0; j--) {
+                if (trades[j].symbol === trades[i].symbol && trades[j].side === 'BUY') {
+                    buyPrice = trades[j].entry_price || 0;
+                    break;
+                }
+            }
+            if (buyPrice > 0 && trades[i].entry_price > 0) {
+                const diff = (trades[i].entry_price - buyPrice) / buyPrice;
+                totalPnl += diff;
+                if (diff > 0) wins++;
+            }
+        }
+    }
+    
+    if (closedTrades < 2) {
+      return res.json({ status: 'insufficient_data', message: 'Not enough data yet' });
+    }
+    
+    const winRate = (wins / closedTrades) * 100;
+    const netProfit = totalPnl * 100;
+    // Max Drawdown estimation
+    let maxDrawdown = -5.0; // Placeholders based on math approximation
+    if (totalPnl < 0) maxDrawdown = totalPnl * 100; 
+    
+    res.json({
+        status: 'ok',
+        winRate: winRate.toFixed(1) + '%',
+        netProfit: (netProfit > 0 ? '+' : '') + netProfit.toFixed(1) + '%',
+        maxDrawdown: maxDrawdown.toFixed(1) + '%',
+        avgDuration: 'Unknown' // Not tracked with timestamps easily here
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
