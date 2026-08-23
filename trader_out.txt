@@ -1,0 +1,7 @@
+[TRADER] Starting standalone daemon mode (via run_trader.py)...
+[TRADER] Failed to load keys from internal vault: HTTPConnectionPool(host='127.0.0.1', port=10000): Max retries exceeded with url: /api/internal/trader/keys (Caused by ConnectTimeoutError(<HTTPConnection(host='127.0.0.1', port=10000) at 0x2a14c7f2e40>, 'Connection to 127.0.0.1 timed out. (connect timeout=2)'))
+[TRADER] No Binance keys provided — analysis-only mode
+[TRADER] No Alpaca keys provided — stocks analysis-only mode
+[TRADER APEX] Daemon thread started. ZAIRE is now watching 24/7.
+[TRADER APEX][HEARTBEAT] Daemon alive (ACTIVE). Positions=0 | F&G=UNKNOWN | Mode=PAPER | 20:27:01
+[TRADER APEX][HEARTBEAT] Daemon alive (PAUSED). Positions=0 | F&G=66(Greed) | Mode=PAPER | 20:27:08

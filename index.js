@@ -119,8 +119,9 @@ let smartHomeProc = null;
 let selfHealingProc = null;
 let weeklyBriefingProc = null;
 let airLLMProc = null;
+let traderProc = null;
 
-const BASELINE_DAEMON_SERVICES = new Set(['agent', 'processMonitor', 'sysHealth']);
+const BASELINE_DAEMON_SERVICES = new Set(['agent', 'processMonitor', 'sysHealth', 'trader']);
 const OPTIONAL_DAEMON_SERVICES = new Set([
   'vectorMemory',
   'localLLM',
@@ -3722,7 +3723,8 @@ function getManagedServices() {
     visualEcho: { start: startVisualEcho, getProcess: () => visualEchoProc, isReady: () => Boolean(visualEchoProc) },
     selfHealing: { start: startSelfHealingDaemon, getProcess: () => selfHealingProc, isReady: () => Boolean(selfHealingProc) },
     weeklyBriefing: { start: startWeeklyBriefingService, getProcess: () => weeklyBriefingProc, isReady: () => weeklyBriefingReady },
-    airllm: { start: startAirLLM, getProcess: () => airLLMProc, isReady: () => Boolean(airLLMProc) }
+    airllm: { start: startAirLLM, getProcess: () => airLLMProc, isReady: () => Boolean(airLLMProc) },
+    trader: { start: startTrader, getProcess: () => traderProc, isReady: () => Boolean(traderProc) }
   };
 }
 
@@ -3742,6 +3744,7 @@ function startBaselineDaemons() {
   startPythonSidecar();
   startProcessMonitor();
   startSysHealth();
+  startTrader();
   startFaceSecurity(); // Always start face security on boot
 }
 
@@ -3900,6 +3903,42 @@ function startVisualEcho() {
     if (shouldRestartManagedService('visualEcho')) {
       console.log(`[VISUAL ECHO] Exited with code ${code}. Restarting...`);
       setTimeout(startVisualEcho, 5000);
+    }
+  });
+}
+
+let traderCrashTimes = [];
+
+function startTrader() {
+  if (traderProc) return;
+  console.log('[TRADER] Starting Trader Daemon...');
+
+  traderProc = spawn('python', [path.join(__dirname, 'run_trader.py')], {
+    cwd: __dirname,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' }
+  });
+
+  traderProc.stdout.on('data', (data) => console.log(`[TRADER DAEMON] ${data.toString().trim()}`));
+  traderProc.stderr.on('data', (data) => console.error(`[TRADER DAEMON ERR] ${data.toString().trim()}`));
+
+  traderProc.on('exit', (code) => {
+    traderProc = null;
+    const now = Date.now();
+    
+    // Only count as crash if it wasn't a clean shutdown (we can treat any unexpected exit as a crash)
+    traderCrashTimes.push(now);
+    // Keep only crashes within the last 10 minutes (600,000 ms)
+    traderCrashTimes = traderCrashTimes.filter(t => now - t < 600000);
+
+    if (shouldRestartManagedService('trader')) {
+      if (traderCrashTimes.length >= 5) {
+        console.error(`[TRADER] CRITICAL ERROR: Trader daemon crashed ${traderCrashTimes.length} times in 10 minutes. Auto-restart disabled.`);
+      } else {
+        console.log(`[TRADER] Exited with code ${code}. Restarting in 5s... (Crash ${traderCrashTimes.length}/5 in last 10m)`);
+        setTimeout(startTrader, 5000);
+      }
     }
   });
 }
@@ -5748,6 +5787,68 @@ const DEFAULT_TRADER_SYMBOLS = [
   'SI=F',  // Silver futures
   'TSLA'
 ];
+
+app.get('/api/trader/status', (req, res) => {
+  try {
+    const ctrlPath = path.join(__dirname, 'memory', 'trader_control.json');
+    let active = false;
+    if (fs.existsSync(ctrlPath)) {
+      const data = JSON.parse(fs.readFileSync(ctrlPath, 'utf8'));
+      active = data.active;
+    }
+    // Respect system config or default to paper=true
+    let paper = true;
+    try {
+      const sysConf = JSON.parse(fs.readFileSync(path.join(__dirname, 'memory', 'system_config.json'), 'utf8'));
+      if (sysConf.traderVault && sysConf.traderVault.paperTrading === false) {
+        paper = false;
+      }
+    } catch (e) {}
+    res.json({ active, paper_trading: paper });
+  } catch (err) {
+    res.status(500).json({ active: false, paper_trading: true, error: err.message });
+  }
+});
+
+app.post('/api/trader/start', (req, res) => {
+  try {
+    const ctrlPath = path.join(__dirname, 'memory', 'trader_control.json');
+    fs.writeFileSync(ctrlPath, JSON.stringify({ active: true }), 'utf8');
+    
+    let paper = true;
+    try {
+      const sysConf = JSON.parse(fs.readFileSync(path.join(__dirname, 'memory', 'system_config.json'), 'utf8'));
+      if (sysConf.traderVault && sysConf.traderVault.paperTrading === false) {
+        paper = false;
+      }
+    } catch (e) {}
+
+    io.emit('TRADER_STATUS', { active: true, paper_trading: paper });
+    res.json({ ok: true, active: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/trader/stop', (req, res) => {
+  try {
+    const ctrlPath = path.join(__dirname, 'memory', 'trader_control.json');
+    fs.writeFileSync(ctrlPath, JSON.stringify({ active: false }), 'utf8');
+    
+    let paper = true;
+    try {
+      const sysConf = JSON.parse(fs.readFileSync(path.join(__dirname, 'memory', 'system_config.json'), 'utf8'));
+      if (sysConf.traderVault && sysConf.traderVault.paperTrading === false) {
+        paper = false;
+      }
+    } catch (e) {}
+
+    io.emit('TRADER_STATUS', { active: false, paper_trading: paper });
+    res.json({ ok: true, active: false });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 app.get('/api/trader/market-data', async (req, res) => {
   try {
