@@ -9,29 +9,6 @@ from binance.ws.streams import ThreadedWebsocketManager
 from datetime import datetime
 from .llm_utils import call_llm_sync, call_llm_stream
 
-# ── Vault reader: pull broker keys from system_config secrets without DB ──────
-_SYSTEM_CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'memory', 'system_config.json')
-_SECRETS_PATH       = os.path.join(os.path.dirname(__file__), '..', 'memory', 'api_secrets.json')
-
-def _load_trader_vault_keys():
-    """Load decrypted broker keys from the local secrets file written by system_config_service.js."""
-    try:
-        if not os.path.exists(_SECRETS_PATH):
-            return {}
-        with open(_SECRETS_PATH, 'r', encoding='utf-8') as f:
-            secrets = json.load(f)
-        tv_raw = secrets.get('traderVault', {})
-        if not tv_raw:
-            return {}
-
-        # Use subprocess to decrypt via Node (same DPAPI/AES path the JS side uses).
-        # Simpler fallback: read plaintext from system_config.json traderVault section
-        # (persistTraderVault blanks the keys but hydrateTraderVault is JS-only).
-        # For the Python side we rely on env vars as the fall-back channel.
-        return {}   # Keys are hydrated via env vars set by index.js at startup
-    except Exception as e:
-        print(f"[TRADER] Vault key load warning: {e}")
-        return {}
 
 # ── Internal signal endpoint for live frontend updates ────────────────────────
 _INTERNAL_BASE = "http://127.0.0.1:10000"
