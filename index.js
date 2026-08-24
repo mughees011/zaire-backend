@@ -5867,6 +5867,9 @@ app.get('/api/trader/analytics', (req, res) => {
     // Actually we can just look at status or if they are SELLs.
     // Assuming simple: if it's a SELL, we try to match with previous BUY.
     let closedTrades = 0;
+    let cumulative = 0;
+    let peak = 0;
+    let maxDrawdown = 0;
     
     for (let i = 0; i < trades.length; i++) {
         if (trades[i].side === 'SELL') {
@@ -5883,6 +5886,12 @@ app.get('/api/trader/analytics', (req, res) => {
                 const diff = (trades[i].entry_price - buyPrice) / buyPrice;
                 totalPnl += diff;
                 if (diff > 0) wins++;
+
+                const tradePnlPercent = diff * 100;
+                cumulative += tradePnlPercent;
+                peak = Math.max(peak, cumulative);
+                const drawdown = cumulative - peak;
+                maxDrawdown = Math.min(maxDrawdown, drawdown);
             }
         }
     }
@@ -5893,9 +5902,6 @@ app.get('/api/trader/analytics', (req, res) => {
     
     const winRate = (wins / closedTrades) * 100;
     const netProfit = totalPnl * 100;
-    // Max Drawdown estimation
-    let maxDrawdown = -5.0; // Placeholders based on math approximation
-    if (totalPnl < 0) maxDrawdown = totalPnl * 100; 
     
     res.json({
         status: 'ok',
