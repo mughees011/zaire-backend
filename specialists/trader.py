@@ -1433,6 +1433,65 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                     with open(control_path, 'r', encoding='utf-8') as f:
                         ctrl = json.load(f)
                         self.apex_active = ctrl.get('active', False)
+
+                        # ── TASK 2: Hot-reload broker keys ────────────────────
+                        if ctrl.get('reload_keys_requested', False):
+                            print("[TRADER APEX] reload_keys_requested detected — reconnecting brokers...", flush=True)
+                            try:
+                                # Re-fetch keys from Node vault
+                                resp = requests.get("http://127.0.0.1:10000/api/internal/trader/keys", timeout=3)
+                                if resp.status_code == 200:
+                                    new_keys = resp.json().get("keys", {})
+                                    self.paper_trading = new_keys.get("paperTrading", self.paper_trading)
+
+                                    # ── Reconnect Binance ─────────────────────
+                                    b_key    = new_keys.get("binanceApiKey", "")
+                                    b_secret = new_keys.get("binanceSecretKey", "")
+                                    if b_key and b_secret:
+                                        try:
+                                            old_twm = getattr(self, 'twm', None)
+                                            if old_twm:
+                                                try: old_twm.stop()
+                                                except Exception: pass
+                                            self.binance = Client(b_key, b_secret, testnet=self.using_testnet)
+                                            self.binance.ping()
+                                            self.binance_connected = True
+                                            mode = "TESTNET" if self.using_testnet else "MAINNET"
+                                            print(f"[TRADER APEX] Binance reconnected — {mode} mode", flush=True)
+                                            self.twm = ThreadedWebsocketManager(api_key=b_key, api_secret=b_secret, testnet=self.using_testnet)
+                                            self.twm.start()
+                                            self._start_live_streams()
+                                        except Exception as be:
+                                            safe_err = str(be).split("apiKey")[0][:120]  # never leak the key
+                                            print(f"[TRADER APEX] Binance reconnect error: {safe_err}", flush=True)
+                                            self.binance_connected = False
+                                            self._write_broker_status(error_msg=safe_err)
+                                    else:
+                                        print("[TRADER APEX] No Binance keys in vault — skipping Binance reconnect", flush=True)
+
+                                    # ── Reconnect Alpaca ──────────────────────
+                                    a_key    = new_keys.get("alpacaApiKey", "")
+                                    a_secret = new_keys.get("alpacaSecretKey", "")
+                                    if a_key and a_secret:
+                                        self._connect_alpaca(a_key, a_secret)
+                                    else:
+                                        print("[TRADER APEX] No Alpaca keys in vault — skipping Alpaca reconnect", flush=True)
+
+                                    self._write_broker_status()
+                                    print("[TRADER APEX] Broker reconnect complete.", flush=True)
+                                else:
+                                    print(f"[TRADER APEX] Vault key fetch returned HTTP {resp.status_code}", flush=True)
+                            except Exception as reload_err:
+                                print(f"[TRADER APEX] reload_keys error: {reload_err}", flush=True)
+                                self._write_broker_status(error_msg=str(reload_err)[:120])
+                            finally:
+                                # Clear the flag regardless of outcome
+                                try:
+                                    ctrl['reload_keys_requested'] = False
+                                    with open(control_path, 'w', encoding='utf-8') as fw:
+                                        json.dump(ctrl, fw, indent=2)
+                                except Exception: pass
+                        # ─────────────────────────────────────────────────────
                 else:
                     self.apex_active = False
             except Exception as e:

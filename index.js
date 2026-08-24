@@ -5816,9 +5816,30 @@ app.get('/api/trader/status', (req, res) => {
         }
       }
     } catch(e) {}
-    res.json({ active, paper_trading: paper, start_time: typeof traderStartTime !== 'undefined' ? traderStartTime : null, rsi: lastRsi });
+
+    // ── TASK 1: Read live broker connection status written by trader.py ───
+    let brokerStatus = {};
+    try {
+      const bsPath = path.join(__dirname, 'memory', 'broker_status.json');
+      if (fs.existsSync(bsPath)) {
+        brokerStatus = JSON.parse(fs.readFileSync(bsPath, 'utf8'));
+      }
+    } catch(e) {}
+    // ──────────────────────────────────────────────────────────────────────
+
+    res.json({
+      active,
+      paper_trading: paper,
+      start_time: typeof traderStartTime !== 'undefined' ? traderStartTime : null,
+      rsi: lastRsi,
+      binance_connected: brokerStatus.binance_connected || false,
+      alpaca_connected:  brokerStatus.alpaca_connected  || false,
+      binance_mode:      brokerStatus.binance_mode      || 'testnet',
+      broker_error:      brokerStatus.error_msg         || null,
+      broker_last_checked: brokerStatus.last_checked    || null
+    });
   } catch (err) {
-    res.status(500).json({ active: false, paper_trading: true, error: err.message });
+    res.status(500).json({ active: false, paper_trading: true, error: err.message, binance_connected: false, alpaca_connected: false });
   }
 });
 

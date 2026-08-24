@@ -304,6 +304,25 @@ router.post(['/trading-vault', '/api/vault/trading/save'], async (req, res) => {
     const savedVault = result.next?.traderVault || {};
     console.log('[VAULT] Trading keys secured successfully.');
 
+    // ── TASK 2: Signal the running trader.py daemon to reconnect ──────────
+    // trader.py's _apex_daemon_loop checks this flag every cycle.
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const ctrlPath = path.join(__dirname, '..', 'memory', 'trader_control.json');
+      let ctrl = {};
+      if (fs.existsSync(ctrlPath)) {
+        ctrl = JSON.parse(fs.readFileSync(ctrlPath, 'utf8'));
+      }
+      ctrl.reload_keys_requested = true;
+      ctrl.reload_keys_requested_at = Date.now();
+      fs.writeFileSync(ctrlPath, JSON.stringify(ctrl, null, 2));
+      console.log('[VAULT] Reload-keys flag set in trader_control.json');
+    } catch (flagErr) {
+      console.warn('[VAULT] Could not set reload_keys flag:', flagErr.message);
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     res.status(200).json({
       success: true,
       message: 'Trading credentials secured.',
