@@ -262,6 +262,7 @@ class TraderSpecialist:
           self.binance = Client(api_key, secret, testnet=self.using_testnet)
           self.binance.ping()
           self.binance_connected = True
+          self._write_broker_status()
           mode = "TESTNET" if self.using_testnet else "MAINNET"
           print(f"[TRADER] Binance connected — {mode} mode")
 
@@ -273,6 +274,7 @@ class TraderSpecialist:
         except Exception as e:
           print(f"[TRADER] CONNECTION ERROR: {e}")
           self.binance_connected = False
+          self._write_broker_status(error_msg=e)
       else:
         print("[TRADER] No Binance keys provided — analysis-only mode")
 
@@ -287,7 +289,25 @@ class TraderSpecialist:
       if alpaca_key and alpaca_secret:
           self._connect_alpaca(alpaca_key, alpaca_secret)
       else:
+          self._write_broker_status()
           print("[TRADER] No Alpaca keys provided — stocks analysis-only mode")
+
+    def _write_broker_status(self, error_msg=None):
+        import time, json, os
+        status = {
+            "binance_connected": getattr(self, "binance_connected", False),
+            "alpaca_connected": getattr(self, "alpaca_connected", False),
+            "binance_mode": "testnet" if getattr(self, "using_testnet", False) else "mainnet",
+            "last_checked": time.time(),
+            "error_msg": str(error_msg) if error_msg else None
+        }
+        try:
+            mem_dir = os.path.join(os.path.dirname(__file__), "..", "memory")
+            os.makedirs(mem_dir, exist_ok=True)
+            with open(os.path.join(mem_dir, "broker_status.json"), "w") as f:
+                json.dump(status, f)
+        except Exception as e:
+            print(f"[TRADER APEX] Error writing broker status: {e}")
 
     # ── TASK 1 helper ────────────────────────────────────────────────────────
     def _connect_alpaca(self, api_key: str, secret_key: str):
@@ -308,12 +328,14 @@ class TraderSpecialist:
                 account = self.alpaca.get_account()
 
             self.alpaca_connected = True
+            self._write_broker_status()
             mode = "PAPER" if paper else "LIVE"
             print(f"[TRADER] Alpaca connected — {mode} mode "
                   f"| Equity: ${float(account.equity):,.2f}")
         except Exception as e:
             print(f"[TRADER] Alpaca connection error: {e}")
             self.alpaca_connected = False
+            self._write_broker_status(error_msg=e)
 
     def _speak_interim(self, text):
         print(f"[NEURAL_LOG] SPEECH: {text}")
@@ -1430,6 +1452,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                       f"{datetime.now().strftime('%H:%M:%S')}")
                 last_heartbeat_time = now
                 self._sync_real_portfolio()
+                self._write_broker_status()
             
             if not self.apex_active:
                 time.sleep(CYCLE_SLEEP)
