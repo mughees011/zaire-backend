@@ -13,7 +13,7 @@ class EngineerSpecialist:
     and to ensure that any legacy routing attempts cleanly fail or delegate appropriately.
     """
     
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         self.logger = logging.getLogger("EngineerSpecialist")
         self.logger.warning("EngineerSpecialist initialized, but this path is deprecated. Routing to Node backend.")
         

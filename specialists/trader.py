@@ -7,7 +7,10 @@ import threading
 from binance.client import Client
 from binance.ws.streams import ThreadedWebsocketManager
 from datetime import datetime
-from .llm_utils import call_llm_sync, call_llm_stream
+try:
+    from .llm_utils import call_llm_sync, call_llm_stream
+except ImportError:
+    from llm_utils import call_llm_sync, call_llm_stream
 
 
 # ── Internal signal endpoint for live frontend updates ────────────────────────
@@ -244,14 +247,17 @@ class TraderSpecialist:
       # ── VAULT INTEGRATION ───────────────────────────────────────────────
       # Fetch keys from the Node.js backend to bypass DPAPI/OS differences
       vault_keys = {}
-      try:
-          resp = requests.get("http://127.0.0.1:10000/api/internal/trader/keys", timeout=2)
-          if resp.status_code == 200:
-              vault_keys = resp.json().get("keys", {})
-              self.paper_trading = vault_keys.get("paperTrading", True)
-              print(f"[TRADER] Loaded vault keys. Paper trading: {self.paper_trading}")
-      except Exception as e:
-          print(f"[TRADER] Failed to load keys from internal vault: {e}")
+      for attempt in range(5):
+          try:
+              resp = requests.get("http://127.0.0.1:10000/api/internal/trader/keys", timeout=3)
+              if resp.status_code == 200:
+                  vault_keys = resp.json().get("keys", {})
+                  self.paper_trading = vault_keys.get("paperTrading", True)
+                  print(f"[TRADER] Loaded vault keys on attempt {attempt+1}. Paper trading: {self.paper_trading}")
+                  break
+          except Exception as e:
+              print(f"[TRADER] Attempt {attempt+1} - Failed to load keys from internal vault: {e}")
+              time.sleep(2)
 
       # ── BINANCE ─────────────────────────────────────────────────────────
       api_key = vault_keys.get("binanceApiKey") or binance_api_key or os.getenv("BINANCE_API_KEY")
