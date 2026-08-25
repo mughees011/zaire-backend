@@ -20,11 +20,13 @@ specialists_init = os.path.join(backend_dir, "specialists", "__init__.py")
 if not os.path.exists(specialists_init):
     open(specialists_init, "w").close()
 
-from groq import Groq
+# Use SafeGroqClient — this is a provider-agnostic wrapper that reads
+# keys from the AI Vault via llm_utils, so no GROQ_API_KEY env var needed.
+from specialists.llm_utils import SafeGroqClient
 from specialists.trader import TraderSpecialist
 
 if __name__ == "__main__":
     print("[TRADER] Starting standalone daemon mode (via run_trader.py)...", flush=True)
-    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+    groq_client = SafeGroqClient()  # no API key needed — reads from ZAIRE vault
     trader = TraderSpecialist(groq_client)
     trader._apex_daemon_loop()
