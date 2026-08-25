@@ -904,7 +904,9 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                 assets = []
                 total_val = 0.0
                 prices = {}
-                try: prices = self.binance.get_all_tickers()
+                try: 
+                    tickers = self.binance.get_all_tickers()
+                    prices = {t['symbol']: float(t['price']) for t in tickers}
                 except: pass
                 
                 for b in account['balances']:
@@ -914,7 +916,7 @@ Fear & Greed Index: {self.fear_greed_value} ({self.fear_greed_label})
                         val = qty
                         if asset != "USDT":
                             pair = f"{asset}USDT"
-                            if pair in prices: val = qty * float(prices[pair])
+                            if pair in prices: val = qty * prices[pair]
                             else: val = 0.0 # Unknown value
                         assets.append({"asset": asset, "quantity": qty, "usdValue": val})
                         total_val += val
